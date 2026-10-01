@@ -1,4 +1,5 @@
 package com.nhom8.nien_luan_nganh.entity;
+import com.nhom8.nien_luan_nganh.enums.Role;
 
 import jakarta.persistence.*;
 import lombok.*;
