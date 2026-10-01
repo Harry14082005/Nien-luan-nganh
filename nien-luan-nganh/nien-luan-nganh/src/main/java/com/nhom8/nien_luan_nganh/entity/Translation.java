@@ -5,26 +5,25 @@ import lombok.*;
 import java.util.*;
 import java.time.LocalDateTime;
 
-
 @Entity
-@Table(name="translations")
+@Table(name = "translations")
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 
-public class Translation{
+public class Translation {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "trans_id")
     private UUID transID;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "message_id",nullable = false)
+    @JoinColumn(name = "message_id", nullable = false)
     private Message message;
 
-    @Column(name = "source_language", length = 20)
+    @Column(name = "source_language", length = 20, nullable = false)
     private String sourceLanguage;
 
     @Column(name = "target_language", length = 20, nullable = false)
@@ -37,9 +36,7 @@ public class Translation{
     private LocalDateTime createdAt;
 
     @PrePersist
-    protected void onCreate(){
-        this.createdAt =LocalDateTime.now();
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
     }
 }
-
-

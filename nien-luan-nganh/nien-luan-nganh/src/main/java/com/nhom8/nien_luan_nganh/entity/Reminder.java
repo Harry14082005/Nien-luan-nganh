@@ -3,6 +3,9 @@ package com.nhom8.nien_luan_nganh.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.*;
+
+import com.nhom8.nien_luan_nganh.enums.ReminderType;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -33,6 +36,7 @@ public class Reminder {
     @Column(name = "description")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "reminder_type")
     private ReminderType reminderType;
 

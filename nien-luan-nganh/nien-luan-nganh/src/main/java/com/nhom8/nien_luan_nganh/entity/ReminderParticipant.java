@@ -15,7 +15,7 @@ import com.nhom8.nien_luan_nganh.enums.ParticipantResponse;
 public class ReminderParticipant {
 
     @EmbeddedId
-    private ReminerParticipantId id;
+    private ReminderParticipantId id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("reminderId")

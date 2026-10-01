@@ -4,7 +4,6 @@ import com.nhom8.nien_luan_nganh.enums.RoomRole;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.UUID;
 
 @Entity
 @Table(name = "user_room", uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "room_id" }))
@@ -15,10 +14,8 @@ import java.util.UUID;
 @Builder
 public class UserRoom {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "user_room_id")
-    private UUID userRoomId;
+    @EmbeddedId
+    private UserRoomId userRoomId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
