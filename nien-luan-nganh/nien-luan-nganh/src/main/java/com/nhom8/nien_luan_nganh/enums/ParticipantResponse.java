@@ -1,8 +1,7 @@
 package com.nhom8.nien_luan_nganh.enums;
 
-public enum FriendStatus {
+public enum ParticipantResponse {
     PENDING,
     ACCEPTED,
-    DECLINED,
-    BLOCKED
+    DECLINED
 }
