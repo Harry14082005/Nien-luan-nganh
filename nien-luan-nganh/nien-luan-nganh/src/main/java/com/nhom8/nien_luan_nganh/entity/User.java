@@ -1,7 +1,7 @@
 package com.nhom8.nien_luan_nganh.entity;
-import com.nhom8.nien_luan_nganh.enums.Role;
 
-import com.nhom8.nien_luan_nganh.enums.Role;
+import com.nhom8.nien_luan_nganh.enums.UserRole;
+
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.*;
@@ -20,7 +20,7 @@ public class User {
     @Column(name = "user_id")
     private UUID userId;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String username;
 
     @Column(nullable = false)
@@ -29,7 +29,7 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "phone_number", length = 15)
+    @Column(name = "phone_number", unique = true, length = 15)
     private String phoneNumber;
 
     @Column(length = 10)
@@ -44,7 +44,7 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private Role role = Role.USER;
+    private UserRole role = UserRole.USER;
 
     @Column(name = "is_banned")
     @Builder.Default
@@ -65,9 +65,5 @@ public class User {
     @Builder.Default
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<UserRoom> userRooms = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL)
-    private List<Message> messages = new ArrayList<>();
 
 }
