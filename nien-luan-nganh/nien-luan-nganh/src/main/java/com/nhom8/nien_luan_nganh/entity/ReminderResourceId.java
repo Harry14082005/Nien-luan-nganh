@@ -12,9 +12,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor 
 @AllArgsConstructor 
 public class ReminderResourceId implements Serializable {
-    @Column(name = "reminder_id")
     private UUID reminderId;
-
-    @Column(name = "user_id")
     private UUID userId;
 }

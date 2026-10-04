@@ -8,7 +8,7 @@ import java.util.Date;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll_option")
+@Table(name="poll_votes")
 @Getter
 @Setter
 @NoArgsConstructor

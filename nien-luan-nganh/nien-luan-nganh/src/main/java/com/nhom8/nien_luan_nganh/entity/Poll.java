@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll")
+@Table(name="polls")
 @Getter
 @Setter
 @NoArgsConstructor
