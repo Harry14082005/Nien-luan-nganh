@@ -35,6 +35,6 @@ public interface UserRoomRepository extends JpaRepository<UserRoom, UserRoomId> 
     long countById_RoomId(UUID roomId);
 
     // Lay user trong room
-    @Query("SELECT u FROM User u JOIN u.userRooms ur WHERE ur.id.roomId = :roomId")
-    List<User> findByRoomId(@Param("roomId") UUID roomId);
+    @Query("SELECT ur.user FROM UserRoom ur WHERE ur.id.roomId = :roomId")
+    List<User> findUsersByRoomId(@Param("roomId") UUID roomId);
 }

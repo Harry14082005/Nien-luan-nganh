@@ -28,7 +28,7 @@ public class Room {
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", nullable = false)
     @Builder.Default
-    private RoomType type = RoomType.DIRECT;
+    private RoomType roomType = RoomType.DIRECT;
 
     private String avatarRoom;
 
@@ -42,18 +42,6 @@ public class Room {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Message> messages = new ArrayList<>();
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Poll> polls = new ArrayList<>();
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Reminder> reminders = new ArrayList<>();
 
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
     @Builder.Default

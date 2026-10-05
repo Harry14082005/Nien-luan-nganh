@@ -5,29 +5,24 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
+
 @Entity
-@Table(name="friendships")
+@Table(name = "friendships")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 
-public class Friendship{
-
-    public enum FriendshipStatus {
-        PENDING,
-        ACCEPTED,
-        DECLINED,
-        BLOCKED
-    }
+public class Friendship {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name="friendship_id")
+    @Column(name = "friendship_id")
     private UUID friendshipID;
 
-    //User gui loi moi ket ban
+    // User gui loi moi ket ban
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -46,11 +41,10 @@ public class Friendship{
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    //Gan thoi gian tao truoc khi luu vao CSDL
+    // Gan thoi gian tao truoc khi luu vao CSDL
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
 }
-

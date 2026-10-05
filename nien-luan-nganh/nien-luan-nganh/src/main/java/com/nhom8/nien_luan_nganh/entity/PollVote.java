@@ -4,17 +4,16 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll_option")
+@Table(name = "poll_votes")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PollVote{
+public class PollVote {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "poll_vote_id")
@@ -30,7 +29,7 @@ public class PollVote{
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
-    //chưa thêm bên user
+    // chưa thêm bên user
 
     @ManyToOne
     @JoinColumn(name = "poll_id")

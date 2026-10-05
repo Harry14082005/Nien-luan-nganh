@@ -8,21 +8,21 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll")
+@Table(name = "notifications")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Notification{
+public class Notification {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "notification_id")
     private UUID notificationId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type")
-    @Builder.Default
-    private NotificationType type = NotificationType.A; //= cái gì
+    private NotificationType type;
 
     @Column(name = "reference_id")
     private String referenceId;
@@ -36,7 +36,11 @@ public class Notification{
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    private User user; //chưa bổ sung ở user
+    private User user; // chưa bổ sung ở user
 
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 
 }

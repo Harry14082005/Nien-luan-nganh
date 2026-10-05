@@ -1,14 +1,18 @@
 package com.nhom8.nien_luan_nganh.entity;
 
-import jakarta.persistence.EmbeddedId;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapsId;
+import jakarta.persistence.*;
+import lombok.*;
 
+@Entity
+@Table(name = "poll_resources")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PollResource {
     @EmbeddedId
     private PollResourceId pollResourceId;
-
 
     @ManyToOne
     @MapsId("messageId")

@@ -9,17 +9,21 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll")
+@Table(name = "poll")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Poll{
+public class Poll {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "poll_id")
     private UUID pollId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
+    private Room room;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -35,12 +39,12 @@ public class Poll{
     private User createdBy;
 
     @OneToMany(mappedBy = "poll")
-    private List<PollResource> pollResources = new ArrayList<>();
-
-    @OneToMany(mappedBy = "poll")
+    @Builder.Default
     private List<PollOption> pollOptions = new ArrayList<>();
 
-    @OneToMany(mappedBy = "poll")
-    private List<PollVote> pollVotes = new ArrayList<>();
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 
 }

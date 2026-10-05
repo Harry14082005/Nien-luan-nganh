@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name="poll_option")
+@Table(name = "poll_options")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PollOption{
+public class PollOption {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "poll_option_id")
@@ -28,5 +28,6 @@ public class PollOption{
     private Poll poll;
 
     @OneToMany(mappedBy = "pollOption")
+    @Builder.Default
     private List<PollVote> pollVotes = new ArrayList<>();
 }

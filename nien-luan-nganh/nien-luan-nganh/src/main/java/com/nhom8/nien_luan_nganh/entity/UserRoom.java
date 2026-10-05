@@ -15,12 +15,14 @@ import lombok.*;
 public class UserRoom {
 
     @EmbeddedId
-    private UserRoomId userRoomId;
+    private UserRoomId id;
 
+    @MapsId("userId")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @MapsId("roomId")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
