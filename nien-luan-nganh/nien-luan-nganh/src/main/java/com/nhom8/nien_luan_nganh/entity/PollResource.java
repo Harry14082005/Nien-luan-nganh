@@ -4,7 +4,11 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
+<<<<<<< HEAD
 @Table(name = "poll_resources")
+=======
+@Table(name="poll_resource")
+>>>>>>> fbdb5e85ab9add93784081c0956ce19e7236f639
 @Getter
 @Setter
 @NoArgsConstructor

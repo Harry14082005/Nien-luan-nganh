@@ -17,4 +17,5 @@ public class ReminderResourceId implements Serializable {
 
     @Column(name = "message_id")
     private UUID messageId;
+
 }

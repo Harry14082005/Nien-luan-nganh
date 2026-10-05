@@ -17,7 +17,6 @@ public class UserRoomId implements Serializable {
 
     @Column(name = "user_id")
     private UUID userId;
-
     @Column(name = "room_id")
     private UUID roomId;
 }

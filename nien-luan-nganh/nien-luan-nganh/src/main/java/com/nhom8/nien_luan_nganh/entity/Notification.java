@@ -20,9 +20,9 @@ public class Notification {
     @Column(name = "notification_id")
     private UUID notificationId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "type")
-    private NotificationType type;
+    @Enumerated(EnumType.STRING)
+    private NotificationType type; // khoi set default cai nay cung dc
 
     @Column(name = "reference_id")
     private String referenceId;
