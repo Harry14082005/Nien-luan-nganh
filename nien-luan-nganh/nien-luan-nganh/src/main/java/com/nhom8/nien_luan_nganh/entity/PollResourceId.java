@@ -12,16 +12,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PollResourceId implements Serializable {
-<<<<<<< HEAD
-
     @Column(name = "message_id")
     private UUID messageId;
 
     @Column(name = "poll_id")
     private UUID pollId;
-
-=======
-    private UUID messageId;
-    private UUID pollId;
->>>>>>> fbdb5e85ab9add93784081c0956ce19e7236f639
 }

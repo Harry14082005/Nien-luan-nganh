@@ -7,11 +7,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-<<<<<<< HEAD
 @Table(name = "poll_votes")
-=======
-@Table(name="poll_votes")
->>>>>>> fbdb5e85ab9add93784081c0956ce19e7236f639
 @Getter
 @Setter
 @NoArgsConstructor

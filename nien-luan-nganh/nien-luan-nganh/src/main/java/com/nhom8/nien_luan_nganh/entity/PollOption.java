@@ -8,11 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-<<<<<<< HEAD
 @Table(name = "poll_options")
-=======
-@Table(name="poll_options")
->>>>>>> fbdb5e85ab9add93784081c0956ce19e7236f639
 @Getter
 @Setter
 @NoArgsConstructor
