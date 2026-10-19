@@ -4,24 +4,25 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "poll_resources")
+@Table(name = "poll_resource")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class PollResource {
+
     @EmbeddedId
-    private PollResourceId pollResourceId;
+    private PollResourceId id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("messageId")
-    @JoinColumn(name = "message_id")
-    Message message;
+    @JoinColumn(name = "message_id", nullable = false)
+    private Message message;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("pollId")
-    @JoinColumn(name = "poll_id")
-    Poll poll;
+    @JoinColumn(name = "poll_id", nullable = false)
+    private Poll poll;
 
 }

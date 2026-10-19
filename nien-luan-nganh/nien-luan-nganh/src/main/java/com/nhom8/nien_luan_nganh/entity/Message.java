@@ -1,12 +1,11 @@
 package com.nhom8.nien_luan_nganh.entity;
 
+import com.nhom8.nien_luan_nganh.enums.MessageType;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
-
-import com.nhom8.nien_luan_nganh.enums.MessageType;
 
 @Entity
 @Table(name = "messages")
@@ -31,14 +30,14 @@ public class Message {
     private User sender;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, name = "message_type")
+    @Column(name = "message_type", nullable = false)
     @Builder.Default
-    private MessageType type = MessageType.TEXT;
+    private MessageType messageType = MessageType.TEXT;
 
-    @Column(nullable = false)
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
-    // rep tin nhan
+    // rep tin nhan (self-reference)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "message_id_replied")
     private Message repliedMessage;
@@ -54,16 +53,29 @@ public class Message {
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
 
+    @Column(name = "is_pinned")
+    @Builder.Default
+    private Boolean isPinned = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
     @Builder.Default
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Translation> translations = new ArrayList<>();
 
+    @Builder.Default
+    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MessageHistory> messageHistories = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MessageReaction> messageReactions = new ArrayList<>();
 }

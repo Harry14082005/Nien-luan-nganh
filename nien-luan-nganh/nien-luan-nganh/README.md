@@ -14,13 +14,13 @@ Dự án Backend cung cấp toàn bộ hệ thống API phục vụ xác thực 
 
 ## 👥 2. Phân Chia Trách Nhiệm Thành Viên
 
-| Thành viên | Trách nhiệm chính trong Backend |
+<!-- | Thành viên | Trách nhiệm chính trong Backend |
 | :--- | :--- |
 | **PT** | • Module Xác thực: Đăng ký, đăng nhập, JWT Token, User Details, Phân quyền.<br>• Quản lý thông tin cá nhân & tìm kiếm người dùng / cuộc trò chuyện.<br>• Lịch sử chỉnh sửa tin nhắn, ghim tin nhắn.<br>• Tích hợp AI dịch nội dung tin nhắn đa ngôn ngữ. |
 | **CNT** | • Module Chat: Nhắn tin 1:1 và Nhắn tin nhóm (Group Chat).<br>• Quản lý phòng chat, vai trò thành viên (`OWNER`, `ADMIN`, `MEMBER`).<br>• Xử lý đa phương tiện: Tin nhắn văn bản, hình ảnh, file đính kèm.<br>• Tích hợp AI phát hiện nội dung cần biểu quyết → đề xuất tạo Poll. |
 | **Kiet** | • Module Bình chọn (Poll) & Phương án bình chọn, biểu quyết thời gian thực.<br>• Module Lịch hẹn (Reminder) & Quản lý người tham gia.<br>• Hệ thống thông báo thời gian thực (Notification) qua WebSocket.<br>• Tích hợp AI phát hiện lịch hẹn trong hội thoại → đề xuất tạo Reminder. |
 
----
+--- -->
 
 ## 🛠️ 3. Công Nghệ & Thư Viện Sử Dụng
 

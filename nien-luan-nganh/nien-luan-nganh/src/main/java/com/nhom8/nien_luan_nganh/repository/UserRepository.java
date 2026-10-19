@@ -30,4 +30,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findByRole(UserRole role);
 
+    //Dung khi User co the dung sdt haoc email
+    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.phoneNumber = :identifier")
+    Optional<User> findByEmailOrPhoneNumber(@Param("identifier") String identifier);
+
 }

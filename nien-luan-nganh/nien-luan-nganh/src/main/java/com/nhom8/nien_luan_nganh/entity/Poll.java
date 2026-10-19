@@ -16,6 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Poll {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "poll_id")
@@ -25,26 +26,28 @@ public class Poll {
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @Column(name = "is_active")
-    private boolean isActive;
-
-    @Column(name = "question")
-    private String question;
-
-    @ManyToOne
-    @JoinColumn(name = "created_by")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    @OneToMany(mappedBy = "poll")
+    @Column(name = "is_active")
     @Builder.Default
-    private List<PollOption> pollOptions = new ArrayList<>();
+    private Boolean isActive = true;
+
+    @Column(name = "question", columnDefinition = "TEXT", nullable = false)
+    private String question;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<PollOption> options = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
     }
-
 }

@@ -1,12 +1,11 @@
 package com.nhom8.nien_luan_nganh.entity;
 
+import com.nhom8.nien_luan_nganh.enums.RoomType;
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.*;
-
-import com.nhom8.nien_luan_nganh.enums.RoomType;
 
 import java.time.LocalDateTime;
+import java.util.*;
 
 @Entity
 @Table(name = "rooms")
@@ -27,11 +26,12 @@ public class Room {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", nullable = false)
-    @Builder.Default
-    private RoomType roomType = RoomType.DIRECT;
+    private RoomType roomType;
 
+    @Column(name = "avatar_room")
     private String avatarRoom;
 
+    @Column(length = 50)
     @Builder.Default
     private String theme = "default";
 
@@ -40,11 +40,13 @@ public class Room {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
+    // Relationships
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
     @Builder.Default
-    private List<UserRoom> userRooms = new ArrayList<>();
-
+    private List<RoomMember> roomMembers = new ArrayList<>();
 }

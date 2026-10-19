@@ -1,8 +1,8 @@
 package com.nhom8.nien_luan_nganh.entity;
 
+import com.nhom8.nien_luan_nganh.enums.RsvpResponse;
 import jakarta.persistence.*;
 import lombok.*;
-import com.nhom8.nien_luan_nganh.enums.ParticipantResponse;
 
 @Entity
 @Table(name = "reminder_participants")
@@ -11,7 +11,6 @@ import com.nhom8.nien_luan_nganh.enums.ParticipantResponse;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-
 public class ReminderParticipant {
 
     @EmbeddedId
@@ -19,16 +18,17 @@ public class ReminderParticipant {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("reminderId")
-    @JoinColumn(name = "reminder_id")
+    @JoinColumn(name = "reminder_id", nullable = false)
     private Reminder reminder;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("userId")
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "response")
-    private ParticipantResponse response;
+    @Builder.Default
+    private RsvpResponse response = RsvpResponse.PENDING;
 
 }

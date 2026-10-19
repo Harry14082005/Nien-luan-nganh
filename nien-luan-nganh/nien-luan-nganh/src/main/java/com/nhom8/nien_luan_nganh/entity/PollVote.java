@@ -7,32 +7,38 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "poll_votes")
+@Table(name = "poll_votes", uniqueConstraints = @UniqueConstraint(columnNames = {"poll_id", "user_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class PollVote {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "poll_vote_id")
     private UUID pollVoteId;
 
-    @Column(name = "voted_at")
-    private LocalDateTime votedAt;
-
-    @ManyToOne
-    @JoinColumn(name = "poll_option_id")
-    private PollOption pollOption;
-
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
-    // chưa thêm bên user
-
-    @ManyToOne
-    @JoinColumn(name = "poll_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "poll_id", nullable = false)
     private Poll poll;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "poll_option_id", nullable = false)
+    private PollOption pollOption;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "voted_at", updatable = false)
+    private LocalDateTime votedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.votedAt == null) {
+            this.votedAt = LocalDateTime.now();
+        }
+    }
 }

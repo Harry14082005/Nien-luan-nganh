@@ -15,32 +15,34 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Notification {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "notification_id")
     private UUID notificationId;
 
-    @Column(name = "type")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @Enumerated(EnumType.STRING)
-    private NotificationType type; // khoi set default cai nay cung dc
+    @Column(name = "notification_type", nullable = false)
+    private NotificationType notificationType;
 
     @Column(name = "reference_id")
-    private String referenceId;
+    private UUID referenceId;
 
     @Column(name = "is_read")
     @Builder.Default
     private Boolean isRead = false;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user; // chưa bổ sung ở user
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
     }
-
 }

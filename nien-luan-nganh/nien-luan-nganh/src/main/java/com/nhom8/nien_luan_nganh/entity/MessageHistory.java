@@ -1,9 +1,9 @@
 package com.nhom8.nien_luan_nganh.entity;
 
-import java.util.UUID;
-import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "message_histories")
@@ -15,14 +15,14 @@ import lombok.*;
 public class MessageHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "history_id")
-    private UUID historyId;
+    @Column(name = "message_history_id")
+    private UUID messageHistoryId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "message_id", nullable = false)
     private Message message;
 
-    @Column(nullable = false)
+    @Column(name = "content", columnDefinition = "TEXT", nullable = false)
     private String content;
 
     @Column(name = "edited_at", nullable = false)
@@ -30,7 +30,8 @@ public class MessageHistory {
 
     @PrePersist
     protected void onEdit() {
-        this.editedAt = LocalDateTime.now();
+        if (this.editedAt == null) {
+            this.editedAt = LocalDateTime.now();
+        }
     }
-
 }
