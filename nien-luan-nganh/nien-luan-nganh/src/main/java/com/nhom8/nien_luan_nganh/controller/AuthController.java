@@ -7,6 +7,7 @@ import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.AuthResponse;
 import com.nhom8.nien_luan_nganh.service.AuthService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,12 +20,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final AuthService authService;
-
-    // Khởi tạo tường minh
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
+    @Autowired
+    private AuthService authService;
 
     /**
      * API 1: Đăng ký tài khoản mới.

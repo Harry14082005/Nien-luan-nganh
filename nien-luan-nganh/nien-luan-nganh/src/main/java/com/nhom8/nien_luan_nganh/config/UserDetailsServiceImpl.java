@@ -2,6 +2,7 @@ package com.nhom8.nien_luan_nganh.config;
 
 import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -15,11 +16,8 @@ import java.util.UUID;
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
-    private final UserRepository userRepository;
-
-    public UserDetailsServiceImpl(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
+    @Autowired
+    private UserRepository userRepository;
 
     // Nạp thông tin người dùng dựa trên định danh (identifier).
     // Hàm này được Spring Security tự động gọi khi:

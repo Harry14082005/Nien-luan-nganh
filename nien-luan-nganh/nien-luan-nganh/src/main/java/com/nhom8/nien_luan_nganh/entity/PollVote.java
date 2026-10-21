@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "poll_votes", uniqueConstraints = @UniqueConstraint(columnNames = {"poll_id", "user_id"}))
@@ -15,10 +14,6 @@ import java.util.UUID;
 @Builder
 public class PollVote {
 
-//    @Id
-//    @GeneratedValue(strategy = GenerationType.UUID)
-//    @Column(name = "poll_vote_id")
-//    private UUID pollVoteId;
 
     @EmbeddedId
     private PollVoteId pollVoteId;
