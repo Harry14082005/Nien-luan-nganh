@@ -8,4 +8,5 @@ import java.util.*;
 @Repository
 public interface PollRepository extends JpaRepository<Poll, UUID> {
 
+
 }
