@@ -1,8 +1,13 @@
 package com.nhom8.nien_luan_nganh.mapper;
 
+import com.nhom8.nien_luan_nganh.dto.request.UpdateProfileRequest;
 import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
 import com.nhom8.nien_luan_nganh.entity.User;
+
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 /**
  * Interface Mapper sử dụng MapStruct để chuyển đổi tự động giữa Entity User và DTO UserResponse.
@@ -13,4 +18,7 @@ import org.mapstruct.Mapper;
 public interface UserMapper {
 
     UserResponse toUserResponse(User user);
+
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void updateUserFromRequest(UpdateProfileRequest request, @MappingTarget User user);
 }

@@ -58,30 +58,8 @@ public class UserService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        // Cập nhật tên hiển thị nếu có truyền lên
-        if (request.getUsername() != null && !request.getUsername().isBlank()) {
-            user.setUsername(request.getUsername().trim());
-        }
-
-        // Cập nhật ảnh đại diện nếu có
-        if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl().trim());
-        }
-
-        // Cập nhật giới tính nếu có
-        if (request.getGender() != null) {
-            user.setGender(request.getGender().trim());
-        }
-
-        // Cập nhật tiểu sử (bio) nếu có
-        if (request.getDescription() != null) {
-            user.setDescription(request.getDescription().trim());
-        }
-
-        // Cập nhật ngôn ngữ ưa thích (vi, en,...)
-        if (request.getPreferredLanguage() != null && !request.getPreferredLanguage().isBlank()) {
-            user.setPreferredLanguage(request.getPreferredLanguage().trim());
-        }
+        // Cập nhật thông tin người dùng
+        userMapper.updateUserFromRequest(request, user);
 
         // Lưu lại thông tin mới vào database
         User updatedUser = userRepository.save(user);
