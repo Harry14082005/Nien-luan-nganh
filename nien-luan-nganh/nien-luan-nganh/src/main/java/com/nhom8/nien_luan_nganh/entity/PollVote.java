@@ -15,10 +15,13 @@ import java.util.UUID;
 @Builder
 public class PollVote {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "poll_vote_id")
-    private UUID pollVoteId;
+//    @Id
+//    @GeneratedValue(strategy = GenerationType.UUID)
+//    @Column(name = "poll_vote_id")
+//    private UUID pollVoteId;
+
+    @EmbeddedId
+    private PollVoteId pollVoteId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "poll_id", nullable = false)
@@ -26,10 +29,12 @@ public class PollVote {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "poll_option_id", nullable = false)
+    @MapsId("pollOptionId")
     private PollOption pollOption;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @MapsId("userId")
     private User user;
 
     @Column(name = "voted_at", updatable = false)

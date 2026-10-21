@@ -13,7 +13,7 @@ import lombok.*;
 public class ReminderResource {
 
     @EmbeddedId
-    private ReminderResourceId id;
+    private ReminderResourceId reminderResourceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("messageId")
@@ -27,8 +27,8 @@ public class ReminderResource {
 
     @PrePersist
     protected void onCreate() {
-        if (id == null && message != null && reminder != null) {
-            id = new ReminderResourceId(reminder.getReminderId(), message.getMessageId());
+        if (reminderResourceId == null && message != null && reminder != null) {
+            reminderResourceId = new ReminderResourceId(reminder.getReminderId(), message.getMessageId());
         }
     }
 }
