@@ -39,7 +39,7 @@ public class Message {
 
     // rep tin nhan (self-reference)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "message_id_replied")
+    @JoinColumn(name = "replied_message_id")
     private Message repliedMessage;
 
     @Column(name = "is_edited")

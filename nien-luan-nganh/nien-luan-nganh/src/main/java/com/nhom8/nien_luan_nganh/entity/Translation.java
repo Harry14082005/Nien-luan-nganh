@@ -17,8 +17,8 @@ public class Translation {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "trans_id")
-    private UUID transId;
+    @Column(name = "translation_id")
+    private UUID translationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "message_id", nullable = false)

@@ -22,7 +22,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByPhoneNumber(String phoneNumber);
 
     // tim ban be
-    @Query("SELECT u FROM User u WHERE u.email= :q OR u.phoneNumber = :q")
+    @Query("SELECT u FROM User u WHERE u.email = :q OR u.phoneNumber = :q")
     Optional<User> findByEmailOrPhoneNumber(@Param("q") String q);
 
     // Bo loc cua Admin
@@ -30,8 +30,17 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findByRole(UserRole role);
 
-    //Dung khi User co the dung sdt haoc email
-    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.phoneNumber = :identifier")
-    Optional<User> findByEmailOrPhoneNumber(@Param("identifier") String identifier);
+//    // tim ban be
+//    @Query("SELECT u FROM User u WHERE u.email= :q OR u.phoneNumber = :q")
+//    Optional<User> findByEmailOrPhoneNumber(@Param("q") String q);
+//
+//    // Bo loc cua Admin
+//    List<User> findByIsBanned(Boolean isBanned);
+//
+//    List<User> findByRole(UserRole role);
+//
+//    //Dung khi User co the dung sdt haoc email
+//    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.phoneNumber = :identifier")
+//    Optional<User> findByEmailOrPhoneNumber(@Param("identifier") String identifier);
 
 }
