@@ -1,5 +1,6 @@
 package com.nhom8.nien_luan_nganh.entity;
 
+import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,7 +18,7 @@ import java.util.UUID;
 public class RoomMember {
 
     @EmbeddedId
-    private RoomMemberId id;
+    private RoomMemberId roomMemberId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("roomId")
@@ -34,8 +35,9 @@ public class RoomMember {
     @Builder.Default
     private RoomRole roomMemberRole = RoomRole.MEMBER;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status;
+    private RoomMemberStatus status;
 
     @Column(name = "joined_at", updatable = false)
     private LocalDateTime joinedAt;

@@ -21,6 +21,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByPhoneNumber(String phoneNumber);
 
+
     // tim ban be
     @Query("SELECT u FROM User u WHERE u.email = :q OR u.phoneNumber = :q")
     Optional<User> findByEmailOrPhoneNumber(@Param("q") String q);
@@ -29,7 +30,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findByIsBanned(Boolean isBanned);
 
     List<User> findByRole(UserRole role);
-
+}
 //    // tim ban be
 //    @Query("SELECT u FROM User u WHERE u.email= :q OR u.phoneNumber = :q")
 //    Optional<User> findByEmailOrPhoneNumber(@Param("q") String q);
@@ -43,4 +44,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 //    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.phoneNumber = :identifier")
 //    Optional<User> findByEmailOrPhoneNumber(@Param("identifier") String identifier);
 
-}
+
+

@@ -35,6 +35,13 @@ public class Room {
     @Builder.Default
     private String theme = "default";
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", updatable = false, nullable = true)
+    private User createdBy;
+
+    @Column(name = "require_approval")
+    private boolean requireApproval; // true = cần duyệt, false = không cần duyêt
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

@@ -1,6 +1,5 @@
 package com.nhom8.nien_luan_nganh.dto.response;
 
-import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.enums.UserRole;
 import lombok.*;
 
@@ -31,26 +30,4 @@ public class UserResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // Giup chuyen Entity User sang UserResponse nhanh
-    public static UserResponse fromUser(User user) {
-        if (user == null) {
-            return null;
-        }
-        return UserResponse.builder()
-                .userId(user.getUserId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .phoneNumber(user.getPhoneNumber())
-                .avatarUrl(user.getAvatarUrl())
-                .gender(user.getGender())
-                .preferredLanguage(user.getPreferredLanguage())
-                .role(user.getRole())
-                .description(user.getDescription())
-                .isBanned(user.getIsBanned())
-                .bannedAt(user.getBannedAt())
-                .lastSeenAt(user.getLastSeenAt())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .build();
-    }
 }
