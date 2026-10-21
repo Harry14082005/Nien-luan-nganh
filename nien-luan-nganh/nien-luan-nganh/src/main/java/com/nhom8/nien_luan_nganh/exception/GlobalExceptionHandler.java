@@ -1,7 +1,6 @@
 package com.nhom8.nien_luan_nganh.exception;
 
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;

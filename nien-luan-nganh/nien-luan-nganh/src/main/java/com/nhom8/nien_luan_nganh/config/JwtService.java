@@ -64,7 +64,7 @@ public class JwtService {
         return buildToken(new HashMap<>(), user.getUserId().toString(), refreshExpiration);
     }
 
-    // Phương thức dùng chung để đóng gói và ký chuỗi JWT theo chuẩn JJWT 0.12.6.
+    // Phương thức dùng chung để đóng gói và ký chuỗi JWT.
     // -> ghep Header Payload Signature -> header.payload.signature
 
     private String buildToken(Map<String, Object> extraClaims, String subject, long expiration) {
@@ -77,8 +77,7 @@ public class JwtService {
                 .compact();
     }
 
-    // Trích xuất Subject (ở hệ thống này chính là userId) từ JWT Token.
-
+    // Trích xuất Subject từ JWT Token (theo userId).
     public String extractSubject(String token) {
         return extractClaim(token, Claims::getSubject);
     }
@@ -96,7 +95,6 @@ public class JwtService {
 
     // Hàm generic trích xuất một trường thông tin bất kỳ (Claim) trong Payload bằng
     // Claims Resolver function.
-
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);

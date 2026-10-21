@@ -12,6 +12,7 @@ import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.UserMapper;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,21 +30,17 @@ import java.util.UUID;
 @Service
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
-    private final UserMapper userMapper;
+    @Autowired
+    private UserRepository userRepository;
 
-    // Khởi tạo tường minh (Explicit Constructor) tránh lỗi Flexible Constructor Bodies trên VS Code
-    public AuthService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtService jwtService,
-                       UserMapper userMapper) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
-        this.userMapper = userMapper;
-    }
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private UserMapper userMapper;
 
     /**
      * Nghiệp vụ 1: Đăng ký tài khoản người dùng mới.
