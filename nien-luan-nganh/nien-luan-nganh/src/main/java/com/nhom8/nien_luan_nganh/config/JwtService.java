@@ -17,15 +17,14 @@ import java.util.UUID;
 import java.util.function.Function;
 
 //Service quản lý toàn bộ vòng đời của JSON Web Token (JWT).
-// Sử dụng thư viện io.jsonwebtoken (JJWT)
-// - Tạo Access Token ngắn hạn và Refresh Token dài hạn.
-// - Giải mã (Parse) và trích xuất Claims từ chuỗi Token.
-// - Xác thực tính toàn vẹn (Signature) và kiểm tra hạn sử dụng (Expiration).
+//Sử dụng thư viện io.jsonwebtoken (JJWT)
+//- Tạo Access Token ngắn hạn và Refresh Token dài hạn.
+//- Giải mã (Parse) và trích xuất Claims từ chuỗi Token.
+//- Xác thực tính toàn vẹn (Signature) và kiểm tra hạn sử dụng (Expiration).
 @Service
 public class JwtService {
 
-    // Khóa bí mật dùng để ký và xác thực chữ ký điện tử HMAC-SHA256 (ít nhất 256
-    // bits)
+    // Khóa bí mật dùng để ký và xác thực chữ ký điện tử HMAC-SHA256 (ít nhất 256 bits)
     @Value("${jwt.secret}")
     private String secretKey;
 
