@@ -2,7 +2,8 @@ package com.nhom8.nien_luan_nganh.service;
 
 import com.nhom8.nien_luan_nganh.dto.request.CreateDirectRoomRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
-import com.nhom8.nien_luan_nganh.dto.response.RoomResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
@@ -14,11 +15,10 @@ import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -26,16 +26,14 @@ import java.util.UUID;
 public class RoomService {
 
     private final RoomRepository roomRepository;
-
     private final UserRepository userRepository;
-
     private final RoomMapper roomMapper;
-
     private final RoomMemberService roomMemberService;
+    private final RoomMemberRepository roomMemberRepository;
 
     //tạo group
     @Transactional
-    public RoomResponse createGroup(CreateGroupRequest request, UUID currentUserId){
+    public RoomListResponse createGroup(CreateGroupRequest request, UUID currentUserId){
         User creator = userRepository.findById(currentUserId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
@@ -55,8 +53,9 @@ public class RoomService {
         return roomMapper.toRoomResponse(room);
     }
 
+    //tạo nhóm 2 người trực tiếp
     @Transactional
-    public RoomResponse createDirectRoom(CreateDirectRoomRequest request, UUID currentUserId){
+    public RoomListResponse createDirectRoom(CreateDirectRoomRequest request, UUID currentUserId){
         if(request.getUserId() == null)
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         if(request.getUserId().equals(currentUserId))
@@ -81,5 +80,16 @@ public class RoomService {
 
                     return roomMapper.toRoomResponse(room);
                 });
+    }
+
+    // lấy danh sách phòng chat
+    @Transactional
+    public List<RoomListResponse> getRooms(UUID currentUserId){
+        return null;
+    }
+
+    @Transactional
+    public RoomDetailResponse getRoom(UUID roomId, UUID currentUserId){
+        return null;
     }
 }
