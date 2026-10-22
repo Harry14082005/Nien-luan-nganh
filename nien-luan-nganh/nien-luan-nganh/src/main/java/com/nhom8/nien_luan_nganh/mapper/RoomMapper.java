@@ -11,8 +11,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface RoomMapper {
 
-    // @Mapping(target = "roomAvatarURL", source = "avatarRoom")
-    // @Mapping(target = "createdBy", source = "createdBy.username")
+    @Mapping(target = "createdBy", source = "createdBy.userId")
     RoomDetailResponse toRoomDetailResponse(Room room);
 
     // @Mapping(target = "avatarRoom", source = "roomAvatarURL")

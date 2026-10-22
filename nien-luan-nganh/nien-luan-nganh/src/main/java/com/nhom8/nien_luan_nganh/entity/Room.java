@@ -28,8 +28,8 @@ public class Room {
     @Column(name = "room_type", nullable = false)
     private RoomType roomType;
 
-    @Column(name = "avatar_room")
-    private String avatarRoom;
+    @Column(name = "room_avatar_url")
+    private String roomAvatarURL;
 
     @Column(length = 50)
     @Builder.Default

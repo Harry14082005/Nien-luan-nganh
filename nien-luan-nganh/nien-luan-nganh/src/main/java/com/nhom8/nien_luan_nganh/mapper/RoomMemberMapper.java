@@ -7,9 +7,8 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface RoomMemberMapper {
-    @Mapping(target = "roomId", source = "room.id")
-    @Mapping(target = "userId", source = "user.id")
-    // @Mapping(target = "roomId", source = "room.roomId")
-    // @Mapping(target = "userId", source = "user.userId")
+
+    @Mapping(target = "roomId", source = "room.roomId")
+    @Mapping(target = "userId", source = "user.userId")
     RoomMemberResponse toRoomMemberResponse(RoomMember roomMember);
 }
