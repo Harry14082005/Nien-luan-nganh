@@ -24,21 +24,21 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemb
     Optional<RoomMember> findByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
 
     // Lay tat ca member trong room
-    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.id.roomId = :roomId")
+    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.roomMemberId.roomId = :roomId")
     List<RoomMember> findMembersByRoomId(@Param("roomId") UUID roomId);
 
     // Lay tat ca room cua user
-    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.room WHERE rm.id.userId = :userId")
+    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.room WHERE rm.roomMemberId.userId = :userId")
     List<RoomMember> findRoomsByUserId(@Param("userId") UUID userId);
 
     // Lay member theo role
-    List<RoomMember> findById_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
+    List<RoomMember> findByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
 
     // Dem so member trong room
     long countByRoomMemberId_RoomId(UUID roomId);
 
     // Lay user trong room
-    @Query("SELECT rm.user FROM RoomMember rm WHERE rm.id.roomId = :roomId")
+    @Query("SELECT rm.user FROM RoomMember rm WHERE rm.roomMemberId.roomId = :roomId")
     List<User> findUsersByRoomId(@Param("roomId") UUID roomId);
 
     long countByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole role);

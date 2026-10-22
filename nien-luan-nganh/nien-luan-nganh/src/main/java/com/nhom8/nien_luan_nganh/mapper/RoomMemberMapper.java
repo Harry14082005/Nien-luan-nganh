@@ -9,5 +9,7 @@ import org.mapstruct.Mapping;
 public interface RoomMemberMapper {
     @Mapping(target = "roomId", source = "room.id")
     @Mapping(target = "userId", source = "user.id")
+    // @Mapping(target = "roomId", source = "room.roomId")
+    // @Mapping(target = "userId", source = "user.userId")
     RoomMemberResponse toRoomMemberResponse(RoomMember roomMember);
 }

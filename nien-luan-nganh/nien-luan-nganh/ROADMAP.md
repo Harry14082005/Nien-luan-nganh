@@ -68,13 +68,13 @@
 
 ## 🟡 PHẦN 2: CÁC CHẶNG ĐANG VÀ SẼ LÀM
 
-### ⏳ Chặng 4: Phân hệ Hồ sơ Người dùng (Users Module) - *[HIỆN TẠI]*
-- [ ] Lấy thông tin cá nhân hiện tại (`GET /api/v1/users/me`).
-- [ ] Cập nhật hồ sơ: bio, giới tính, avatar, ngôn ngữ ưa thích (`PUT /api/v1/users/me`).
-- [ ] Đổi mật khẩu (`PUT /api/v1/user/me/password`).
-- [ ] Đổi Email (`PUT /api/v1/user/me/email`), Đổi Số điện thoại (`PUT /api/v1/user/me/phone`).
-- [ ] Tìm kiếm người dùng theo Email hoặc Số điện thoại (`GET /api/v1/users/search?q=...`).
-- [ ] Xem trang cá nhân công khai của người khác (`GET /api/v1/users/{userId}`).
+### ✅ Chặng 4: Phân hệ Hồ sơ Người dùng (Users Module) - *[HOÀN THÀNH]*
+- [x] Lấy thông tin cá nhân hiện tại (`GET /api/v1/users/me`).
+- [x] Cập nhật hồ sơ: bio, giới tính, avatar, ngôn ngữ ưa thích (`PUT /api/v1/users/me`).
+- [x] Đổi mật khẩu (`PUT /api/v1/user/me/password` hoặc `/api/v1/users/me/password`).
+- [x] Đổi Email (`PUT /api/v1/user/me/email`), Đổi Số điện thoại (`PUT /api/v1/user/me/phone`).
+- [x] Tìm kiếm người dùng theo Email, SĐT hoặc Tên hiển thị (`GET /api/v1/users/search?q=...`).
+- [x] Xem trang cá nhân công khai của người khác (`GET /api/v1/users/{userId}`).
 
 ---
 
@@ -92,7 +92,7 @@
 - [ ] Tạo phòng chat nhóm (`POST /api/v1/rooms/group`).
 - [ ] Thêm thành viên mới vào nhóm chat.
 - [ ] Xóa thành viên khỏi nhóm chat.
-- [ ] Phân quyền vai trò: ~~Trưởng nhóm (`OWNER`)~~, Trưởng nhóm (`ADMIN`), Thành viên (`MEMBER`).
+- [ ] Phân quyền vai trò: Trưởng nhóm (`OWNER`), Trưởng nhóm (`ADMIN`), Thành viên (`MEMBER`).
 - [ ] Đổi tên nhóm, avatar nhóm, chuyển quyền trưởng nhóm (Transfer Owner), rời nhóm.
 
 ---
