@@ -11,6 +11,8 @@ public enum ErrorCode {
     UNAUTHENTICATED(1002, "Chưa xác thực thông tin đăng nhập", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1003, "Bạn không có quyền thực hiện hành động này", HttpStatus.FORBIDDEN),
     INVALID_INPUT(1004, "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST),
+    NEW_PASSWORD_SAME_AS_OLD(1005, "Mật khẩu mới không được trùng với mật khẩu hiện tại", HttpStatus.BAD_REQUEST),
+
 
     // --- Phân hệ Người dùng & Xác thực (1010 - 10..) ---
     USER_NOT_EXISTED(1010, "Người dùng không tồn tại", HttpStatus.NOT_FOUND),
@@ -30,9 +32,10 @@ public enum ErrorCode {
     CONFIRM_PASSWORD_REQUIRED(1023, "Mật khẩu xác nhận không được để trống", HttpStatus.BAD_REQUEST),
     IDENTIFIER_REQUIRED(1024, "Email hoặc số điện thoại không được để trống", HttpStatus.BAD_REQUEST),
     REFRESH_TOKEN_REQUIRED(1025, "Refresh token không được để trống", HttpStatus.BAD_REQUEST),
-    CONTACT_REQUIRED(1026, "Vui lòng nhập email hoặc số điện thoại để đăng ký", HttpStatus.BAD_REQUEST),
+    PHONE_REQUIRED(1026, "Số điện thoại không được để trống", HttpStatus.BAD_REQUEST),
     PHONE_INVALID(1027, "Số điện thoại không đúng định dạng", HttpStatus.BAD_REQUEST),
     IDENTIFIER_INVALID(1028, "Email hoặc số điện thoại không đúng định dạng", HttpStatus.BAD_REQUEST),
+    OLD_PASSWORD_INCORRECT(1029, "Mật khẩu hiện tại không chính xác", HttpStatus.BAD_REQUEST),
 
     // --- Phân hệ Phòng chat & Thành viên (1030 - 1049) ---
     ROOM_NOT_FOUND(1030, "Phòng chat không tồn tại", HttpStatus.NOT_FOUND),

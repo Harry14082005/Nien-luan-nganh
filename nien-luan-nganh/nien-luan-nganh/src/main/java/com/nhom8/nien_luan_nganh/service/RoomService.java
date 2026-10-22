@@ -33,7 +33,7 @@ public class RoomService {
 
     //tạo group
     @Transactional
-    public RoomListResponse createGroup(CreateGroupRequest request, UUID currentUserId){
+    public RoomDetailResponse createGroup(CreateGroupRequest request, UUID currentUserId){
         User creator = userRepository.findById(currentUserId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
@@ -50,12 +50,12 @@ public class RoomService {
         if(request.getMemberIds() != null && !request.getMemberIds().isEmpty())
             roomMemberService.addMembersOnCreate(room, request.getMemberIds(), RoomRole.MEMBER);
 
-        return roomMapper.toRoomResponse(room);
+        return roomMapper.toRoomDetailResponse(room);
     }
 
     //tạo nhóm 2 người trực tiếp
     @Transactional
-    public RoomListResponse createDirectRoom(CreateDirectRoomRequest request, UUID currentUserId){
+    public RoomDetailResponse createDirectRoom(CreateDirectRoomRequest request, UUID currentUserId){
         if(request.getUserId() == null)
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         if(request.getUserId().equals(currentUserId))
@@ -68,7 +68,7 @@ public class RoomService {
 
         // Đã có phòng direct giữa 2 người thì trả về phòng cũ
         return roomRepository.findDirectRoom(currentUserId, request.getUserId(), RoomType.DIRECT)
-                .map(roomMapper::toRoomResponse)
+                .map(roomMapper::toRoomDetailResponse)
                 .orElseGet(() -> {
                     Room room = roomMapper.toRoom(request);
                     room.setRoomType(RoomType.DIRECT);
@@ -78,7 +78,7 @@ public class RoomService {
                     roomMemberService.addMember(room, currentUserId, RoomRole.MEMBER);
                     roomMemberService.addMember(room, request.getUserId(), RoomRole.MEMBER);
 
-                    return roomMapper.toRoomResponse(room);
+                    return roomMapper.toRoomDetailResponse(room);
                 });
     }
 
