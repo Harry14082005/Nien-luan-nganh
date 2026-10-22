@@ -3,6 +3,7 @@ package com.nhom8.nien_luan_nganh.repository;
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.entity.RoomMemberId;
 import com.nhom8.nien_luan_nganh.entity.User;
+import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,10 +18,10 @@ import java.util.UUID;
 public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemberId> {
 
     // Kiem tra user co trong room khong
-    boolean existsById_UserIdAndId_RoomId(UUID userId, UUID roomId);
+    boolean existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
 
     // Lay thong tin member
-    Optional<RoomMember> findById_UserIdAndId_RoomId(UUID userId, UUID roomId);
+    Optional<RoomMember> findByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
 
     // Lay tat ca member trong room
     @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.id.roomId = :roomId")
@@ -34,9 +35,14 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemb
     List<RoomMember> findById_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
 
     // Dem so member trong room
-    long countById_RoomId(UUID roomId);
+    long countByRoomMemberId_RoomId(UUID roomId);
 
     // Lay user trong room
     @Query("SELECT rm.user FROM RoomMember rm WHERE rm.id.roomId = :roomId")
     List<User> findUsersByRoomId(@Param("roomId") UUID roomId);
+
+    long countByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole role);
+
+    List<RoomMember> findByRoomMemberId_RoomId(UUID roomId);
+    List<RoomMember> findByRoomMemberId_RoomIdAndStatus(UUID roomId, RoomMemberStatus status);
 }

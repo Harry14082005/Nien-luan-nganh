@@ -5,10 +5,12 @@ import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
 import com.nhom8.nien_luan_nganh.dto.response.RoomResponse;
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.entity.User;
+import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.RoomMapper;
+import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +25,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RoomService {
 
-    RoomRepository roomRepository;
+    private final RoomRepository roomRepository;
 
-    UserRepository userRepository;
+    private final UserRepository userRepository;
 
-    RoomMapper roomMapper;
+    private final RoomMapper roomMapper;
+
+    private final RoomMemberService roomMemberService;
 
     //tạo group
     @Transactional
@@ -42,6 +46,11 @@ public class RoomService {
         roomRepository.save(room);
 
         /// xử lý thêm danh sách thành viên
+        //người tạo là Admin
+        roomMemberService.addMember(room, currentUserId, RoomRole.ADMIN);
+        //những người được thêm là Member
+        if(request.getMemberIds() != null && !request.getMemberIds().isEmpty())
+            roomMemberService.addMembersOnCreate(room, request.getMemberIds(), RoomRole.MEMBER);
 
         return roomMapper.toRoomResponse(room);
     }
@@ -53,10 +62,10 @@ public class RoomService {
         if(request.getUserId().equals(currentUserId))
             throw  new AppException(ErrorCode.CANNOT_ADD_YOURSELF);
 
-        User creator = userRepository.findById(currentUserId).orElseThrow(
+        //kiểm tra người được thêm tồn tại
+        userRepository.findById(request.getUserId()).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        //xử lý thêm người được thêm vô phòng chat
 
         // Đã có phòng direct giữa 2 người thì trả về phòng cũ
         return roomRepository.findDirectRoom(currentUserId, request.getUserId(), RoomType.DIRECT)
@@ -66,7 +75,9 @@ public class RoomService {
                     room.setRoomType(RoomType.DIRECT);
                     roomRepository.save(room);
 
-                    // xử lý thêm thành viên
+                    // xử lý thêm 2 người vào phòng
+                    roomMemberService.addMember(room, currentUserId, RoomRole.MEMBER);
+                    roomMemberService.addMember(room, request.getUserId(), RoomRole.MEMBER);
 
                     return roomMapper.toRoomResponse(room);
                 });
