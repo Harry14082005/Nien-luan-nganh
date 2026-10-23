@@ -14,27 +14,29 @@ import java.util.UUID;
 @Repository
 public interface FriendshipRepository extends JpaRepository<Friendship, UUID> {
 
-    // Lay danh sach ban be theo status
-    @Query("SELECT f FROM Friendship f JOIN FETCH f.user JOIN FETCH f.friend " +
-            "WHERE (f.user.userId = :userId OR f.friend.userId = :userId) AND f.friendshipStatus = :status")
-    List<Friendship> findByUserIdAndStatus(@Param("userId") UUID userId,
+    // 1. Dành cho danh sách chặn: 1 chiều (chỉ lấy người do chính mình chặn)
+    @Query("SELECT f FROM Friendship f " +
+            "JOIN FETCH f.user " +
+            "JOIN FETCH f.friend " +
+            "WHERE f.user.userId = :userId AND f.friendshipStatus = :status")
+    List<Friendship> findBlockedList(@Param("userId") UUID userId,
+                                     @Param("status") FriendshipStatus status);
+
+    // 2. Dành cho bạn bè hoặc lời mời: 2 chiều (cả gửi đi và nhận về)
+    @Query("SELECT f FROM Friendship f " +
+            "JOIN FETCH f.user " +
+            "JOIN FETCH f.friend " +
+            "WHERE (f.user.userId = :userId OR f.friend.userId = :userId) " +
+            "AND f.friendshipStatus = :status")
+    List<Friendship> findTwoWayFriendships(@Param("userId") UUID userId,
                                            @Param("status") FriendshipStatus status);
 
-    // Check trang thai ban be
-    @Query("SELECT f FROM Friendship f WHERE (f.user.userId = :userId1 AND f.friend.userId = :userId2) " +
+    // 3. Kiểm tra trạng thái quan hệ giữa 2 người dùng cụ thể (có fetch thông tin user)
+    @Query("SELECT f FROM Friendship f " +
+            "JOIN FETCH f.user " +
+            "JOIN FETCH f.friend " +
+            "WHERE (f.user.userId = :userId1 AND f.friend.userId = :userId2) " +
             "OR (f.user.userId = :userId2 AND f.friend.userId = :userId1)")
-    Optional<Friendship> findBetweenUsers(@Param("userId1") UUID userId1, @Param("userId2") UUID userId2);
-
-    // 2 truong hop khi gui va nhan loi moi ket ban
-    // TH1: Nguoi nhan la user
-    @Query("SELECT f FROM Friendship f JOIN FETCH f.user " +
-            "WHERE f.friend.userId = :friendId AND f.friendshipStatus = :status")
-    List<Friendship> findByFriend_UserIdAndStatus(@Param("friendId") UUID friendId,
-                                                  @Param("status") FriendshipStatus status);
-
-    // TH2 : User la nguoi gui loi moi ket ban
-    @Query("SELECT f FROM Friendship f JOIN FETCH f.friend " +
-            "WHERE f.user.userId = :userId AND f.friendshipStatus = :status")
-    List<Friendship> findByUser_UserIdAndStatus(@Param("userId") UUID userId,
-                                                @Param("status") FriendshipStatus status);
+    Optional<Friendship> findBetweenUsers(@Param("userId1") UUID userId1,
+                                          @Param("userId2") UUID userId2);
 }

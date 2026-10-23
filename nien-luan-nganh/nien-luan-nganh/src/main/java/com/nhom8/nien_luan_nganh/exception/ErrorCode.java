@@ -68,7 +68,18 @@ public enum ErrorCode {
     // --- Phân hệ Quan hệ bạn bè (1110 - 1120) ---
     FRIENDSHIP_NOT_FOUND(1110, "Mối quan hệ bạn bè không tồn tại", HttpStatus.NOT_FOUND),
     FRIEND_REQUEST_EXISTED(1111, "Yêu cầu kết bạn đã được gửi trước đó", HttpStatus.BAD_REQUEST),
-    CANNOT_ADD_YOURSELF(1112, "Không thể gửi yêu cầu kết bạn cho chính bản thân", HttpStatus.BAD_REQUEST);
+    CANNOT_ADD_YOURSELF(1112, "Không thể gửi yêu cầu kết bạn cho chính bản thân", HttpStatus.BAD_REQUEST),
+    
+    ALREADY_FRIENDS(1113, "Hai người đã là bạn bè của nhau", HttpStatus.BAD_REQUEST),
+    USER_BLOCKED(1114, "Không thể thực hiện do mối quan hệ đã bị chặn", HttpStatus.FORBIDDEN),
+    
+    FRIEND_ID_REQUIRED(1115, "ID bạn bè không được để trống", HttpStatus.BAD_REQUEST),
+    NOT_FRIEND_REQUEST_RECEIVER(1116, "Bạn không có quyền phản hồi lời mời kết bạn này", HttpStatus.FORBIDDEN),
+    USER_ID_REQUIRED(1117, "ID người dùng không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST_STATUS(1118, "Trạng thái yêu cầu không hợp lệ", HttpStatus.BAD_REQUEST),
+    CANNOT_BLOCK_YOURSELF(1119, "Không thể tự chặn chính bản thân", HttpStatus.BAD_REQUEST),
+    BLOCKED_BY_USER(1120, "Bạn đã bị người dùng này chặn", HttpStatus.FORBIDDEN),
+    ALREADY_BLOCKED(1121, "Người dùng này đã bị chặn từ trước", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;
