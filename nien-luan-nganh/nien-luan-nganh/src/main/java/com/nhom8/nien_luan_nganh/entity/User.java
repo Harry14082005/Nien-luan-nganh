@@ -1,8 +1,10 @@
 package com.nhom8.nien_luan_nganh.entity;
-import com.nhom8.nien_luan_nganh.enums.Role;
 
+import com.nhom8.nien_luan_nganh.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
@@ -19,54 +21,66 @@ public class User {
     @Column(name = "user_id")
     private UUID userId;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(name = "username", nullable = false, length = 100)
     private String username;
 
-    @Column(nullable = false)
+    @Column(name = "password", nullable = false)
     private String password;
-
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    @Column(name = "phone_number", length = 15)
-    private String phoneNumber;
-
-    @Column(length = 10)
-    private String gender;
-
-    @Column(name = "avatar_url")
-    private String avatarUrl;
 
     @Column(name = "preferred_language", length = 10)
     private String preferredLanguage;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "user_role", nullable = false)
     @Builder.Default
-    private Role role = Role.USER;
+    private UserRole role = UserRole.USER;
 
-    @Column(name = "is_banned")
+    @Column(name = "gender", length = 10)
+    private String gender;
+
+    @Column(name = "phone_number", unique = true, length = 15)
+    private String phoneNumber;
+
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    // Email hoặc số điện thoại: chỉ cần 1 trong 2 -> email được phép null (unique
+    // vẫn cho phép nhiều NULL)
+    @Column(name = "email", unique = true)
+    private String email;
+
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
+
+    @Column(name = "is_banned", nullable = false)
     @Builder.Default
     private Boolean isBanned = false;
 
     @Column(name = "banned_at")
-    private java.time.LocalDateTime bannedAt;
+    private LocalDateTime bannedAt;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "created_at", updatable = false)
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = java.time.LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
     // Relationships
     @Builder.Default
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    private List<UserRoom> userRooms = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL)
-    private List<Message> messages = new ArrayList<>();
-
+    private List<RoomMember> roomMembers = new ArrayList<>();
 }

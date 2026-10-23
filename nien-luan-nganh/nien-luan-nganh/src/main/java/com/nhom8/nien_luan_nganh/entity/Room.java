@@ -1,12 +1,11 @@
 package com.nhom8.nien_luan_nganh.entity;
 
+import com.nhom8.nien_luan_nganh.enums.RoomType;
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.*;
-
-import com.nhom8.nien_luan_nganh.enums.RoomType;
 
 import java.time.LocalDateTime;
+import java.util.*;
 
 @Entity
 @Table(name = "rooms")
@@ -27,36 +26,34 @@ public class Room {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", nullable = false)
-    @Builder.Default
-    private RoomType type = RoomType.DIRECT;
+    private RoomType roomType;
 
-    private String avatarRoom;
+    @Column(name = "room_avatar_url")
+    private String roomAvatarURL;
 
+    @Column(length = 50)
     @Builder.Default
     private String theme = "default";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", updatable = false, nullable = true)
+    private User createdBy;
+
+    @Column(name = "require_approval")
+    private boolean requireApproval; // true = cần duyệt, false = không cần duyêt
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
+    // Relationships
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
     @Builder.Default
-    private List<Message> messages = new ArrayList<>();
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Poll> polls = new ArrayList<>();
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Reminder> reminders = new ArrayList<>();
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<UserRoom> userRooms = new ArrayList<>();
-
+    private List<RoomMember> roomMembers = new ArrayList<>();
 }

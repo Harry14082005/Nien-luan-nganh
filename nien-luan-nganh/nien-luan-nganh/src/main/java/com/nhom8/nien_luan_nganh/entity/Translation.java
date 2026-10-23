@@ -2,44 +2,44 @@ package com.nhom8.nien_luan_nganh.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.*;
-import java.time.LocalDateTime;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
-@Table(name="translations")
+@Table(name = "translations", uniqueConstraints = @UniqueConstraint(columnNames = {"message_id", "target_language"}))
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+public class Translation {
 
-public class Translation{
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "trans_id")
-    private UUID transID;
+    @Column(name = "translation_id")
+    private UUID translationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "message_id",nullable = false)
+    @JoinColumn(name = "message_id", nullable = false)
     private Message message;
 
     @Column(name = "source_language", length = 20)
     private String sourceLanguage;
 
-    @Column(name = "target_language", length = 20, nullable = false)
+    @Column(name = "target_language", length = 20)
     private String targetLanguage;
 
-    @Column(name = "translated_text", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "translated_text", columnDefinition = "TEXT")
     private String translatedText;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
-    protected void onCreate(){
-        this.createdAt =LocalDateTime.now();
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
     }
 }
-
-

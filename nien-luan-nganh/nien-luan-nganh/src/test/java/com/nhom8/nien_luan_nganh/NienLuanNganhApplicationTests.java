@@ -9,5 +9,4 @@ class NienLuanNganhApplicationTests {
 	@Test
 	void contextLoads() {
 	}
-
 }
