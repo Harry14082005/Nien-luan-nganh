@@ -4,19 +4,19 @@ import com.nhom8.nien_luan_nganh.dto.request.CreateDirectRoomRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
 import com.nhom8.nien_luan_nganh.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -53,5 +53,29 @@ public class RoomController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Tạo phòng trực tiếp thành công"));
+    }
+
+    //lấy danh sách phòng
+    @GetMapping("")
+    public ResponseEntity<ApiResponse<List<RoomListResponse>>> getRooms(
+            Authentication authentication
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        List<RoomListResponse> responses = roomService.getRooms(currentUserId);
+
+        return ResponseEntity.ok(ApiResponse.success(responses, "Lấy danh sách phòng thành công"));
+    }
+
+    @GetMapping("/{roomId}")
+    public ResponseEntity<ApiResponse<RoomDetailResponse>> getRoom(
+            Authentication authentication,
+            @PathVariable UUID roomId
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        RoomDetailResponse response = roomService.getRoom(roomId, currentUserId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy thông tin phòng thành công"));
     }
 }
