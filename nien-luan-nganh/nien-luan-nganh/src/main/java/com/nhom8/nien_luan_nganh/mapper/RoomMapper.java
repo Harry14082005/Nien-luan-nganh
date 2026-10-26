@@ -14,7 +14,8 @@ public interface RoomMapper {
     @Mapping(target = "createdBy", source = "createdBy.userId")
     RoomDetailResponse toRoomDetailResponse(Room room);
 
-    // @Mapping(target = "avatarRoom", source = "roomAvatarURL")
+
+    @Mapping(target = "avatarRoom", source = "roomAvatarURL")
     Room toRoom(CreateGroupRequest request);
 
     Room toRoom(CreateDirectRoomRequest request);
