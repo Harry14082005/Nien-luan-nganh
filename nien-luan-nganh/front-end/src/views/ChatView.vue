@@ -3,9 +3,13 @@ import ChatHeader from '@/components/chat/ChatHeader.vue';
 import PinnedMessage from '@/components/chat/PinnedMessage.vue';
 import MessageList from '@/components/chat/MessageList.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
+import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 </script>
 <template>
-    <div class="chat-view">
+  <div class="app-container">
+  <NavigationSidebar></NavigationSidebar>
+  <div class="ChatListSidebar"></div>
+  <div class="chat-view">
     <ChatHeader />
     <PinnedMessage />
 
@@ -16,8 +20,8 @@ import ChatInput from '@/components/chat/ChatInput.vue';
       <MessageList variant="SendTo" Sender="" />
     
     </div>
-
-    <ChatInput />
+    <div class="input_text"><ChatInput/></div>
+  </div> 
   </div>
 </template>
 <style scoped>
@@ -28,9 +32,13 @@ import ChatInput from '@/components/chat/ChatInput.vue';
 }
 
 .chat-body {
-  flex: 1;                /* chiếm hết phần còn lại */
-  min-height: 0;          /* bắt buộc, nếu thiếu thì cuộn không hoạt động */
+  flex: 1;                
+  min-height: 0;          
   overflow-y: auto;   
-  /* tin nhắn nhiều thì cuộn trong vùng này */
 }
+.app-container{
+  display:grid;
+  grid-template-columns: 75px 400px 1fr;
+}
+
 </style>

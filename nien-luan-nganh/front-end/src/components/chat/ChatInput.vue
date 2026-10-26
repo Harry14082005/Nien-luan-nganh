@@ -9,7 +9,7 @@ defineProps({
     <div class="input_area">
         <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip"/>
         <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint"/>
-        <textarea spellcheck="false"></textarea>
+        <textarea spellcheck="false" rows="1"></textarea>
         <font-awesome-icon id="paperPlane" icon="paper-plane"/>
     </div>
 </div>
@@ -26,6 +26,7 @@ div.input_area textarea{
     line-height: 1.4;
     max-height: 120px;         /* giới hạn chiều cao, quá thì cuộn */
     overflow-y: auto;
+    padding:0;
 
 }
 div.input_area textarea:focus{
@@ -44,15 +45,17 @@ div.input_area:focus-within{
     display: flex;
     background-color:white;
     width: 100%;
+    height:5vh;
     max-height: fit-content;
     justify-content: center;
-    color:#b4bccb;
-    border-top: 1px solid rgba(110, 148, 233,0.1);
+    flex-shrink: 0;
+    padding-top:17px;
+    border-top:1px solid #e6eaf2;
 }
 .input_area{
     display: flex;
     background-color: #f8f9fd;
-    padding:10px;
+    padding:5px;
     width: 95%;
     font-size:100%;
     font-family:"Quicksand", sans-serif; 
@@ -63,6 +66,8 @@ div.input_area:focus-within{
     border-radius: 1.25rem;
     border:1px solid #e6eaf2;
     gap:2px;
+    color:#b4bccb;
+    margin-top:5px;
 }
 #paperPlane{
     margin-right: 5px;

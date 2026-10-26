@@ -50,7 +50,6 @@ align-items: center;
     padding-top:10px;
     padding-bottom:10px;
     width: 100%;
-    height: 4vh;
     max-height: fit-content;
     min-height: 40px;
     justify-content: space-between;
