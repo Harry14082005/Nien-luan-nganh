@@ -99,9 +99,12 @@
 | 33 | `GET` | `/rooms/{roomId}/messages/search` | Tìm kiếm tin nhắn trong phòng | 19 | Đăng nhập | Đã có trong spec |  |
 | 34 | `GET` | `/rooms/{roomId}/messages/{messageId}/history` | Xem lịch sử chỉnh sửa của tin nhắn | 11 | Đăng nhập | Cần bổ sung | Dựa trên bảng MessageHistory |
 | 35 | `DELETE` | `/rooms/{roomId}/messages` | Xóa lịch sử chat (phía mình) | 21 | Đăng nhập | Cần bổ sung |  |
-| 36 | `POST` | `/rooms/{roomId}/messages/{messageId}/pins` | Ghim tin nhắn | 20 | Cần chốt | Cần bổ sung | Cần bảng PinnedMessage |
-| 37 | `DELETE` | `/rooms/{roomId}/messages/{messageId}/pins` | Bỏ ghim tin nhắn | 20 | Cần chốt | Cần bổ sung |  |
-| 38 | `GET` | `/rooms/{roomId}/pins` | Danh sách tin nhắn đã ghim | 20 | Đăng nhập | Cần bổ sung |  |
+| 36 | `POST` | `/rooms/{roomId}/messages/{messageId}/pins` | Ghim tin nhắn | 20 | Đăng nhập | Đã có trong spec |  |
+| 37 | `DELETE` | `/rooms/{roomId}/messages/{messageId}/pins` | Bỏ ghim tin nhắn | 20 | Đăng nhập | Đã có trong spec |  |
+| 38 | `GET` | `/rooms/{roomId}/messages/pins` | Danh sách tin nhắn đã ghim | 20 | Đăng nhập | Đã có trong spec | Gom về MessageController |
+| — | `POST` | `/rooms/{roomId}/messages/{messageId}/reactions` | Thả hoặc cập nhật cảm xúc tin nhắn | — | Đăng nhập | Đã có trong spec | Mỗi người chỉ thả 1 cảm xúc/tin nhắn (LIKE, LOVE, HAHA, WOW, SAD, ANGRY) |
+| — | `DELETE` | `/rooms/{roomId}/messages/{messageId}/reactions` | Gỡ cảm xúc đã thả | — | Đăng nhập | Đã có trong spec |  |
+| — | `GET` | `/rooms/{roomId}/messages/{messageId}/reactions` | Xem danh sách cảm xúc trên tin nhắn | — | Đăng nhập | Đã có trong spec |  |
 
 ## Uploads
 
