@@ -3,8 +3,10 @@ package com.nhom8.nien_luan_nganh.controller;
 import com.nhom8.nien_luan_nganh.dto.request.CreateDirectRoomRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
+import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
+import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,12 +59,15 @@ public class RoomController {
 
     //lấy danh sách phòng
     @GetMapping("")
-    public ResponseEntity<ApiResponse<List<RoomListResponse>>> getRooms(
-            Authentication authentication
-    ){
+    public ResponseEntity<ApiResponse<PageResponse<RoomListResponse>>> getRooms(
+            Authentication authentication,
+            @RequestParam(required = false)RoomType type,
+            @RequestParam(defaultValue = "0") int pageNo,
+            @RequestParam(defaultValue = "20") int pageSize
+            ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
-        List<RoomListResponse> responses = roomService.getRooms(currentUserId);
+        PageResponse<RoomListResponse> responses = roomService.getRooms(currentUserId, type, pageNo, pageSize);
 
         return ResponseEntity.ok(ApiResponse.success(responses, "Lấy danh sách phòng thành công"));
     }
