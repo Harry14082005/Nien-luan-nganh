@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,4 +47,20 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemb
     List<RoomMember> findByRoomMemberId_RoomId(UUID roomId);
     List<RoomMember> findByRoomMemberId_RoomIdAndStatus(UUID roomId, RoomMemberStatus status);
     List<RoomMember> findByRoomMemberId_UserId(UUID userId);
+
+    @Query("""
+    select rm.roomMemberId.userId
+    from RoomMember rm
+    where rm.roomMemberId.roomId = :roomId
+      and rm.roomMemberId.userId in :userIds
+    """)
+    List<UUID> findExistingUserIds(@Param("roomId") UUID roomId,
+                                   @Param("userIds") Collection<UUID> userIds);
+
+    @Query("""
+    SELECT rm.roomMemberId.userId
+    FROM RoomMember rm
+    WHERE rm.roomMemberId.roomId = :roomId
+    """)
+    List<UUID> findMemberIdsByRoomId(@Param("roomId") UUID roomId);
 }

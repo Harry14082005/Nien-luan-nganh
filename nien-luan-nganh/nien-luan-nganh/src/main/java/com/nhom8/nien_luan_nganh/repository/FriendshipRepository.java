@@ -1,6 +1,7 @@
 package com.nhom8.nien_luan_nganh.repository;
 
 import com.nhom8.nien_luan_nganh.entity.Friendship;
+import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -39,4 +40,5 @@ public interface FriendshipRepository extends JpaRepository<Friendship, UUID> {
             "OR (f.user.userId = :userId2 AND f.friend.userId = :userId1)")
     Optional<Friendship> findBetweenUsers(@Param("userId1") UUID userId1,
                                           @Param("userId2") UUID userId2);
+
 }
