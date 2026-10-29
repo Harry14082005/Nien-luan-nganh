@@ -2,6 +2,8 @@ package com.nhom8.nien_luan_nganh.repository;
 
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,6 +27,18 @@ public interface RoomRepository extends JpaRepository<Room, UUID> {
     Optional<Room> findDirectRoom(@Param("userId1") UUID userId1,
                                   @Param("userId2") UUID userId2,
                                   @Param("roomType") RoomType roomType);
+
+    //lấy danh sách
+    Page<Room> findDistinctByRoomMembers_User_UserId(
+            UUID userId,
+            Pageable pageable
+    );
+
+    Page<Room> findDistinctByRoomMembers_User_UserIdAndRoomType(
+            UUID userId,
+            RoomType roomType,
+            Pageable pageable
+    );
 
     // Admin
     List<Room> findByRoomType(RoomType roomType);

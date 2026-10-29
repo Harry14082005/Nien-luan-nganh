@@ -52,6 +52,9 @@ public enum ErrorCode {
     CANNOT_REVOKE_MESSAGE(1053, "Bạn không có quyền thu hồi tin nhắn này", HttpStatus.FORBIDDEN),
     TRANSLATION_FAILED(1054, "Dịch vụ AI không thể hoàn thành việc dịch tin nhắn", HttpStatus.BAD_GATEWAY),
     REACTION_INVALID(1055, "Loại cảm xúc tin nhắn không hợp lệ", HttpStatus.BAD_REQUEST),
+    MESSAGE_CONTENT_REQUIRED(1056, "Nội dung tin nhắn không được để trống", HttpStatus.BAD_REQUEST),
+    REPLIED_MESSAGE_NOT_FOUND(1057, "Tin nhắn phản hồi không tồn tại", HttpStatus.NOT_FOUND),
+    REPLIED_MESSAGE_NOT_IN_SAME_ROOM(1058, "Tin nhắn phản hồi không thuộc cùng phòng chat", HttpStatus.BAD_REQUEST),
 
     // --- Phân hệ Bình chọn (1070 - 1089) ---
     POLL_NOT_FOUND(1070, "Cuộc bình chọn không tồn tại", HttpStatus.NOT_FOUND),

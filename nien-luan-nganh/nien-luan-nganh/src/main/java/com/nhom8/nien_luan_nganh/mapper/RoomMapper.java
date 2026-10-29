@@ -14,8 +14,14 @@ public interface RoomMapper {
     @Mapping(target = "createdBy", source = "createdBy.userId")
     RoomDetailResponse toRoomDetailResponse(Room room);
 
+    @Mapping(target = "lastMessageId", ignore = true)
+    @Mapping(target = "lastMessageContent", ignore = true)
+    @Mapping(target = "lastMessageSenderName", ignore = true)
+    @Mapping(target = "lastMessageAt", ignore = true)
+    @Mapping(target = "lastDeliveredMessageId", ignore = true)
+    @Mapping(target = "lastReadMessageId", ignore = true)
+    RoomListResponse toRoomListResponse(Room room);
 
-    @Mapping(target = "avatarRoom", source = "roomAvatarURL")
     Room toRoom(CreateGroupRequest request);
 
     Room toRoom(CreateDirectRoomRequest request);

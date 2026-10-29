@@ -45,11 +45,35 @@ public class Room {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+//    // Tin nhắn mới nhất (hiển thị ở danh sách phòng)
+//    @Column(name = "last_message_id")
+//    private UUID lastMessageId;
+//
+//    @Column(name = "last_message_content", length = 500)
+//    private String lastMessageContent;
+//
+//    @Column(name = "last_message_sender_id")
+//    private UUID lastMessageSenderId;
+//
+//    @Column(name = "last_message_at")
+//    private LocalDateTime lastMessageAt;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     // Relationships

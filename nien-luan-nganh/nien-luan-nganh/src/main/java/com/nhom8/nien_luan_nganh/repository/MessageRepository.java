@@ -17,17 +17,32 @@ import java.util.UUID;
 public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     // Lay tin nhan moi nhat (lan dau load)
-    Page<Message> findByRoom_RoomIdOrderByCreatedAtDesc(UUID roomId, Pageable pageable);
+    @Query(value = "SELECT m FROM Message m " +
+            "LEFT JOIN FETCH m.sender " +
+            "LEFT JOIN FETCH m.repliedMessage rm " +
+            "LEFT JOIN FETCH rm.sender " +
+            "WHERE m.room.roomId = :roomId " +
+            "ORDER BY m.createdAt DESC",
+            countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId")
+    Page<Message> findByRoom_RoomIdOrderByCreatedAtDesc(@Param("roomId") UUID roomId, Pageable pageable);
 
     // Cuon de xem tin nhan cu - Cursor-based pagination - infinite scroll
-    @Query("SELECT m FROM Message m WHERE m.room.roomId = :roomId " +
-            "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 " +
-            "WHERE m2.messageId = :before) " +
-            "ORDER BY m.createdAt DESC")
+    @Query(value = "SELECT m FROM Message m " +
+            "LEFT JOIN FETCH m.sender " +
+            "LEFT JOIN FETCH m.repliedMessage rm " +
+            "LEFT JOIN FETCH rm.sender " +
+            "WHERE m.room.roomId = :roomId " +
+            "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before) " +
+            "ORDER BY m.createdAt DESC",
+            countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId " +
+                    "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before)")
     Page<Message> findByRoomIdBefore(@Param("roomId") UUID roomId, @Param("before") UUID before, Pageable pageable);
 
     // Tim tin nhan trong room (tin nhan thu hoi roi thi khong thay)
-    @Query("SELECT m FROM Message m JOIN FETCH m.sender " +
+    @Query("SELECT m FROM Message m " +
+            "LEFT JOIN FETCH m.sender " +
+            "LEFT JOIN FETCH m.repliedMessage rm " +
+            "LEFT JOIN FETCH rm.sender " +
             "WHERE m.room.roomId = :roomId " +
             "AND LOWER(m.content) LIKE LOWER(CONCAT('%', :q, '%')) " +
             "AND m.isRevoked = false " +
@@ -35,6 +50,17 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> searchInRoom(@Param("roomId") UUID roomId,
                                @Param("q") String q,
                                Pageable pageable);
+
+    // Lay danh sach tin nhan da ghim trong phong chat
+    @Query("SELECT m FROM Message m " +
+            "LEFT JOIN FETCH m.sender " +
+            "LEFT JOIN FETCH m.repliedMessage rm " +
+            "LEFT JOIN FETCH rm.sender " +
+            "WHERE m.room.roomId = :roomId " +
+            "AND m.isPinned = true " +
+            "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+            "ORDER BY m.createdAt DESC")
+    List<Message> findPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
 
     // Admin
     // 1. Thống kê số tin nhắn theo khoảng thời gian

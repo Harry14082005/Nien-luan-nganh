@@ -78,12 +78,14 @@
 
 ---
 
-### 🔹 Chặng 5: Phân hệ Kết nối Bạn bè (Friendship Module)
-- [ ] Gửi lời mời kết bạn (`POST /api/v1/friends/request/{userId}`).
-- [ ] Chấp nhận lời mời kết bạn (`PUT /api/v1/friends/accept/{requestId}`).
-- [ ] Từ chối lời mời kết bạn (`PUT /api/v1/friends/decline/{requestId}`).
-- [ ] Hủy kết bạn / Chặn người dùng (Block).
-- [ ] Lấy danh sách bạn bè hiện tại, danh sách lời mời đang chờ (`PENDING`).
+### ✅ Chặng 5: Phân hệ Kết nối Bạn bè (Friendship Module) - *[HOÀN THÀNH]*
+- [x] Gửi lời mời kết bạn (`POST /api/v1/friendships/request`).
+- [x] Chấp nhận lời mời kết bạn (`PUT /api/v1/friendships/{friendshipId}/accept`).
+- [x] Từ chối lời mời kết bạn (`PUT /api/v1/friendships/{friendshipId}/decline`).
+- [x] Hủy kết bạn (`DELETE /api/v1/friendships/{friendshipId}`).
+- [x] Chặn người dùng (`POST /api/v1/friendships/block`), Bỏ chặn (`DELETE /api/v1/friendships/block/{userId}`).
+- [x] Lấy danh sách bạn bè, lời mời, chặn (`GET /api/v1/friendships?status=...`).
+- [x] Kiểm tra trạng thái quan hệ 2 chiều (`GET /api/v1/friendships/status/{userId}`).
 
 ---
 
@@ -92,23 +94,23 @@
 - [ ] Tạo phòng chat nhóm (`POST /api/v1/rooms/group`).
 - [ ] Thêm thành viên mới vào nhóm chat.
 - [ ] Xóa thành viên khỏi nhóm chat.
-- [ ] Phân quyền vai trò: Trưởng nhóm (`OWNER`), Trưởng nhóm (`ADMIN`), Thành viên (`MEMBER`).
+- [ ] Phân quyền vai trò: Trưởng nhóm (`OWNER`), Quản trị viên (`ADMIN`), Thành viên (`MEMBER`).
 - [ ] Đổi tên nhóm, avatar nhóm, chuyển quyền trưởng nhóm (Transfer Owner), rời nhóm.
 
 ---
 
-### 🔹 Chặng 7: Phân hệ Tin nhắn & Cảm xúc (Messages & Reactions Module)
-- [ ] Gửi tin nhắn Text, Image, File đính kèm.
-- [ ] Trả lời tin nhắn (Reply message cha).
-- [ ] Thu hồi tin nhắn (`isRevoked = true`), sửa tin nhắn (`isEdited = true`) và lưu vào `message_histories`.
-- [ ] Ghim / Bỏ ghim tin nhắn quan trọng trong phòng chat.
-- [ ] Thả cảm xúc tin nhắn (`message_reactions`: Like, Heart, Haha, Wow, Sad, Angry).
-- [ ] Lấy danh sách tin nhắn theo phân trang cuộn mượt mà (Cursor-based pagination).
+### ✅ Chặng 7: Phân hệ Tin nhắn & Cảm xúc (Messages & Reactions Module) - *[HOÀN THÀNH]*
+- [x] Gửi tin nhắn Text, Image, File đính kèm (`POST /api/v1/rooms/{roomId}/messages`).
+- [x] Trả lời tin nhắn (Reply message cha - tự tham chiếu self-reference).
+- [x] Thu hồi tin nhắn (`isRevoked = true`), sửa tin nhắn (`isEdited = true`), lưu vào `message_histories` và xem lịch sử (`GET .../history`).
+- [x] Ghim / Bỏ ghim tin nhắn quan trọng trong phòng chat (`POST/DELETE .../pins`, `GET .../pins`).
+- [x] Thả cảm xúc tin nhắn (`message_reactions`: Like, Heart, Haha, Wow, Sad, Angry).
+- [x] Lấy danh sách tin nhắn theo phân trang cuộn mượt mà (Cursor-based pagination: `GET /api/v1/rooms/{roomId}/messages?cursor=...&limit=...`).
 
 ---
 
-### 🔹 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time)
-- [ ] Cấu hình WebSocket Handshake (`/ws`) tích hợp xác thực JWT Token.
+### 🟡 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time) - *[ĐANG THỰC HIỆN]*
+- [x] Cấu hình WebSocket Handshake (`/ws`) tích hợp xác thực JWT Token (hỗ trợ cả SockJS và Native WS).
 - [ ] Gửi / Nhận tin nhắn tức thời không cần reload qua Topic `/topic/room.{roomId}`.
 - [ ] Trạng thái Đang gõ chữ (Typing indicator: "Harry đang nhập tin nhắn...").
 - [ ] Trạng thái Đang online / Vừa mới truy cập (User Presence).

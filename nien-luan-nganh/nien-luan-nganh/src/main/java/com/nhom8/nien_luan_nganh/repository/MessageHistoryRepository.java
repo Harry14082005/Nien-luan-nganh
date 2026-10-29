@@ -14,7 +14,9 @@ public interface MessageHistoryRepository extends JpaRepository<MessageHistory, 
     @Query("SELECT mh FROM MessageHistory mh WHERE mh.message.messageId = :messageId ORDER BY mh.editedAt DESC")
     List<MessageHistory> findHistoryByMessageId(@Param("messageId") UUID messageId);
 
-    // List<MessageHistory> findByMessage_MessageIdOrderByEditedAtDesc (UUID
-    // messageId);
+    // Xoa sach toan bo lich su chinh sua theo messageId khi tin nhan bi thu hoi
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM MessageHistory mh WHERE mh.message.messageId = :messageId")
+    void deleteByMessage_MessageId(@Param("messageId") UUID messageId);
 
 }

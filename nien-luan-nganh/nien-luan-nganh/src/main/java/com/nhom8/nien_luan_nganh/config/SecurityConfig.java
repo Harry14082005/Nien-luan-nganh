@@ -108,8 +108,8 @@ public class SecurityConfig {
                         // Authentication
                         .requestMatchers("/api/v1/auth/**", "/auth/**").permitAll()
 
-                        // Cho phép truy cập công khai endpoint kết nối WebSocket Handshake
-                        .requestMatchers("/ws/**").permitAll()
+                        // Cho phép truy cập công khai endpoint kết nối WebSocket Handshake (SockJS /ws và Native WS /ws-raw)
+                        .requestMatchers("/ws/**", "/ws-raw/**").permitAll()
 
                         // Cho phép truy cập công khai các file upload tĩnh (ảnh đại diện, ảnh chat,
                         // file đính kèm)
