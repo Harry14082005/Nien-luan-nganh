@@ -109,8 +109,8 @@
 
 ---
 
-### 🔹 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time)
-- [ ] Cấu hình WebSocket Handshake (`/ws`) tích hợp xác thực JWT Token.
+### 🟡 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time) - *[ĐANG THỰC HIỆN]*
+- [x] Cấu hình WebSocket Handshake (`/ws`) tích hợp xác thực JWT Token (hỗ trợ cả SockJS và Native WS).
 - [ ] Gửi / Nhận tin nhắn tức thời không cần reload qua Topic `/topic/room.{roomId}`.
 - [ ] Trạng thái Đang gõ chữ (Typing indicator: "Harry đang nhập tin nhắn...").
 - [ ] Trạng thái Đang online / Vừa mới truy cập (User Presence).

@@ -12,13 +12,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
+import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Controller tiếp nhận và xử lý các yêu cầu HTTP liên quan đến Tin nhắn trong phòng chat.
+ * Controller tiếp nhận và xử lý các yêu cầu HTTP liên quan đến Tin nhắn trong
+ * phòng chat.
  * Base URL: /api/v1/rooms/{roomId}/messages
  * Yêu cầu: Người dùng phải đăng nhập (gửi kèm JWT Bearer Token).
  */
@@ -30,7 +32,8 @@ public class MessageController {
     private final MessageService messageService;
 
     /**
-     * API: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ (Cursor-based Pagination).
+     * API: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
+     * (Cursor-based Pagination).
      * Method: GET /api/v1/rooms/{roomId}/messages
      * Hỗ trợ alias tham số: before hoặc cursor.
      * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
@@ -57,13 +60,15 @@ public class MessageController {
     }
 
     /**
-     * API 1: Gửi tin nhắn vào phòng chat (Hỗ trợ Text, Image, File đính kèm và Reply tin nhắn).
+     * API 1: Gửi tin nhắn vào phòng chat (Hỗ trợ Text, Image, File đính kèm và
+     * Reply tin nhắn).
      * Method: POST /api/v1/rooms/{roomId}/messages
      * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
      *
      * @param authentication Thông tin người gửi từ JWT Token
      * @param roomId         Khóa chính UUID của phòng chat
-     * @param request        Nội dung, loại tin nhắn và ID tin nhắn cha (nếu có reply)
+     * @param request        Nội dung, loại tin nhắn và ID tin nhắn cha (nếu có
+     *                       reply)
      * @return HTTP 201 Created kèm dữ liệu MessageResponse
      */
     @PostMapping
@@ -216,15 +221,15 @@ public class MessageController {
      * @return HTTP 200 OK kèm dữ liệu ReactionResponse
      */
     @PostMapping("/{messageId}/reactions")
-    public ResponseEntity<ApiResponse<com.nhom8.nien_luan_nganh.dto.response.ReactionResponse>> reactMessage(
+    public ResponseEntity<ApiResponse<ReactionResponse>> reactMessage(
             Authentication authentication,
             @PathVariable UUID roomId,
             @PathVariable UUID messageId,
-            @Valid @RequestBody com.nhom8.nien_luan_nganh.dto.request.ReactionRequest request) {
+            @Valid @RequestBody ReactionRequest request) {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
-        com.nhom8.nien_luan_nganh.dto.response.ReactionResponse response =
-                messageService.reactMessage(currentUserId, roomId, messageId, request);
+        ReactionResponse response = messageService.reactMessage(currentUserId,
+                roomId, messageId, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Thả cảm xúc thành công"));
     }
 
@@ -260,14 +265,13 @@ public class MessageController {
      * @return HTTP 200 OK kèm danh sách ReactionResponse
      */
     @GetMapping("/{messageId}/reactions")
-    public ResponseEntity<ApiResponse<List<com.nhom8.nien_luan_nganh.dto.response.ReactionResponse>>> getMessageReactions(
+    public ResponseEntity<ApiResponse<List<ReactionResponse>>> getMessageReactions(
             Authentication authentication,
             @PathVariable UUID roomId,
             @PathVariable UUID messageId) {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
-        List<com.nhom8.nien_luan_nganh.dto.response.ReactionResponse> response =
-                messageService.getMessageReactions(currentUserId, roomId, messageId);
+        List<ReactionResponse> response = messageService.getMessageReactions(currentUserId, roomId, messageId);
         return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách cảm xúc thành công"));
     }
 }
