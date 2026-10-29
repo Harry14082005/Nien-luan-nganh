@@ -18,7 +18,8 @@ import { faMessage } from '@fortawesome/free-regular-svg-icons/faMessage'
 import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
-library.add(faMagnifyingGlass,faCircleInfo,faList,faThumbTack,faX,faPaperclip,faFaceLaughSquint,faPaperPlane,faHouse,faMessage,faUser,faUserGroup,faGear,faComment)
+import { faBars } from '@fortawesome/free-solid-svg-icons'
+library.add(faMagnifyingGlass,faCircleInfo,faList,faThumbTack,faX,faPaperclip,faFaceLaughSquint,faPaperPlane,faHouse,faMessage,faUser,faUserGroup,faGear,faComment,faBars)
 const app = createApp(App)
 
 app.use(createPinia())

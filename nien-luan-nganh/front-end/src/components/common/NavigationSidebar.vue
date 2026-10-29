@@ -47,7 +47,7 @@ defineProps({
     font-family:"Quicksand", sans-serif; 
     font-size: 100%;
     font-weight:600;
-    width: 75px;
+    width: 80px;
     height: 100vh;
     margin-left: 10px;
     background-color:#0f2547;
