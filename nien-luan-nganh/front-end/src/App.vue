@@ -1,10 +1,9 @@
 <script setup>
-import ChatView from './views/ChatView.vue'
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
- <ChatView></ChatView>
-  
+  <RouterView />
 </template>
 
 <style scoped></style>
