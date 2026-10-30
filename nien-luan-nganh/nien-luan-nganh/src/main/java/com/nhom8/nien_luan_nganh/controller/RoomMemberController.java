@@ -3,6 +3,7 @@ package com.nhom8.nien_luan_nganh.controller;
 import com.nhom8.nien_luan_nganh.dto.request.*;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomMemberResponse;
+import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.service.RoomMemberService;
@@ -50,7 +51,7 @@ public class RoomMemberController {
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> addMembers(
             Authentication authentication,
             @PathVariable UUID roomId,
-            AddMemberRequest request
+            @RequestBody AddMemberRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
@@ -64,7 +65,7 @@ public class RoomMemberController {
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> deleteMember(
             Authentication authentication,
             @PathVariable UUID roomId,
-            RemoveMemberRequest request
+            @RequestBody RemoveMemberRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
@@ -78,7 +79,7 @@ public class RoomMemberController {
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> leaveRoom(
             Authentication authentication,
             @PathVariable UUID roomId,
-            LeaveRoomRequest request
+            @RequestBody LeaveRoomRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
@@ -115,6 +116,48 @@ public class RoomMemberController {
         RoomMemberResponse response = roomMemberService.approveMember(roomId, request, currentUserId);
 
         return ResponseEntity.ok(ApiResponse.message("Phê duyệt thành viên thành công"));
+    }
+
+    //đánh dấu tin nhắn đã đọc
+    @PutMapping("me/read")
+    public ResponseEntity<ApiResponse<Void>> markAsRead(
+            @PathVariable UUID roomId,
+            @RequestBody MarkReadRequest request,
+            Authentication authentication
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        roomMemberService.markAsRead(roomId, request.getMessageId(), currentUserId);
+
+        return ResponseEntity.ok(ApiResponse.message("Đánh dấu đã đọc thành công"));
+    }
+
+    //đánh dấu tin nhắn đã nhận
+    @PutMapping("me/delivered")
+    public ResponseEntity<ApiResponse<Void>> markAsDelivered(
+            @PathVariable UUID roomId,
+            @RequestBody MarkReadRequest request,
+            Authentication authentication
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        roomMemberService.markAsDelivered(roomId, request.getMessageId(), currentUserId);
+
+        return ResponseEntity.ok(ApiResponse.message("Đánh dấu đã nhận thành công"));
+    }
+
+
+    //lấy danh sách thành viên có thể thêm vô phòng được
+    @GetMapping("/invitable")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getInvitableMembers(
+            @PathVariable UUID roomId,
+            Authentication authentication
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        List<UserResponse> responses = roomMemberService.getInvitableMembers(roomId, currentUserId);
+
+        return ResponseEntity.ok(ApiResponse.success(responses,"Lấy danh sách bạn bè có thể thêm thành công"));
     }
 
 }
