@@ -30,8 +30,8 @@ import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 <style scoped>
 .chat-view {
   display: grid;
-  grid-template-rows: 80px 62px 1fr 60px;
-  height: 100vh;  
+  grid-template-rows: 80px 62px 1fr auto;
+  height: 100%;  
   background-color: #f8f9fd;
   border-right: 1px solid #e6eaf2;   
   border-left: 1px solid #e6eaf2;
@@ -46,10 +46,15 @@ import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 .app-container{
   display:grid;
   grid-template-columns: 90px 450px 1fr;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 .input_text{
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
+  min-height: 0;
 }
 </style>

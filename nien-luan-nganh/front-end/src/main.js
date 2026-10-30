@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
+import './assets/main.css'
 import App from './App.vue'
 import router from './router'
 import { library } from '@fortawesome/fontawesome-svg-core' //lay cai loi library tu FA
@@ -19,7 +20,21 @@ import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
-library.add(faMagnifyingGlass,faCircleInfo,faList,faThumbTack,faX,faPaperclip,faFaceLaughSquint,faPaperPlane,faHouse,faMessage,faUser,faUserGroup,faGear,faComment,faBars)
+import { faPlus } from '@fortawesome/free-solid-svg-icons'
+library.add(faMagnifyingGlass,
+            faCircleInfo,
+            faList,faThumbTack,
+            faX,faPaperclip,
+            faFaceLaughSquint,
+            faPaperPlane,
+            faHouse,
+            faMessage,
+            faUser,
+            faUserGroup,
+            faGear,
+            faComment,
+            faBars,
+            faPlus)
 const app = createApp(App)
 
 app.use(createPinia())

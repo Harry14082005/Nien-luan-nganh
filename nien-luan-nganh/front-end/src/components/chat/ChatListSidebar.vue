@@ -26,16 +26,20 @@ import SearchBar from '../common/SearchBar.vue';
             <font-awesome-icon icon="bars"/>
         </section>
         <section class="namePage">
+            <section class="left-namePage">
             <div>Tin nhắn</div>
             <div class="NumberOfMessages">{{ NoMessages }}</div>
-            <div></div>
+            </section>
+            <section class="right-namePage">
+                <font-awesome-icon icon="plus"></font-awesome-icon>
+            </section>
         </section>
     <div class="search_bar"><SearchBar></SearchBar></div>
     <div class="filter">
         <div class="SelectedFilter":class="{active: currentFilter ==='SelectAll'}">Tất cả</div>
         <div class="SelectedFilter":class="{active: currentFilter ==='Unread'}">Chưa đọc</div>
-        <!--icon lọc-->
     </div>
+    <span>GẦN ĐÂY</span>
     <div class="ChatList"></div>
     </div>
     
@@ -84,12 +88,24 @@ background: linear-gradient(
 
 .namePage{
     display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-right: 20px;
+}
+.left-namePage{
+    display: flex;
     font-size: 26px;
     float:left;
     color:#223451;
     font-weight: 700;
     margin-left: 20px;
     padding:10px 20px;
+}
+.right-namePage{
+    background-color: #e6edfd;
+    padding:9px;
+    border-radius: 0.7rem;
+    cursor:pointer;
 }
 .NumberOfMessages{
     font-size: 20px;
@@ -132,6 +148,15 @@ background: linear-gradient(
     box-sizing: border-box;
     margin-left: 20px;
     margin-bottom: 10px;
+}
+span{
+    margin-left: 20px;
+    padding: 0 20px;
+    margin-top:8px;
+    font-size: 15px;
+    font-weight: 700;
+    color:#b4bccb;
+    margin-bottom: 8px;
 }
 
 </style>

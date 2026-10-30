@@ -27,7 +27,6 @@ div.input_area textarea{
     max-height: 120px;         /* giới hạn chiều cao, quá thì cuộn */
     overflow-y: auto;
     padding:0;
-
 }
 div.input_area textarea:focus{
     outline: none;
@@ -43,14 +42,16 @@ div.input_area:focus-within{
     font-family:"Quicksand", sans-serif; 
     font-size: 100%;
     display: flex;
+    align-items: center;
     background-color:white;
     width: 100%;
-    height:5vh;
+    height:100%;
     max-height: fit-content;
     justify-content: center;
     flex-shrink: 0;
-    padding-top:17px;
+    padding: 12px 2px;
     border-top:1px solid #e6eaf2;
+    box-sizing: border-box;
 }
 .input_area{
     display: flex;
@@ -67,7 +68,7 @@ div.input_area:focus-within{
     border:1px solid #e6eaf2;
     gap:2px;
     color:#b4bccb;
-    margin-top:5px;
+    margin:0;
 }
 #paperPlane{
     margin-right: 5px;

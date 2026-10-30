@@ -49,7 +49,6 @@ defineProps({
     font-weight:600;
     width: 80px;
     height: 100vh;
-    margin-left: 10px;
     background-color:#0f2547;
     color: #e6edfd;
     align-self: center;
@@ -97,7 +96,6 @@ defineProps({
     border-radius: 0.7rem;
     color:white;
 }
-/* Các style bố cục của bạn giữ nguyên, mình chỉ tóm tắt phần icon và chấm */
 .nav-item {
     position: relative;
     width: 100%;
