@@ -30,7 +30,7 @@ public class Poll {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
@@ -43,6 +43,11 @@ public class Poll {
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<PollOption> options = new ArrayList<>();
+
+    // tin nhắn đại diện cho poll trong dòng chat
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "message_id")
+    private Message message;
 
     @PrePersist
     protected void onCreate() {

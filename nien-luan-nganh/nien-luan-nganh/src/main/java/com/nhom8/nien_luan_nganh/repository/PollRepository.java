@@ -7,6 +7,6 @@ import java.util.*;
 
 @Repository
 public interface PollRepository extends JpaRepository<Poll, UUID> {
-
+    List<Poll> findByRoom_RoomIdOrderByCreatedAtDesc(UUID roomId);
 
 }

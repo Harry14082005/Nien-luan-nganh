@@ -5,4 +5,6 @@ public enum MessageType {
     IMAGE,
     FILE,
     LINK,
+    POLL,
+    REMINDER
 }

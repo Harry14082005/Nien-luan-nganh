@@ -9,5 +9,19 @@ import java.util.*;
 
 @Repository
 public interface PollVoteRepository extends JpaRepository<PollVote, UUID> {
+    // phiếu hiện tại của một người trong một poll
+    List<PollVote> findByPollOption_Poll_PollIdAndUser_UserId(UUID pollId, UUID userId);
 
+    // đếm phiếu mỗi option bằng 1 query: [optionId, count]
+    @Query("""
+        select v.pollOption.pollOptionId, count(v)
+        from PollVote v
+        where v.pollOption.poll.pollId = :pollId
+        group by v.pollOption.pollOptionId
+    """)
+    List<Object[]> countVotesByOption(@Param("pollId") UUID pollId);
+
+    // số người đã tham gia bình chọn (mỗi người tính 1)
+    @Query("select count(distinct v.user.userId) from PollVote v where v.pollOption.poll.pollId = :pollId")
+    long countVoters(@Param("pollId") UUID pollId);
 }

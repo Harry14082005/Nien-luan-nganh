@@ -7,5 +7,5 @@ import java.util.*;
 
 @Repository
 public interface PollOptionRepository extends JpaRepository<PollOption, UUID> {
-
+    List<PollOption> findByPoll_PollId(UUID pollId);
 }

@@ -24,5 +24,5 @@ public class PollOption {
     private Poll poll;
 
     @Column(name = "option_text", nullable = false)
-    private String option;
+    private String optionText;
 }

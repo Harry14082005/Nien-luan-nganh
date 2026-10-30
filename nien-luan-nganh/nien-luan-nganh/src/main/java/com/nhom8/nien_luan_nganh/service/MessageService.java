@@ -723,4 +723,13 @@ public class MessageService {
                 .hasMore(messagePage.hasNext())
                 .build();
     }
+
+    // cập nhật tin nhắn mới nhất của phòng (hiển thị ngoài danh sách phòng)
+
+//    public void updateLastMessage(Room room, Message message, String preview) {
+//        room.setLastMessageId(message.getMessageId());
+//        room.setLastMessageContent(preview);
+//        room.setLastMessageSenderId(message.getSender().getUserId());
+//        room.setLastMessageAt(message.getCreatedAt());
+//    }
 }
