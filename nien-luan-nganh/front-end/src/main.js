@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 import './assets/main.css'
+
 import App from './App.vue'
 import router from './router'
 import { library } from '@fortawesome/fontawesome-svg-core' //lay cai loi library tu FA
@@ -35,10 +36,17 @@ library.add(faMagnifyingGlass,
             faComment,
             faBars,
             faPlus)
-const app = createApp(App)
+async function enableMocking() {
+  if (import.meta.env.VITE_USE_MOCK !== 'true') return
+  const { worker } = await import('./mocks/browser')
+  return worker.start({ onUnhandledRequest: 'bypass' })
+}
 
-app.use(createPinia())
-app.use(router)
-app.component('font-awesome-icon',FontAwesomeIcon)
-app.mount('#app')
+enableMocking().then(() => {
+  const app = createApp(App)
 
+  app.use(createPinia())
+  app.use(router)
+  app.component('font-awesome-icon', FontAwesomeIcon)
+  app.mount('#app')
+})

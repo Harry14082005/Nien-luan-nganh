@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
 import AuthSidebar    from '@/components/common/AuthSidebar.vue'
 import IconMail       from '@/components/icons/IconMail.vue'
 import IconLock       from '@/components/icons/IconLock.vue'
@@ -13,6 +15,29 @@ const emailOrPhone = ref('')
 const password = ref('')
 const rememberMe = ref(false)
 const showPassword = ref(false)
+const auth = useAuthStore()
+const errorMessage = ref('')
+const loading = ref(false)
+
+async function handleLogin() {
+  errorMessage.value = ''
+
+  if (!emailOrPhone.value.trim() || !password.value) {
+    errorMessage.value = 'Vui lòng nhập email/số điện thoại và mật khẩu'
+    return
+  }
+
+  loading.value = true
+  try {
+    await auth.login(emailOrPhone.value.trim(), password.value)
+    router.push('/chat')
+  } catch (err) {
+    errorMessage.value =
+      err.response?.data?.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
+  } finally {
+    loading.value = false
+  }
+}
 
 function goToRegister() {
   router.push('/register')
@@ -33,7 +58,7 @@ function goToRegister() {
         </div>
 
 
-        <form @submit.prevent class="auth-form">
+        <form @submit.prevent="handleLogin" class="auth-form">
           <div class="field-group">
             <label class="field-label">Email hoặc số điện thoại</label>
             <div class="input-wrapper">
@@ -74,12 +99,12 @@ function goToRegister() {
             <a href="#" class="forgot-link">Quên mật khẩu?</a>
           </div>
 
-          <button id="login-submit" type="submit" class="btn-primary">
-            Đăng nhập vào
-            <IconArrowRight :size="16" />
+          <button id="login-submit" type="submit" class="btn-primary" :disabled="loading">
+            {{ loading ? 'Đang đăng nhập...' : 'Đăng nhập vào' }}
+          <IconArrowRight v-if="!loading" :size="16" />
           </button>
         </form>
-
+        <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
         <p class="auth-switch">
           Chưa có tài khoản?
           <a id="go-to-register" href="#" @click.prevent="goToRegister">Đăng ký ngay</a>
@@ -306,5 +331,21 @@ function goToRegister() {
 
 .auth-switch a:hover {
   text-decoration: underline;
+}
+
+.form-error {
+  margin: 0;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
