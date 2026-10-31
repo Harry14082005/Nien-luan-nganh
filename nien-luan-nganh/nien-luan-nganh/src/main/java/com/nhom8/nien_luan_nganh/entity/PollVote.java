@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "poll_votes", uniqueConstraints = @UniqueConstraint(columnNames = {"poll_id", "user_id"}))
+@Table(name = "poll_votes")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,9 +18,9 @@ public class PollVote {
     @EmbeddedId
     private PollVoteId pollVoteId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "poll_id", nullable = false)
-    private Poll poll;
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "poll_id", nullable = false)
+//    private Poll poll;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "poll_option_id", nullable = false)

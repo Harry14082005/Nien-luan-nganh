@@ -18,5 +18,5 @@ public class CreatePollRequest {
 
     @NotNull
     @Size(min = 2, max =10)
-    private List<@NotBlank String> optionIds;
+    private List<@NotBlank String> options;
 }
