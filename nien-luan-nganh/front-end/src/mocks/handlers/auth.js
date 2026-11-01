@@ -14,16 +14,32 @@ const publicUser = ({ password, ...u }) => u;
 
 export const authHandlers = [
   http.post(`${BASE}/auth/register`, async ({ request }) => {
-    await delay(500);
-    const { username, email, phone, password, confirmPassword } = await request.json();
-    if (!email && !phone) return fail(ERR.CONTACT_REQUIRED);
-    if (password !== confirmPassword) return fail(ERR.PASSWORD_NOT_MATCH);
-    if (email && users.some((u) => u.email === email)) return fail(ERR.EMAIL_EXISTED);
-    if (phone && users.some((u) => u.phone === phone)) return fail(ERR.PHONE_NUMBER_EXISTED);
-    const user = { id: users.length + 1, username, email, phone, password, role: "USER", isBanned: false };
-    users.push(user);
-    return ok(publicUser(user), 201);
-  }),
+  await delay(500)
+  const { username, identifier, password, confirmPassword, gender, preferredLanguage } =
+    await request.json()
+  if (password !== confirmPassword) return fail(ERR.PASSWORD_NOT_MATCH)
+
+  const isEmail = identifier?.includes('@')
+  if (isEmail && users.some((u) => u.email === identifier)) return fail(ERR.EMAIL_EXISTED)
+  if (!isEmail && users.some((u) => u.phone === identifier)) return fail(ERR.PHONE_NUMBER_EXISTED)
+
+  const user = {
+    id: users.length + 1,
+    username,
+    email: isEmail ? identifier : null,
+    phone: isEmail ? null : identifier,
+    password,
+    gender,
+    preferredLanguage,
+    role: 'USER',
+    isBanned: false,
+  }
+  users.push(user)
+  return ok(
+    { accessToken: `access-${user.id}`, refreshToken: `refresh-${user.id}`, user: publicUser(user) },
+    201
+  )
+}),
 
   http.post(`${BASE}/auth/login`, async ({ request }) => {
     await delay(500);

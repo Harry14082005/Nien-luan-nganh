@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
 import AuthSidebar    from '@/components/common/AuthSidebar.vue'
 import IconUser       from '@/components/icons/IconUser.vue'
 import IconMail       from '@/components/icons/IconMail.vue'
@@ -11,7 +13,7 @@ import IconEyeOff     from '@/components/icons/IconEyeOff.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 
 const router = useRouter()
-
+const auth = useAuthStore()
 const fullName        = ref('')
 const gender          = ref('male')
 const contactType     = ref('email')
@@ -21,7 +23,54 @@ const password        = ref('')
 const confirmPassword = ref('')
 const showPassword        = ref(false)
 const showConfirmPassword = ref(false)
-const agreeTerms      = ref(false)
+const errorMessage = ref('')
+const loading = ref(false)
+
+function validate() {
+  const name = fullName.value.trim()
+  if (name.length < 2 || name.length > 50) return 'Họ và tên phải từ 2 đến 50 ký tự'
+
+  if (contactType.value === 'email') {
+    if (!email.value.trim()) return 'Vui lòng nhập địa chỉ email'
+    if (!/^\S+@\S+\.\S+$/.test(email.value.trim())) return 'Địa chỉ email không hợp lệ'
+  } else {
+    const p = phone.value.replace(/\s/g, '')
+    if (!p) return 'Vui lòng nhập số điện thoại'
+    if (!/^(\+84|0)\d{9}$/.test(p)) return 'Số điện thoại không hợp lệ'
+  }
+
+  if (password.value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự'
+  if (password.value !== confirmPassword.value) return 'Mật khẩu xác nhận không khớp'
+  return ''
+}
+
+async function handleRegister() {
+  errorMessage.value = validate()
+  if (errorMessage.value) return
+
+  const identifier =
+    contactType.value === 'email' ? email.value.trim() : phone.value.replace(/\s/g, '')
+
+  const body = {
+    username: fullName.value.trim(),
+    identifier,
+    password: password.value,
+    confirmPassword: confirmPassword.value,
+    gender: gender.value.toUpperCase(),
+    preferredLanguage: 'vi',
+  }
+
+  loading.value = true
+  try {
+    await auth.register(body)
+    router.push('/chat')
+  } catch (err) {
+    errorMessage.value =
+      err.response?.data?.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
+  } finally {
+    loading.value = false
+  }
+}
 
 function goToLogin() {
   router.push('/login')
@@ -41,7 +90,7 @@ function goToLogin() {
           <button class="tab active" id="tab-register">Đăng ký</button>
         </div>
 
-        <form @submit.prevent class="auth-form">
+        <form @submit.prevent="handleRegister" novalidate class="auth-form">
 
           <div class="field-group">
             <label class="field-label">Họ và tên</label>
@@ -144,9 +193,10 @@ function goToLogin() {
               </button>
             </div>
           </div>
-          <button id="register-submit" type="submit" class="btn-primary">
-            Tạo tài khoản
-            <IconArrowRight :size="16" />
+          <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+          <button id="register-submit" type="submit" class="btn-primary" :disabled="loading">
+           {{ loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản' }}
+            <IconArrowRight v-if="!loading" :size="16" />
           </button>
         </form>
       </div>
@@ -416,5 +466,20 @@ function goToLogin() {
 
 .btn-primary:active {
   transform: scale(0.99);
+}
+.form-error {
+  margin: 0;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

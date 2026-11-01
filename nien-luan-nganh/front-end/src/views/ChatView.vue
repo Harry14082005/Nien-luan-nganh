@@ -5,6 +5,7 @@ import MessageList from '@/components/chat/MessageList.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
+
 </script>
 <template>
   <div class="app-container">

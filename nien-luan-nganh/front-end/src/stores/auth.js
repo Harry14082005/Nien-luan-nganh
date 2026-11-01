@@ -12,13 +12,32 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    async login(identifier, password) {
-      const { accessToken, refreshToken } = await authApi.login({ identifier, password })
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('refreshToken', refreshToken)
-      this.accessToken = accessToken
-      this.user = await authApi.getMe()
-    },
+  saveSession({ accessToken, refreshToken }) {
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('refreshToken', refreshToken)
+    this.accessToken = accessToken
+  },
+
+  async login(identifier, password) {
+    const tokens = await authApi.login({ identifier, password })
+    this.saveSession(tokens)
+    this.user = await authApi.getMe()
+  },
+
+  async register(body) {
+    const { accessToken, refreshToken, user } = await authApi.register(body)
+    this.saveSession({ accessToken, refreshToken })
+    this.user = user ?? (await authApi.getMe())
+  },
+
+  async logout() {
+    try {
+      await authApi.logout(localStorage.getItem('refreshToken'))
+    } catch {}
+    localStorage.clear()
+    this.$reset()
+  },
+},
 
     async logout() {
       try {
@@ -28,4 +47,4 @@ export const useAuthStore = defineStore('auth', {
       this.$reset()
     },
   },
-})
+)

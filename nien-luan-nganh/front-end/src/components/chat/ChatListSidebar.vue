@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue';
+import ChatItem from './ChatItem.vue';
 defineProps({
     Label:{
         type:String,
@@ -18,6 +20,14 @@ defineProps({
     }
 })
 import SearchBar from '../common/SearchBar.vue';
+const activeId = ref(1)
+
+const conversations = ref([
+  { id: 1, name: 'Nhóm Thiết kế sản phẩm', avatar: '', lastMessage: 'Minh Anh: Mình đã cập nhật bản thiết kế', time: '10:42', unread: 2, online: false },
+  { id: 2, name: 'Minh Anh', avatar: 'https://i.pravatar.cc/100?img=5', lastMessage: 'Gửi bạn tài liệu của buổi họp nhé', time: '09:18', unread: 0, online: true },
+  { id: 3, name: 'Dự án Horizon', avatar: '', lastMessage: 'Bạn: Tuyệt vời, cảm ơn mọi người!', time: 'Hôm qua', unread: 0, online: false },
+])
+
 </script>
 <template>
     <div class="ChatListSidebar">
@@ -36,11 +46,24 @@ import SearchBar from '../common/SearchBar.vue';
         </section>
     <div class="search_bar"><SearchBar></SearchBar></div>
     <div class="filter">
-        <div class="SelectedFilter":class="{active: currentFilter ==='SelectAll'}">Tất cả</div>
-        <div class="SelectedFilter":class="{active: currentFilter ==='Unread'}">Chưa đọc</div>
+        <div class="SelectedFilter" :class="{active: currentFilter ==='SelectAll'}">Tất cả</div>
+        <div class="SelectedFilter" :class="{active: currentFilter ==='Unread'}">Chưa đọc</div>
     </div>
     <span>GẦN ĐÂY</span>
-    <div class="ChatList"></div>
+    <div class="ChatList">
+        <ChatItem
+        v-for="c in conversations"
+        :key="c.id"
+        :name="c.name"
+        :avatar="c.avatar"
+        :last-message="c.lastMessage"
+        :time="c.time"
+        :unread="c.unread"
+        :online="c.online"
+        :active="c.id === activeId"
+        @select="activeId = c.id"
+        />
+    </div>
     </div>
     
 
