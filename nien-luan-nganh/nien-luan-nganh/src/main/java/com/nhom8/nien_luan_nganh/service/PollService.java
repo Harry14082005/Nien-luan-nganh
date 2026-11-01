@@ -3,18 +3,18 @@ package com.nhom8.nien_luan_nganh.service;
 import com.nhom8.nien_luan_nganh.dto.request.AddPollOptionRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreatePollRequest;
 import com.nhom8.nien_luan_nganh.dto.request.VotePollRequest;
+import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
+import com.nhom8.nien_luan_nganh.dto.response.PollEvent;
 import com.nhom8.nien_luan_nganh.dto.response.PollOptionResponse;
 import com.nhom8.nien_luan_nganh.dto.response.PollResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
-import com.nhom8.nien_luan_nganh.enums.MessageType;
-import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
-import com.nhom8.nien_luan_nganh.enums.RoomRole;
-import com.nhom8.nien_luan_nganh.enums.RoomType;
+import com.nhom8.nien_luan_nganh.enums.*;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.PollMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +31,9 @@ public class PollService {
     private final MessageRepository messageRepository;
     private final PollMapper pollMapper;
     private final PollVoteRepository pollVoteRepository;
+    private final RoomService roomService;
+
+    private final SimpMessagingTemplate messagingTemplate;
     //Tạo poll
     @Transactional
     public PollResponse createPoll(UUID roomId, CreatePollRequest request, UUID currentUserId) {
@@ -81,9 +84,28 @@ public class PollService {
         poll.setMessage(message);
 
         ///xử lý Websocket
-        ////
+
+        /// todo: sẽ xử lý trong roomservice
+//        room.setLastMessageId(message.getMessageId());
+//        room.setLastMessageContent("📊 Bình chọn: " + preview(poll.getQuestion()));
+//        room.setLastMessageSenderName(actor.getUser().getUsername());
+//        room.setLastMessageAt(message.getCreatedAt());
+
+        //broadcast tin nhắn POLL
+        //MessageResponse messageResponse = buildPollMessageResponse(message, poll.getPollId());
+        //messagingTemplate.convertAndSend("/topic/room." + roomId, messageResponse);
 
         //xử lý cập nhật tin nhắn mới nhất
+        // broadcast PollEvent để client vẽ giao diện poll
+        PollResponse pollResponse = toResponse(poll, currentUserId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".poll",
+                PollEvent.builder()
+                        .type(PollEventType.POLL_CREATED)
+                        .roomId(roomId)
+                        .poll(pollResponse)
+                        .build()
+        );
+
 
         return toResponse(poll, currentUserId);
     }
@@ -120,6 +142,14 @@ public class PollService {
         pollRepository.flush(); // để option mới có id trước khi dựng response
 
         //TODO: Websocket
+        PollResponse pollResponse = toResponse(poll, currentUserId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".poll",
+                PollEvent.builder()
+                        .type(PollEventType.POLL_OPTION_ADDED)
+                        .roomId(roomId)
+                        .poll(pollResponse)
+                        .build()
+        );
 
         return toResponse(poll, currentUserId);
     }
@@ -182,6 +212,14 @@ public class PollService {
         pollVoteRepository.flush();   // để query đếm phiếu bên dưới thấy dữ liệu mới
 
         // TODO WebSocket: đẩy kết quả mới cho cả phòng
+        PollResponse pollResponse = toResponse(poll, currentUserId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".poll",
+                PollEvent.builder()
+                        .type(PollEventType.POLL_VOTED)
+                        .roomId(roomId)
+                        .poll(pollResponse)
+                        .build()
+        );
 
         return toResponse(poll, currentUserId);
     }
@@ -203,6 +241,15 @@ public class PollService {
         poll.setIsActive(false);
 
         // TODO WebSocket: đẩy trạng thái đã đóng
+        PollResponse pollResponse = toResponse(poll, currentUserId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".poll",
+                PollEvent.builder()
+                        .type(PollEventType.POLL_CLOSED)
+                        .roomId(roomId)
+                        .poll(pollResponse)
+                        .build()
+        );
+
         return toResponse(poll, currentUserId);
     }
 
@@ -323,6 +370,29 @@ public class PollService {
         if(!Boolean.TRUE.equals(poll.getIsActive())){
             throw new AppException(ErrorCode.POLL_CLOSED);
         }
+    }
+
+    // dựng MessageResponse cho tin nhắn POLL để broadcast vào dòng chat
+    // giúp frontend hiện poll card trong dòng chat ngay, không cần load lại
+//    private MessageResponse buildPollMessageResponse(Message message, UUID pollId) {
+//        return MessageResponse.builder()
+//                .messageId(message.getMessageId())
+//                .roomId(message.getRoom().getRoomId())
+//                .messageType(MessageType.POLL)
+//                .content(message.getContent())
+//                .pollId(pollId)
+//                .createdAt(message.getCreatedAt())
+//                .isEdited(false)
+//                .isRevoked(false)
+//                .isPinned(false)
+//                .build();
+//    }
+
+    private String preview(String text) {
+        if (text.length() > 100) {
+            return text.substring(0, 100) + "...";
+        }
+        return text;
     }
 
 }
