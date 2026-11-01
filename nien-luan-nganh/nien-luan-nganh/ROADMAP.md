@@ -89,13 +89,15 @@
 
 ---
 
-### 🔹 Chặng 6: Phân hệ Phòng chat & Thành viên (Rooms & Room Members Module)
-- [ ] Tạo / lấy phòng chat cá nhân 1:1 (`POST /api/v1/rooms/direct`).
-- [ ] Tạo phòng chat nhóm (`POST /api/v1/rooms/group`).
-- [ ] Thêm thành viên mới vào nhóm chat.
-- [ ] Xóa thành viên khỏi nhóm chat.
-- [ ] Phân quyền vai trò: Trưởng nhóm (`OWNER`), Quản trị viên (`ADMIN`), Thành viên (`MEMBER`).
-- [ ] Đổi tên nhóm, avatar nhóm, chuyển quyền trưởng nhóm (Transfer Owner), rời nhóm.
+### 🟡 Chặng 6: Phân hệ Phòng chat & Thành viên (Rooms & Room Members Module) - *[ĐANG THỰC HIỆN]*
+- [x] Tạo / lấy phòng chat cá nhân 1:1 (`POST /api/v1/rooms/direct`).
+- [x] Tạo phòng chat nhóm (`POST /api/v1/rooms/group`).
+- [x] Lấy danh sách phòng chat kèm tin nhắn cuối, trạng thái `hasUnread` & bộ đếm `unreadCount` chống N+1 (`GET /api/v1/rooms`) và xem chi tiết phòng (`GET /api/v1/rooms/{roomId}`).
+- [x] Lấy danh sách thành viên (`GET /api/v1/rooms/{roomId}/members?status=ACTIVE|PENDING`), thêm thành viên mới (`POST /api/v1/rooms/{roomId}/members`), phê duyệt/từ chối thành viên (`PUT /api/v1/rooms/{roomId}/members/{userId}/approve`).
+- [x] Xóa thành viên khỏi nhóm chat (`DELETE /api/v1/rooms/{roomId}/members/{userId}`).
+- [x] Phân quyền vai trò: Trưởng nhóm (`OWNER`), Quản trị viên (`ADMIN`), Thành viên (`MEMBER`) (`PUT /api/v1/rooms/{roomId}/members/{userId}/role`).
+- [x] Rời nhóm kèm chuyển quyền trưởng nhóm (Transfer Owner) (`DELETE /api/v1/rooms/{roomId}/members/leave`).
+- [ ] Đổi tên nhóm, avatar nhóm, xóa phòng (`PUT/DELETE /api/v1/rooms/{roomId}`).
 
 ---
 
@@ -110,9 +112,10 @@
 ---
 
 ### 🟡 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time) - *[ĐANG THỰC HIỆN]*
-- [x] Cấu hình WebSocket Handshake (`/ws`) tích hợp xác thực JWT Token (hỗ trợ cả SockJS và Native WS).
-- [ ] Gửi / Nhận tin nhắn tức thời không cần reload qua Topic `/topic/room.{roomId}`.
-- [ ] Trạng thái Đang gõ chữ (Typing indicator: "Harry đang nhập tin nhắn...").
+- [x] Cấu hình WebSocket Handshake (`/ws` cho SockJS & `/ws-raw` cho Native WS) tích hợp xác thực JWT Token (`WebSocketAuthChannelInterceptor`).
+- [x] Gửi / Nhận tin nhắn tức thời qua `@MessageMapping("/chat.sendMessage")` và đồng bộ thời gian thực Sửa, Thu hồi, Ghim, Bỏ ghim qua Topic `/topic/room.{roomId}`.
+- [x] Đồng bộ thời gian thực Thả / Gỡ cảm xúc tin nhắn qua Topic `/topic/room.{roomId}.reactions` và bắt lỗi WebSocket riêng tư qua `/user/queue/errors`.
+- [x] Trạng thái Đang gõ chữ (Typing indicator: `@MessageMapping("/chat.typing")` -> `/topic/room.{roomId}.typing`, tối ưu với RAM Cache TTL 5 phút).
 - [ ] Trạng thái Đang online / Vừa mới truy cập (User Presence).
 - [ ] Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`).
 

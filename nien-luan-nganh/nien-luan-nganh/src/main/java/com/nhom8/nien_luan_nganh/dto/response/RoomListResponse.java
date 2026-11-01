@@ -18,12 +18,12 @@ public class RoomListResponse {
     private String roomName;
     private String roomAvatarURL;
 
-    //private String theme;
-    //private UUID createdBy;
-    //private boolean requireApproval;
-    //private LocalDateTime createdAt;
+    // private String theme;
+    // private UUID createdBy;
+    // private boolean requireApproval;
+    // private LocalDateTime createdAt;
 
-    //phần tin nhắn hiển thị bên ngoài mới nhất
+    // phần tin nhắn hiển thị bên ngoài mới nhất
     private UUID lastMessageId;
     private String lastMessageContent;
     private String lastMessageSenderName;
@@ -32,4 +32,8 @@ public class RoomListResponse {
     // Trạng thái của thành viên hiện tại
     private UUID lastDeliveredMessageId;
     private UUID lastReadMessageId;
+
+    // Trạng thái hiển thị tin nhắn chưa đọc
+    private boolean hasUnread;
+    private long unreadCount;
 }

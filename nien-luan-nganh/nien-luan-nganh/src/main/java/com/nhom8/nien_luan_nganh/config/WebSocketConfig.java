@@ -77,7 +77,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * /user/queue/notifications)
      * - /app: Tiền tố các event do Client gửi lên Server, Spring chuyen tin nhan
      * vao Controller co gang @MessageMapping
-     * - /user: Tiền tố định tuyến tin nhắn riêng cho từng User cụ thể
+     * - /user: Tiền tố định tuyến tin nhắn riêng cho từng User cụ thể (doc quyen)
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {

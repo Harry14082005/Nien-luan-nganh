@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +31,8 @@ import java.util.UUID;
 public class MessageController {
 
     private final MessageService messageService;
+    // Loa phat thanh Websocket
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * API: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
@@ -79,6 +82,7 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.sendMessage(currentUserId, roomId, request);
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Gửi tin nhắn thành công"));
     }
@@ -103,6 +107,7 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.updateMessage(currentUserId, roomId, messageId, request);
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
         return ResponseEntity.ok(ApiResponse.success(response, "Chỉnh sửa tin nhắn thành công"));
     }
 
@@ -124,6 +129,7 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.revokeMessage(currentUserId, roomId, messageId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
         return ResponseEntity.ok(ApiResponse.success(response, "Thu hồi tin nhắn thành công"));
     }
 
@@ -166,6 +172,7 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.pinMessage(currentUserId, roomId, messageId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
         return ResponseEntity.ok(ApiResponse.success(response, "Ghim tin nhắn thành công"));
     }
 
@@ -187,6 +194,7 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.unpinMessage(currentUserId, roomId, messageId);
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
         return ResponseEntity.ok(ApiResponse.success(response, "Bỏ ghim tin nhắn thành công"));
     }
 
@@ -230,6 +238,7 @@ public class MessageController {
 
         ReactionResponse response = messageService.reactMessage(currentUserId,
                 roomId, messageId, request);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".reactions", response);
         return ResponseEntity.ok(ApiResponse.success(response, "Thả cảm xúc thành công"));
     }
 
@@ -251,6 +260,12 @@ public class MessageController {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         messageService.removeReaction(currentUserId, roomId, messageId);
+        ReactionResponse removedEvent = ReactionResponse.builder()
+                .messageId(messageId)
+                .userId(currentUserId)
+                .reactionType(null)
+                .build();
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".reactions", removedEvent);
         return ResponseEntity.ok(ApiResponse.success(null, "Gỡ cảm xúc thành công"));
     }
 

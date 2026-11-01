@@ -20,6 +20,8 @@ public interface RoomMapper {
     @Mapping(target = "lastMessageAt", ignore = true)
     @Mapping(target = "lastDeliveredMessageId", ignore = true)
     @Mapping(target = "lastReadMessageId", ignore = true)
+    @Mapping(target = "hasUnread", ignore = true)
+    @Mapping(target = "unreadCount", ignore = true)
     RoomListResponse toRoomListResponse(Room room);
 
     Room toRoom(CreateGroupRequest request);

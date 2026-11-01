@@ -21,7 +21,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
+import com.nhom8.nien_luan_nganh.dto.request.TypingPayload;
 import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
+import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,6 +49,11 @@ public class MessageService {
     private final MessageHistoryRepository messageHistoryRepository;
     private final MessageReactionRepository messageReactionRepository;
     private final MessageMapper messageMapper;
+
+    // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
+    // MySQL liên tục khi gõ phím
+    private static final long MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private final Map<String, Long> roomMembershipCache = new ConcurrentHashMap<>();
 
     /**
      * Nghiệp vụ 1: Gửi tin nhắn vào phòng chat.
@@ -724,12 +733,57 @@ public class MessageService {
                 .build();
     }
 
+    /**
+     * Nghiệp vụ 12: Xử lý sự kiện Đang gõ chữ (Typing indicator) qua WebSocket.
+     * - Kiểm tra tư cách thành viên qua bộ nhớ đệm RAM (TTL 5 phút) nhằm giảm tải
+     * truy vấn COUNT(*) xuống MySQL.
+     * - Ưu tiên lấy tên hiển thị và avatar từ Principal trên RAM, chỉ truy vấn DB
+     * khi cần.
+     */
+    @Transactional(readOnly = true)
+    public TypingEventResponse buildTypingEvent(
+            UUID currentUserId,
+            TypingPayload payload,
+            String cachedUsername,
+            String cachedAvatarUrl) {
+        UUID roomId = payload.getRoomId();
+        String cacheKey = currentUserId + ":" + roomId;
+        long now = System.currentTimeMillis();
+
+        Long cachedValidUntil = roomMembershipCache.get(cacheKey);
+        if (cachedValidUntil == null || cachedValidUntil < now) {
+            boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                    roomId);
+            if (!isMember) {
+                throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+            }
+            roomMembershipCache.put(cacheKey, now + MEMBERSHIP_CACHE_TTL_MS);
+        }
+
+        String username = cachedUsername;
+        String avatarUrl = cachedAvatarUrl;
+        if (username == null) {
+            User user = userRepository.findById(currentUserId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+            username = user.getUsername();
+            avatarUrl = user.getAvatarUrl();
+        }
+
+        return TypingEventResponse.builder()
+                .roomId(roomId)
+                .userId(currentUserId)
+                .username(username)
+                .avatarUrl(avatarUrl)
+                .typing(payload.isTyping())
+                .build();
+    }
+
     // cập nhật tin nhắn mới nhất của phòng (hiển thị ngoài danh sách phòng)
 
-//    public void updateLastMessage(Room room, Message message, String preview) {
-//        room.setLastMessageId(message.getMessageId());
-//        room.setLastMessageContent(preview);
-//        room.setLastMessageSenderId(message.getSender().getUserId());
-//        room.setLastMessageAt(message.getCreatedAt());
-//    }
+    // public void updateLastMessage(Room room, Message message, String preview) {
+    // room.setLastMessageId(message.getMessageId());
+    // room.setLastMessageContent(preview);
+    // room.setLastMessageSenderId(message.getSender().getUserId());
+    // room.setLastMessageAt(message.getCreatedAt());
+    // }
 }

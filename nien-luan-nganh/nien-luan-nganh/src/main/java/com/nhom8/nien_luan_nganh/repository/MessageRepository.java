@@ -17,62 +17,87 @@ import java.util.UUID;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, UUID> {
 
-    // Lay tin nhan moi nhat (lan dau load)
-    @Query(value = "SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "LEFT JOIN FETCH m.repliedMessage rm " +
-            "LEFT JOIN FETCH rm.sender " +
-            "WHERE m.room.roomId = :roomId " +
-            "ORDER BY m.createdAt DESC",
-            countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId")
-    Page<Message> findByRoom_RoomIdOrderByCreatedAtDesc(@Param("roomId") UUID roomId, Pageable pageable);
+        // Lay tin nhan moi nhat (lan dau load)
+        @Query(value = "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "LEFT JOIN FETCH m.repliedMessage rm " +
+                        "LEFT JOIN FETCH rm.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "ORDER BY m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId")
+        Page<Message> findByRoom_RoomIdOrderByCreatedAtDesc(@Param("roomId") UUID roomId, Pageable pageable);
 
-    // Cuon de xem tin nhan cu - Cursor-based pagination - infinite scroll
-    @Query(value = "SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "LEFT JOIN FETCH m.repliedMessage rm " +
-            "LEFT JOIN FETCH rm.sender " +
-            "WHERE m.room.roomId = :roomId " +
-            "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before) " +
-            "ORDER BY m.createdAt DESC",
-            countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId " +
-                    "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before)")
-    Page<Message> findByRoomIdBefore(@Param("roomId") UUID roomId, @Param("before") UUID before, Pageable pageable);
+        // Cuon de xem tin nhan cu - Cursor-based pagination - infinite scroll
+        @Query(value = "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "LEFT JOIN FETCH m.repliedMessage rm " +
+                        "LEFT JOIN FETCH rm.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before) " +
+                        "ORDER BY m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Message m WHERE m.room.roomId = :roomId "
+                                        +
+                                        "AND m.createdAt < (SELECT m2.createdAt FROM Message m2 WHERE m2.messageId = :before)")
+        Page<Message> findByRoomIdBefore(@Param("roomId") UUID roomId, @Param("before") UUID before, Pageable pageable);
 
-    // Tim tin nhan trong room (tin nhan thu hoi roi thi khong thay)
-    @Query("SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "LEFT JOIN FETCH m.repliedMessage rm " +
-            "LEFT JOIN FETCH rm.sender " +
-            "WHERE m.room.roomId = :roomId " +
-            "AND LOWER(m.content) LIKE LOWER(CONCAT('%', :q, '%')) " +
-            "AND m.isRevoked = false " +
-            "ORDER BY m.createdAt DESC")
-    List<Message> searchInRoom(@Param("roomId") UUID roomId,
-                               @Param("q") String q,
-                               Pageable pageable);
+        // Tim tin nhan trong room (tin nhan thu hoi roi thi khong thay)
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "LEFT JOIN FETCH m.repliedMessage rm " +
+                        "LEFT JOIN FETCH rm.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND LOWER(m.content) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                        "AND m.isRevoked = false " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> searchInRoom(@Param("roomId") UUID roomId,
+                        @Param("q") String q,
+                        Pageable pageable);
 
-    // Lay danh sach tin nhan da ghim trong phong chat
-    @Query("SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "LEFT JOIN FETCH m.repliedMessage rm " +
-            "LEFT JOIN FETCH rm.sender " +
-            "WHERE m.room.roomId = :roomId " +
-            "AND m.isPinned = true " +
-            "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
-            "ORDER BY m.createdAt DESC")
-    List<Message> findPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
+        // Lay danh sach tin nhan da ghim trong phong chat
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "LEFT JOIN FETCH m.repliedMessage rm " +
+                        "LEFT JOIN FETCH rm.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND m.isPinned = true " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> findPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
 
-    // Admin
-    // 1. Thống kê số tin nhắn theo khoảng thời gian
-    @Query("SELECT COUNT(m) FROM Message m WHERE m.createdAt >= :start AND m.createdAt < :end")
-    long countByCreatedAtRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+        // Admin
+        // 1. Thống kê số tin nhắn theo khoảng thời gian
+        @Query("SELECT COUNT(m) FROM Message m WHERE m.createdAt >= :start AND m.createdAt < :end")
+        long countByCreatedAtRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    // 2. Thống kê theo loại tin nhắn (TEXT, IMAGE, FILE...)
-    long countByMessageType(MessageType messageType);
+        // 2. Thống kê theo loại tin nhắn (TEXT, IMAGE, FILE...)
+        long countByMessageType(MessageType messageType);
 
-    //xoá tất cả rìa rìa liên quan tới tin nhắn khi 1 nhóm bị xoá
-    @Modifying
-    @Query("delete from Message m where m.room.roomId = :roomId")
-    void deleteAllByRoomId(@Param("roomId") UUID roomId);
+        // Lay tin nhan moi nhat cua danh sach phong chat trong 1 cau query (Tranh N+1
+        // khi load Sidebar)
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.room.roomId IN :roomIds " +
+                        "AND m.createdAt = (" +
+                        "    SELECT MAX(m2.createdAt) FROM Message m2 WHERE m2.room.roomId = m.room.roomId" +
+                        ")")
+        List<Message> findLatestMessagesByRoomIds(@Param("roomIds") List<UUID> roomIds);
+
+        // Dem so tin nhan chua doc theo tung phong chat trong 1 cau query gop (Phuong
+        // an A)
+        @Query("SELECT m.room.roomId, COUNT(m) " +
+                        "FROM Message m, RoomMember rm " +
+                        "WHERE rm.room.roomId = m.room.roomId " +
+                        "AND rm.roomMemberId.userId = :userId " +
+                        "AND m.room.roomId IN :roomIds " +
+                        "AND (m.sender IS NULL OR m.sender.userId <> :userId) " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "AND (rm.lastReadMessageId IS NULL OR m.createdAt > (" +
+                        "    SELECT mr.createdAt FROM Message mr WHERE mr.messageId = rm.lastReadMessageId" +
+                        ")) " +
+                        "GROUP BY m.room.roomId")
+        List<Object[]> countUnreadMessagesByRoomIds(@Param("roomIds") List<UUID> roomIds,
+                        @Param("userId") UUID userId);
+
+        // xoá tất cả rìa rìa liên quan tới tin nhắn khi 1 nhóm bị xoá
+        @Modifying
+        @Query("delete from Message m where m.room.roomId = :roomId")
+        void deleteAllByRoomId(@Param("roomId") UUID roomId);
 }

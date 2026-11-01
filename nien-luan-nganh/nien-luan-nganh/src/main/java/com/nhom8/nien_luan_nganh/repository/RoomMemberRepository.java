@@ -32,6 +32,21 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemb
     @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.room WHERE rm.roomMemberId.userId = :userId")
     List<RoomMember> findRoomsByUserId(@Param("userId") UUID userId);
 
+    // Lay thong tin RoomMember cua currentUser trong danh sach phong (lay lastReadMessageId, lastDeliveredMessageId)
+    @Query("SELECT rm FROM RoomMember rm " +
+           "WHERE rm.roomMemberId.roomId IN :roomIds " +
+           "AND rm.roomMemberId.userId = :userId")
+    List<RoomMember> findByRoomIdsAndUserId(@Param("roomIds") List<UUID> roomIds,
+                                            @Param("userId") UUID userId);
+
+    // Lay thong tin thanh vien doi phuong trong cac phong chat 1-1 (tranh N+1 query)
+    @Query("SELECT rm FROM RoomMember rm " +
+           "JOIN FETCH rm.user " +
+           "WHERE rm.roomMemberId.roomId IN :roomIds " +
+           "AND rm.roomMemberId.userId <> :currentUserId")
+    List<RoomMember> findOtherMembersInRooms(@Param("roomIds") List<UUID> roomIds,
+                                             @Param("currentUserId") UUID currentUserId);
+
     // Lay member theo role
     List<RoomMember> findByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
 
