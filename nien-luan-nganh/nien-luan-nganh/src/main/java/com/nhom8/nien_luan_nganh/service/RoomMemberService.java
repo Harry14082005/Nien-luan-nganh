@@ -4,10 +4,12 @@ import com.nhom8.nien_luan_nganh.dto.request.AddMemberRequest;
 import com.nhom8.nien_luan_nganh.dto.request.ApproveMemberRequest;
 import com.nhom8.nien_luan_nganh.dto.request.ChangeMemberRoleRequest;
 import com.nhom8.nien_luan_nganh.dto.request.LeaveRoomRequest;
+import com.nhom8.nien_luan_nganh.dto.response.MessageReceiptResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomMemberResponse;
 import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
+import com.nhom8.nien_luan_nganh.enums.MessageReceiptType;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
@@ -45,8 +47,6 @@ public class RoomMemberService {
     // 4. 1. Nếu nhóm duy nhất 1 admin, mà admin rời phòng thì phải chỉ định
     // 5. Chỉnh bật/tắt phê duyệt thành viên
     // 6. Xem danh sách thành viên
-
-    // checkRoo
 
     // hàm cơ bản thêm một thành viên
     @Transactional
@@ -188,7 +188,6 @@ public class RoomMemberService {
 
                 if (memberCount == 1) {
                     // còn mình ên thì xoá luôn phòng
-                    // roomRepository.delete(room);
                     deleteRoomCompletely(room);
                     return;
                 }
@@ -204,7 +203,7 @@ public class RoomMemberService {
                     throw new AppException(ErrorCode.INVALID_INPUT);
                 }
 
-                // người được chỉ định phải là thành veien Active
+                // người được chỉ định phải là thành viên Active
                 RoomMember newAdmin = getActiveMemberOrThrow(roomId, newAdminId);
                 newAdmin.setRoomMemberRole(RoomRole.ADMIN);
             }
@@ -216,7 +215,7 @@ public class RoomMemberService {
     // xem 1 thành viên
     @Transactional(readOnly = true)
     public RoomMemberResponse getMember(UUID roomId, UUID targetUserId, UUID currentUserId) {
-        // phải là thành viên thì moiws xemdđược
+        // phải là thành viên thì mới xem được
         getActiveMemberOrThrow(roomId, currentUserId);
 
         return roomMemberMapper.toRoomMemberResponse(getRoomMemberOrThrow(roomId, targetUserId));
@@ -225,7 +224,7 @@ public class RoomMemberService {
     // xem một đống thành viên trong phòng
     @Transactional(readOnly = true)
     public List<RoomMemberResponse> getMembers(UUID roomId, RoomMemberStatus status, UUID currentUserId) {
-        // phải là thành viên thì moiws xemdđược
+        // phải là thành viên thì mới xem được
         getActiveMemberOrThrow(roomId, currentUserId);
 
         List<RoomMember> members;
@@ -245,7 +244,7 @@ public class RoomMemberService {
         // kiểm tra phòng chat tồn tại
         getRoomOrThrow(roomId);
 
-        // phải là thành viên thì moiws xemdđược
+        // phải là thành viên thì mới xem được
         RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
 
         // kiểm tra thành viên thay đổi có tồn tại trong group hay không
@@ -256,14 +255,14 @@ public class RoomMemberService {
             throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
         }
 
-        // khong cho đổi role người mà đang hông được duyệt (duyệt thì sẽ là approve)
+        // không cho đổi role người mà đang không được duyệt (duyệt thì sẽ là approve)
         if (target.getStatus() != RoomMemberStatus.ACTIVE) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
 
         RoomRole newRole = request.getRole();
 
-        // không làm gì nếu hông đổi quyền
+        // không làm gì nếu không đổi quyền
         if (target.getRoomMemberRole() == newRole) {
             return roomMemberMapper.toRoomMemberResponse(target);
         }
@@ -285,29 +284,69 @@ public class RoomMemberService {
 
     // đánh dấu đã nhận tin nhắn (client nhận được qua Socket thì gọi)
     @Transactional
-    public void markAsDelivered(UUID roomId, UUID messageId, UUID currentUserId) {
+    public MessageReceiptResponse markAsDelivered(UUID roomId, UUID messageId, UUID currentUserId) {
         RoomMember member = getActiveMemberOrThrow(roomId, currentUserId);
         Message message = getMessageInRoomOrThrow(roomId, messageId);
 
         if (isNewer(message, member.getLastDeliveredMessageId())) {
             member.setLastDeliveredMessageId(messageId);
+            roomMemberRepository.save(member);
+
+            return MessageReceiptResponse.builder()
+                    .roomId(roomId)
+                    .userId(currentUserId)
+                    .username(member.getUser() != null ? member.getUser().getUsername() : null)
+                    .avatarUrl(member.getUser() != null ? member.getUser().getAvatarUrl() : null)
+                    .messageId(messageId)
+                    .receiptType(MessageReceiptType.DELIVERED)
+                    .timestamp(LocalDateTime.now())
+                    .build();
         }
+        return null;
     }
 
     // đánh dấu đã đọc khi nhấn vào phòng
     @Transactional
-    public void markAsRead(UUID roomId, UUID messageId, UUID currentUserId) {
+    public MessageReceiptResponse markAsRead(UUID roomId, UUID messageId, UUID currentUserId) {
         RoomMember member = getActiveMemberOrThrow(roomId, currentUserId);
+
+        // Nếu client không truyền messageId cụ thể, tự động lấy tin nhắn mới nhất của phòng
+        if (messageId == null) {
+            Room room = getRoomOrThrow(roomId);
+            messageId = room.getLastMessageId();
+            if (messageId == null) {
+                return null;
+            }
+        }
+
         Message message = getMessageInRoomOrThrow(roomId, messageId);
+        boolean updated = false;
 
         if (isNewer(message, member.getLastReadMessageId())) {
             member.setLastReadMessageId(messageId);
+            updated = true;
         }
 
-        // nếu đọc ròi thì đã nhận rồi
+        // nếu đọc rồi thì chắc chắn đã nhận rồi
         if (isNewer(message, member.getLastDeliveredMessageId())) {
             member.setLastDeliveredMessageId(messageId);
+            updated = true;
         }
+
+        if (updated) {
+            roomMemberRepository.save(member);
+
+            return MessageReceiptResponse.builder()
+                    .roomId(roomId)
+                    .userId(currentUserId)
+                    .username(member.getUser() != null ? member.getUser().getUsername() : null)
+                    .avatarUrl(member.getUser() != null ? member.getUser().getAvatarUrl() : null)
+                    .messageId(messageId)
+                    .receiptType(MessageReceiptType.READ)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+        return null;
     }
 
     private List<RoomMemberResponse> saveMember(Room room, List<UUID> userIds, RoomRole role, RoomMemberStatus status) {
@@ -326,23 +365,11 @@ public class RoomMemberService {
         if (users.size() != distinctIds.size()) {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
-        // Vì mỗi ID hợp lệ tương ứng với một user tồn tại.
-        // Nếu số user tìm được ít hơn số ID cần tìm thì có ít nhất một ID không tồn
-        // tại.
 
         // kiểm tra người dùng có thuộc phòng hay không
         if (!roomMemberRepository.findExistingUserIds(room.getRoomId(), distinctIds).isEmpty()) {
             throw new AppException(ErrorCode.ALREADY_IN_ROOM);
         }
-        // nếu có 1 người là thành viên thì ném lỗi
-
-        // for(User user : users){
-        // if(roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(
-        // user.getUserId(), room.getRoomId()
-        // )){
-        // throw new AppException(ErrorCode.ALREADY_IN_ROOM);
-        // }
-        // }
 
         // tạo danh sách roommember
         List<RoomMember> roomMembers = users.stream()
@@ -354,8 +381,7 @@ public class RoomMemberService {
                 .toList();
     }
 
-    // lấy danh sách thành viên có thể thêm (tất cả bạn bè trừ những người có trong
-    // nhóm cả Active với Pending)
+    // lấy danh sách thành viên có thể thêm (tất cả bạn bè trừ những người có trong nhóm cả Active với Pending)
     @Transactional(readOnly = true)
     public List<UserResponse> getInvitableMembers(UUID roomId, UUID currentUserId) {
         Room room = getRoomOrThrow(roomId);
@@ -457,8 +483,16 @@ public class RoomMemberService {
 
     // tin nhắn mới có mới hơn mốc hiện tại không
     private boolean isNewer(Message newMessage, UUID currentMarkId) {
-        if (currentMarkId == null)
+        if (newMessage == null || newMessage.getMessageId() == null) {
+            return false;
+        }
+        if (currentMarkId == null) {
             return true;
+        }
+        // Nếu trùng đúng mốc hiện tại, không cần truy vấn DB so sánh thời gian
+        if (currentMarkId.equals(newMessage.getMessageId())) {
+            return false;
+        }
 
         return messageRepository.findById(currentMarkId)
                 .map(old -> newMessage.getCreatedAt().isAfter(old.getCreatedAt()))

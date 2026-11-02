@@ -15,7 +15,7 @@
 - [x] Xây dựng **5 Composite Key Classes**:
   - `RoomMemberId`, `MessageReactionId`, `PollResourceId`, `ReminderParticipantId`, `ReminderResourceId`.
 - [x] Xây dựng **9 Enums**:
-  - `UserRole`, `RoomType`, `RoomRole`, `FriendshipStatus`, `MessageType`, `ReminderType`, `ReminderStatus`, `RsvpResponse`, `NotificationType`.
+  - `UserRole`, `RoomType`, `RoomRole`, `FriendshipStatus`, `MessageType`, `ReminderType`, `ReminderStatus`, `RsvpResponse`, `NotificationType`, `MessageReceiptType`.
 - [x] Xây dựng **16 Spring Data JPA Repositories** với các câu truy vấn tối ưu và cursor pagination.
 
 ---
@@ -47,7 +47,6 @@
   - Cung cấp Bean `BCryptPasswordEncoder` mã hóa mật khẩu 1 chiều.
   - Phân quyền các route công khai (`/api/v1/auth/**`, `/ws/**`, `/uploads/**`) và route bảo mật.
   - Tùy biến trả lỗi JSON 401 (Chưa đăng nhập) & 403 (Không có quyền) theo chuẩn `ApiResponse`.
-
 
 ---
 
@@ -111,13 +110,13 @@
 
 ---
 
-### 🟡 Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time) - *[ĐANG THỰC HIỆN]*
+### ✅ Chặng 8: Giao tiếp Thời gian thực qua WebSocket (STOMP Real-time) - *[HOÀN THÀNH]*
 - [x] Cấu hình WebSocket Handshake (`/ws` cho SockJS & `/ws-raw` cho Native WS) tích hợp xác thực JWT Token (`WebSocketAuthChannelInterceptor`).
 - [x] Gửi / Nhận tin nhắn tức thời qua `@MessageMapping("/chat.sendMessage")` và đồng bộ thời gian thực Sửa, Thu hồi, Ghim, Bỏ ghim qua Topic `/topic/room.{roomId}`.
 - [x] Đồng bộ thời gian thực Thả / Gỡ cảm xúc tin nhắn qua Topic `/topic/room.{roomId}.reactions` và bắt lỗi WebSocket riêng tư qua `/user/queue/errors`.
 - [x] Trạng thái Đang gõ chữ (Typing indicator: `@MessageMapping("/chat.typing")` -> `/topic/room.{roomId}.typing`, tối ưu với RAM Cache TTL 5 phút).
 - [x] Trạng thái Đang online / Vừa mới truy cập (User Presence: Multi-session Counter trên RAM, Zombie Heartbeat 15s, `/topic/users.presence`, `GET /api/v1/users/{userId}/presence`, `POST /api/v1/users/presence/batch`).
-- [ ] Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`).
+- [x] Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`) qua `@MessageMapping("/chat.markRead")`, `@MessageMapping("/chat.markDelivered")` và REST `PUT /rooms/{roomId}/members/me/read`, broadcast tới `/topic/room.{roomId}.receipts`.
 
 ---
 

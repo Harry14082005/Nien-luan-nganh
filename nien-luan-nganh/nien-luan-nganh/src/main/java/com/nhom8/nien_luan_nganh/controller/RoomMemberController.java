@@ -2,32 +2,28 @@ package com.nhom8.nien_luan_nganh.controller;
 
 import com.nhom8.nien_luan_nganh.dto.request.*;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
+import com.nhom8.nien_luan_nganh.dto.response.MessageReceiptResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomMemberResponse;
 import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
-import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.service.RoomMemberService;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Controller;
-import org.springframework.stereotype.Repository;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.function.EntityResponse;
 
-import javax.swing.text.html.parser.Entity;
-import javax.xml.stream.events.EntityReference;
 import java.util.List;
 import java.util.UUID;
-
 
 @RestController
 @RequestMapping("/api/v1/rooms/{roomId}/members")
 @RequiredArgsConstructor
+@Slf4j
 public class RoomMemberController {
     private final RoomMemberService roomMemberService;
-
+    private final SimpMessagingTemplate messagingTemplate;
 
     /*
     GET /api/v1/rooms/{roomId}/members                --> tất cả
@@ -60,7 +56,7 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.success(responses, "Thêm thành viên thành công"));
     }
 
-    //xoas thành viên
+    // xoá thành viên
     @DeleteMapping("/{userId}")
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> deleteMember(
             Authentication authentication,
@@ -74,7 +70,7 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.message("Xoá thành viên thành công"));
     }
 
-    //rời phòng
+    // rời phòng
     @DeleteMapping("/leave")
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> leaveRoom(
             Authentication authentication,
@@ -88,9 +84,11 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.message("Rời phòng thành công"));
     }
 
-    //sửa quyền thành viên
+    // sửa quyền thành viên
     @PutMapping("/{userId}/role")
     public ResponseEntity<ApiResponse<RoomMemberResponse>> leaveRoom(
+    //    public ResponseEntity<ApiResponse<RoomMemberResponse>> changeMemberRole(
+
             Authentication authentication,
             @PathVariable UUID roomId,
             @PathVariable UUID userId,
@@ -103,13 +101,14 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.success(response, "Sửa quyền thành công"));
     }
 
-
-    //phê duyệt thành viên
+    // phê duyệt thành viên
     @PutMapping("/{userId}/approve")
     public ResponseEntity<ApiResponse<RoomMemberResponse>> deleteMember(
+    //    public ResponseEntity<ApiResponse<RoomMemberResponse>> approveMember(
+
             Authentication authentication,
             @PathVariable UUID roomId,
-            ApproveMemberRequest request
+            @RequestBody ApproveMemberRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
@@ -118,36 +117,53 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.message("Phê duyệt thành viên thành công"));
     }
 
-    //đánh dấu tin nhắn đã đọc
-    @PutMapping("me/read")
-    public ResponseEntity<ApiResponse<Void>> markAsRead(
+    // đánh dấu tin nhắn đã đọc
+    @PutMapping("/me/read")
+    public ResponseEntity<ApiResponse<MessageReceiptResponse>> markAsRead(
             @PathVariable UUID roomId,
-            @RequestBody MarkReadRequest request,
+            @RequestBody(required = false) MarkReadRequest request,
             Authentication authentication
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
+        UUID messageId = request != null ? request.getMessageId() : null;
 
-        roomMemberService.markAsRead(roomId, request.getMessageId(), currentUserId);
+        MessageReceiptResponse response = roomMemberService.markAsRead(roomId, messageId, currentUserId);
 
-        return ResponseEntity.ok(ApiResponse.message("Đánh dấu đã đọc thành công"));
+        if (response != null) {
+            try {
+                messagingTemplate.convertAndSend("/topic/room." + roomId + ".receipts", response);
+            } catch (Exception ex) {
+                log.warn("Không thể broadcast read receipt qua WebSocket cho room {}: {}", roomId, ex.getMessage());
+            }
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Đánh dấu đã đọc thành công"));
     }
 
-    //đánh dấu tin nhắn đã nhận
-    @PutMapping("me/delivered")
-    public ResponseEntity<ApiResponse<Void>> markAsDelivered(
+    // đánh dấu tin nhắn đã nhận
+    @PutMapping("/me/delivered")
+    public ResponseEntity<ApiResponse<MessageReceiptResponse>> markAsDelivered(
             @PathVariable UUID roomId,
-            @RequestBody MarkReadRequest request,
+            @RequestBody(required = false) MarkReadRequest request,
             Authentication authentication
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
+        UUID messageId = request != null ? request.getMessageId() : null;
 
-        roomMemberService.markAsDelivered(roomId, request.getMessageId(), currentUserId);
+        MessageReceiptResponse response = roomMemberService.markAsDelivered(roomId, messageId, currentUserId);
 
-        return ResponseEntity.ok(ApiResponse.message("Đánh dấu đã nhận thành công"));
+        if (response != null) {
+            try {
+                messagingTemplate.convertAndSend("/topic/room." + roomId + ".receipts", response);
+            } catch (Exception ex) {
+                log.warn("Không thể broadcast delivered receipt qua WebSocket cho room {}: {}", roomId, ex.getMessage());
+            }
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Đánh dấu đã nhận thành công"));
     }
 
-
-    //lấy danh sách thành viên có thể thêm vô phòng được
+    // lấy danh sách thành viên có thể thêm vô phòng được
     @GetMapping("/invitable")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getInvitableMembers(
             @PathVariable UUID roomId,
@@ -157,7 +173,6 @@ public class RoomMemberController {
 
         List<UserResponse> responses = roomMemberService.getInvitableMembers(roomId, currentUserId);
 
-        return ResponseEntity.ok(ApiResponse.success(responses,"Lấy danh sách bạn bè có thể thêm thành công"));
+        return ResponseEntity.ok(ApiResponse.success(responses, "Lấy danh sách bạn bè có thể thêm thành công"));
     }
-
 }

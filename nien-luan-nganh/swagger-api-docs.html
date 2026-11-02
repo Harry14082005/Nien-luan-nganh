@@ -484,6 +484,36 @@
             }
           }
         },
+        "/api/v1/rooms/{roomId}/members/me/read": {
+          put: {
+            tags: ["5. Room Members"],
+            summary: "Đánh dấu tin nhắn đã đọc (Read Receipt)",
+            description: "Cập nhật con trỏ Watermark lastReadMessageId (và tự động cập nhật lastDeliveredMessageId). Nếu body rỗng hoặc messageId null, hệ thống tự động đánh dấu tới tin nhắn mới nhất trong phòng. Đồng thời broadcast sự kiện qua WebSocket topic `/topic/room.{roomId}.receipts` (receiptType: READ).",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            requestBody: {
+              required: false,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/MarkReadRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đánh dấu đã đọc thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageReceiptResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members/me/delivered": {
+          put: {
+            tags: ["5. Room Members"],
+            summary: "Đánh dấu tin nhắn đã nhận (Delivered Receipt)",
+            description: "Cập nhật con trỏ Watermark lastDeliveredMessageId. Nếu body rỗng hoặc messageId null, hệ thống tự động lấy tin nhắn mới nhất. Đồng thời broadcast sự kiện qua WebSocket topic `/topic/room.{roomId}.receipts` (receiptType: DELIVERED).",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            requestBody: {
+              required: false,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/MarkReadRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đánh dấu đã nhận thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageReceiptResponse" } } } }
+            }
+          }
+        },
         "/api/v1/rooms/{roomId}/messages": {
           get: {
             tags: ["6. Messages & Reactions"],
@@ -792,6 +822,20 @@
             type: "object",
             properties: {
               targetUserId: { type: "string", format: "uuid" }
+            }
+          },
+          MarkReadRequest: {
+            type: "object",
+            properties: {
+              messageId: { type: "string", format: "uuid", nullable: true, description: "ID tin nhắn mốc đã đọc / đã nhận (để null để tự động lấy tin nhắn mới nhất của phòng)" }
+            }
+          },
+          MarkMessageReceiptPayload: {
+            type: "object",
+            required: ["roomId"],
+            properties: {
+              roomId: { type: "string", format: "uuid", description: "ID phòng chat" },
+              messageId: { type: "string", format: "uuid", nullable: true, description: "ID tin nhắn mốc (null để tự lấy tin mới nhất)" }
             }
           },
           ChangeMemberRoleRequest: {
@@ -1183,6 +1227,27 @@
               status: { type: "integer", example: 200 },
               message: { type: "string" },
               data: { $ref: "#/components/schemas/RoomMemberResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          MessageReceiptResponse: {
+            type: "object",
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              userId: { type: "string", format: "uuid" },
+              username: { type: "string" },
+              avatarUrl: { type: "string", nullable: true },
+              messageId: { type: "string", format: "uuid" },
+              receiptType: { type: "string", enum: ["DELIVERED", "READ"] },
+              timestamp: { type: "string", format: "date-time" }
+            }
+          },
+          ApiResponse_MessageReceiptResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/MessageReceiptResponse" },
               timestamp: { type: "string" }
             }
           },

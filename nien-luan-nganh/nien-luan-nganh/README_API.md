@@ -14,7 +14,7 @@
 | Auth | REST | 4 |
 | Users | REST | 9 |
 | Friendship | REST | 7 |
-| Rooms | REST | 15 |
+| Rooms | REST | 17 |
 | Messages | REST | 11 |
 | Uploads | REST | 1 |
 | Polls | REST | 6 |
@@ -22,18 +22,9 @@
 | Notifications | REST | 3 |
 | AI | REST | 2 |
 | Admin | REST | 10 |
-| WebSocket gửi lên | WebSocket | 8 |
+| WebSocket gửi lên | WebSocket | 9 |
 | WebSocket nhận về | WebSocket | 20 |
-| **Tổng** | | **102** |
-
-**Theo tình trạng:**
-
-| Tình trạng | Số API |
-|---|---|
-| Đã có trong spec | 79 |
-| Cần bổ sung | 11 |
-| — | 9 |
-| Nên có thêm | 3 |
+| **Tổng** | | **105** |
 
 ## Auth
 
@@ -87,6 +78,9 @@
 | 26 | `PUT` | `/rooms/{roomId}/members/{userId}/role` | Đổi quyền thành viên (`ADMIN`, `MEMBER`) | 15 | Owner phòng | Đã hoàn thành |  |
 | — | `PUT` | `/rooms/{roomId}/members/{userId}/approve` | Phê duyệt hoặc từ chối thành viên chờ duyệt | — | Admin/Owner phòng | Đã hoàn thành | Gộp duyệt và từ chối qua `ApproveMemberRequest` |
 | 27 | `DELETE` | `/rooms/{roomId}/members/leave` | Rời phòng (kèm chuyển quyền Owner nếu là trưởng nhóm) | — | Đăng nhập | Đã hoàn thành | Đặt tại `/rooms/{roomId}/members/leave` |
+| — | `PUT` | `/rooms/{roomId}/members/me/read` | Đánh dấu tin nhắn đã đọc (Read / Seen) | — | Đăng nhập | Đã hoàn thành | Nhận `MarkReadRequest` (`messageId`), broadcast realtime tới `/topic/room.{roomId}.read` và `.receipts` |
+| — | `PUT` | `/rooms/{roomId}/members/me/delivered` | Đánh dấu tin nhắn đã nhận (Delivered) | — | Đăng nhập | Đã hoàn thành | Nhận `MarkReadRequest` (`messageId`), broadcast realtime tới `/topic/room.{roomId}.delivered` và `.receipts` |
+| — | `GET` | `/rooms/{roomId}/members/invitable` | Lấy danh sách bạn bè có thể mời vào phòng | — | Đăng nhập | Đã hoàn thành | Loại trừ những người đã ở trong phòng |
 
 ## Messages
 
@@ -174,7 +168,8 @@
 | 65 | Client → Server | `SEND /app/chat.sendMessage` | Gửi tin nhắn realtime (`ChatMessagePayload`: `roomId`, `content`, `messageType`, `repliedMessageId`) | 5, 6, 7, 8, 9, 10 | Đã kết nối | Đã hoàn thành | Lưu DB qua `MessageService` và phát về `/topic/room.{roomId}` |
 | 66 | Client → Server | `SEND /app/chat.typing` (`typing: true`) | Báo đang gõ chữ (`TypingPayload`: `roomId`, `typing: true`) | — | Đã kết nối | Đã hoàn thành | Tối ưu kiểm tra thành viên qua RAM Cache TTL 5 phút |
 | 67 | Client → Server | `SEND /app/chat.typing` (`typing: false`) | Báo ngừng gõ chữ (`TypingPayload`: `roomId`, `typing: false`) | — | Đã kết nối | Đã hoàn thành | Gộp chung endpoint `/app/chat.typing` với cờ boolean `typing` |
-| 68 | Client → Server | `mark_seen` | Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`) | — | Đã kết nối | Đang thực hiện | Lưu trên bảng `room_members` |
+| 68 | Client → Server | `SEND /app/chat.markRead` | Đánh dấu đã đọc (`MarkMessageReceiptPayload`: `roomId`, `messageId`) | — | Đã kết nối | Đã hoàn thành | Cập nhật Watermark `lastReadMessageId`, broadcast tới `/topic/room.{roomId}.receipts` (`receiptType: READ`) |
+| — | Client → Server | `SEND /app/chat.markDelivered` | Đánh dấu đã nhận (`MarkMessageReceiptPayload`: `roomId`, `messageId`) | — | Đã kết nối | Đã hoàn thành | Cập nhật Watermark `lastDeliveredMessageId`, broadcast tới `/topic/room.{roomId}.receipts` (`receiptType: DELIVERED`) |
 | 69 | Client → Server | `poll_vote` | Bình chọn poll qua WebSocket | 28 | Đã kết nối | Đã có trong spec |  |
 | 70 | Client → Server | `ping` | Kiểm tra kết nối còn sống (STOMP Heartbeat) | — | Đã kết nối | Đã hoàn thành | Cấu hình Heartbeat 15s/15s kèm `ThreadPoolTaskScheduler` |
 
@@ -190,8 +185,7 @@
 | — | Server → Client | `/topic/room.{roomId}.reactions` | Thả / đổi / gỡ cảm xúc (`ReactionResponse`, `reactionType = null` khi gỡ) | — | Đã kết nối | Đã hoàn thành | Phát tự động khi gọi REST `POST / DELETE .../reactions` |
 | 76 | Server → Client | `/topic/room.{roomId}.typing` | Có người đang gõ (`TypingEventResponse` với `typing = true`) | — | Đã kết nối | Đã hoàn thành | Kèm `userId`, `username`, `avatarUrl` |
 | 77 | Server → Client | `/topic/room.{roomId}.typing` | Người đó ngừng gõ (`TypingEventResponse` với `typing = false`) | — | Đã kết nối | Đã hoàn thành |  |
-| 78 | Server → Client | `message_seen` | Có người đã xem tin | — | Đã kết nối | Đang thực hiện |  |
-| 79 | Server → Client | `message_delivered` | Tin đã tới thiết bị người nhận | — | Đã kết nối | Đang thực hiện |  |
+| 78 | Server → Client | `/topic/room.{roomId}.receipts` | Biên nhận tin nhắn thời gian thực: Đã nhận (2 tích xám) hoặc Đã đọc (avatar người xem) | — | Đã kết nối | Đã hoàn thành | Kênh hợp nhất chuẩn hóa, kèm `receiptType: "DELIVERED" \| "READ"`, `userId`, `username`, `avatarUrl`, `messageId`, `timestamp` |
 | 80 | Server → Client | `poll_updated` | Poll mới, có người vote hoặc poll bị đóng | 27, 28 | Đã kết nối | Đã có trong spec |  |
 | 81 | Server → Client | `reminder_created` | Lịch hẹn mới | 25 | Đã kết nối | Đã có trong spec |  |
 | 82 | Server → Client | `reminder_updated` | Có người phản hồi RSVP hoặc lịch hẹn đổi trạng thái | 26 | Đã kết nối | Đã có trong spec |  |

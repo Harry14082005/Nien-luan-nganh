@@ -2,15 +2,18 @@ package com.nhom8.nien_luan_nganh.controller;
 
 import com.nhom8.nien_luan_nganh.config.UserDetailsImpl;
 import com.nhom8.nien_luan_nganh.dto.request.ChatMessagePayload;
+import com.nhom8.nien_luan_nganh.dto.request.MarkMessageReceiptPayload;
 import com.nhom8.nien_luan_nganh.dto.request.SendMessageRequest;
 import com.nhom8.nien_luan_nganh.dto.request.TypingPayload;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
+import com.nhom8.nien_luan_nganh.dto.response.MessageReceiptResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.service.MessageService;
+import com.nhom8.nien_luan_nganh.service.RoomMemberService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +41,7 @@ import java.util.UUID;
 public class ChatWebSocketController {
 
     private final MessageService messageService;
+    private final RoomMemberService roomMemberService;
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
@@ -106,6 +110,66 @@ public class ChatWebSocketController {
 
         // Broadcast tới topic typing của phòng: /topic/room.{roomId}.typing
         messagingTemplate.convertAndSend("/topic/room." + payload.getRoomId() + ".typing", event);
+    }
+
+    /**
+     * Đánh dấu đã đọc (Read / Seen) tin nhắn qua WebSocket STOMP.
+     * Destination gửi lên: /app/chat.markRead
+     * Destination nhận về (Broadcast): /topic/room.{roomId}.receipts (và /topic/room.{roomId}.read)
+     */
+    @MessageMapping("/chat.markRead")
+    public void markAsRead(
+            @Valid @Payload MarkMessageReceiptPayload payload,
+            Principal principal) {
+        UUID currentUserId = getAuthenticatedUserId(principal);
+        if (currentUserId == null) {
+            return;
+        }
+
+        log.debug("WebSocket đánh dấu đã đọc: userId = {}, roomId = {}, messageId = {}",
+                currentUserId, payload.getRoomId(), payload.getMessageId());
+
+        MessageReceiptResponse receipt = roomMemberService.markAsRead(
+                payload.getRoomId(), payload.getMessageId(), currentUserId);
+
+        if (receipt != null) {
+            try {
+                messagingTemplate.convertAndSend("/topic/room." + payload.getRoomId() + ".receipts", receipt);
+            } catch (Exception ex) {
+                log.warn("Không thể broadcast read receipt qua WebSocket cho room {}: {}",
+                        payload.getRoomId(), ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Đánh dấu đã nhận (Delivered) tin nhắn qua WebSocket STOMP.
+     * Destination gửi lên: /app/chat.markDelivered
+     * Destination nhận về (Broadcast): /topic/room.{roomId}.receipts
+     */
+    @MessageMapping("/chat.markDelivered")
+    public void markAsDelivered(
+            @Valid @Payload MarkMessageReceiptPayload payload,
+            Principal principal) {
+        UUID currentUserId = getAuthenticatedUserId(principal);
+        if (currentUserId == null) {
+            return;
+        }
+
+        log.debug("WebSocket đánh dấu đã nhận: userId = {}, roomId = {}, messageId = {}",
+                currentUserId, payload.getRoomId(), payload.getMessageId());
+
+        MessageReceiptResponse receipt = roomMemberService.markAsDelivered(
+                payload.getRoomId(), payload.getMessageId(), currentUserId);
+
+        if (receipt != null) {
+            try {
+                messagingTemplate.convertAndSend("/topic/room." + payload.getRoomId() + ".receipts", receipt);
+            } catch (Exception ex) {
+                log.warn("Không thể broadcast delivered receipt qua WebSocket cho room {}: {}",
+                        payload.getRoomId(), ex.getMessage());
+            }
+        }
     }
 
     /**
