@@ -65,8 +65,9 @@ async function handleRegister() {
     await auth.register(body)
     router.push('/chat')
   } catch (err) {
+    console.error('Lỗi đăng ký:', err)
     errorMessage.value =
-      err.response?.data?.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
+      err.response?.data?.message || err.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
   } finally {
     loading.value = false
   }

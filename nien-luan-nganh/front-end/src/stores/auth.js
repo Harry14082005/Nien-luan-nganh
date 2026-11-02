@@ -12,32 +12,30 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-  saveSession({ accessToken, refreshToken }) {
-    localStorage.setItem('accessToken', accessToken)
-    localStorage.setItem('refreshToken', refreshToken)
-    this.accessToken = accessToken
-  },
+    saveSession(data) {
+      if (!data) return
+      const accessToken = data.accessToken
+      const refreshToken = data.refreshToken
+      if (accessToken) {
+        localStorage.setItem('accessToken', accessToken)
+        this.accessToken = accessToken
+      }
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken)
+      }
+    },
 
-  async login(identifier, password) {
-    const tokens = await authApi.login({ identifier, password })
-    this.saveSession(tokens)
-    this.user = await authApi.getMe()
-  },
+    async login(identifier, password) {
+      const data = await authApi.login({ identifier, password })
+      this.saveSession(data)
+      this.user = data?.user ?? (await authApi.getMe())
+    },
 
-  async register(body) {
-    const { accessToken, refreshToken, user } = await authApi.register(body)
-    this.saveSession({ accessToken, refreshToken })
-    this.user = user ?? (await authApi.getMe())
-  },
-
-  async logout() {
-    try {
-      await authApi.logout(localStorage.getItem('refreshToken'))
-    } catch {}
-    localStorage.clear()
-    this.$reset()
-  },
-},
+    async register(body) {
+      const data = await authApi.register(body)
+      this.saveSession(data)
+      this.user = data?.user ?? (await authApi.getMe())
+    },
 
     async logout() {
       try {
@@ -47,4 +45,4 @@ export const useAuthStore = defineStore('auth', {
       this.$reset()
     },
   },
-)
+})
