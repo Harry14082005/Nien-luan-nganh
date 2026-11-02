@@ -43,7 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // Dam bao b
 
         // 2. Nếu không có header này hoặc định dạng không bắt đầu bằng "Bearer ", bỏ
         // qua filter
-        // Request sẽ tiếp tục đi qua các filter tiếp theo (các endpoint công khai sẽ vào được bình thường,
+        // Request sẽ tiếp tục đi qua các filter tiếp theo (các endpoint công khai sẽ
+        // vào được bình thường,
         // còn các endpoint bảo mật sẽ bị Security chặn lại ở bước sau).
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -73,7 +74,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // Dam bao b
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null, // Không cần lưu mật khẩu thô trong SecurityContext
-                            userDetails.getAuthorities());//Ds cac quyen
+                            userDetails.getAuthorities());// Ds cac quyen
 
                     // Đính kèm các thông tin phụ trợ của request (IP client, Session ID,...)
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -89,5 +90,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter { // Dam bao b
 
         // 6. Cho phép Request tiếp tục luồng xử lý đến Filter tiếp theo hoặc Controller
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+
+        return path.equals("/ws")
+                || path.startsWith("/ws/")
+                || path.equals("/ws-raw");
     }
 }

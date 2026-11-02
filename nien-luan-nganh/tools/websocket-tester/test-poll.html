@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>STOMP WebSocket Poll Tester</title>
+    <!-- Thư viện STOMP chính thức -->
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+</head>
+<body style="font-family: sans-serif; padding: 20px;">
+    <h2>STOMP WebSocket Poll Tester</h2>
+    <div>
+        <label>Backend URL:</label>
+        <input type="text" id="wsUrl" value="ws://localhost:8080/ws-raw" style="width: 300px;"><br><br>
+        <label>JWT Token (Bearer):</label><br>
+        <textarea id="token" rows="3" style="width: 600px;" placeholder="Dán token"></textarea><br><br>
+        <label>Room ID (UUID):</label>
+        <input type="text" id="roomId" style="width: 350px;" placeholder="UUID của phòng"><br><br>
+        <button onclick="connect()">1. Kết Nối & Subscribe</button>
+        <button onclick="disconnect()">Ngắt Kết Nối</button>
+    </div>
+
+    <h3>Sự kiện nhận được (Live Logs):</h3>
+    <pre id="logs" style="background: #1e1e1e; color: #00ff66; padding: 15px; border-radius: 5px; height: 350px; overflow-y: scroll;"></pre>
+
+    <script>
+        let stompClient = null;
+
+        function log(msg) {
+            const logs = document.getElementById("logs");
+            logs.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}\n\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function connect() {
+            const token = document.getElementById("token").value.trim();
+            const roomId = document.getElementById("roomId").value.trim();
+            const wsUrl = document.getElementById("wsUrl").value.trim();
+
+            if (!token || !roomId) {
+                alert("Vui lòng nhập Token và RoomId!");
+                return;
+            }
+
+            // Tự động xử lý Heartbeat 10s ping/pong chuẩn STOMP để server không ngắt kết nối
+            stompClient = new StompJs.Client({
+                brokerURL: `${wsUrl}?token=${encodeURIComponent(token)}`,
+                connectHeaders: {
+                    Authorization: `Bearer ${token}`
+                },
+                heartbeatIncoming: 15000,
+                heartbeatOutgoing: 15000,
+                reconnectDelay: 5000,
+                debug: function (str) {
+                    console.log(str);
+                },
+                onConnect: function (frame) {
+                    log(">>> ĐÃ KẾT NỐI STOMP THÀNH CÔNG!");
+
+                    // 1. Subscribe topic cập nhật Poll
+                    const pollTopic = `/topic/room.${roomId}.poll`;
+                    stompClient.subscribe(pollTopic, function (message) {
+                        try {
+                            const data = JSON.parse(message.body);
+                            log(`🔥 [EVENT TỪ ${pollTopic}]:\n` + JSON.stringify(data, null, 2));
+                        } catch (e) {
+                            log(`🔥 [EVENT TỪ ${pollTopic}]: ` + message.body);
+                        }
+                    });
+                    log(`Đã subscribe: ${pollTopic}`);
+
+                    // 2. Subscribe topic tin nhắn chung của phòng
+                    const roomTopic = `/topic/room.${roomId}`;
+                    stompClient.subscribe(roomTopic, function (message) {
+                        try {
+                            const data = JSON.parse(message.body);
+                            log(`📩 [TIN NHẮN TỪ ${roomTopic}]:\n` + JSON.stringify(data, null, 2));
+                        } catch (e) {
+                            log(`📩 [TIN NHẮN TỪ ${roomTopic}]: ` + message.body);
+                        }
+                    });
+                    log(`Đã subscribe: ${roomTopic}`);
+                },
+                onStompError: function (frame) {
+                    log("LỖI STOMP: " + frame.headers['message']);
+                },
+                onWebSocketClose: function () {
+                    log("WebSocket đã ngắt kết nối.");
+                }
+            });
+
+            stompClient.activate();
+            log("Đang bắt đầu kích hoạt kết nối STOMP...");
+        }
+
+        function disconnect() {
+            if (stompClient) {
+                stompClient.deactivate();
+                log("Đã ngắt kết nối thủ công!");
+            }
+        }
+    </script>
+</body>
+</html>

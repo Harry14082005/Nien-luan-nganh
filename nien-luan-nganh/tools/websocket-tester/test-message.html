@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>STOMP Chat & Poll Tester</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .box { margin-bottom: 15px; }
+        input, textarea { padding: 6px; }
+        button { padding: 8px 15px; cursor: pointer; }
+        #logs { background: #1e1e1e; color: #00ff66; padding: 15px; border-radius: 5px; height: 320px; overflow-y: scroll; }
+    </style>
+</head>
+<body>
+    <h2>WebSocket STOMP Chat & Poll Tester</h2>
+    
+    <div class="box">
+        <label>Backend URL:</label>
+        <input type="text" id="wsUrl" value="ws://localhost:8080/ws-raw" style="width: 250px;">
+        <label>Room ID:</label>
+        <input type="text" id="roomId" style="width: 320px;" placeholder="UUID của phòng"><br><br>
+        <label>JWT Token:</label><br>
+        <textarea id="token" rows="2" style="width: 600px;" placeholder="Dán JWT token"></textarea><br><br>
+        <button onclick="connect()" id="btnConnect">1. Kết Nối</button>
+        <button onclick="disconnect()">Ngắt Kết Nối</button>
+    </div>
+
+    <!-- KHUNG GỬI TIN NHẮN CHAT -->
+    <div class="box" style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; width: 600px;">
+        <h3>Gửi tin nhắn vào phòng:</h3>
+        <input type="text" id="chatContent" placeholder="Nhập tin nhắn..." style="width: 450px;" onkeydown="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">Gửi</button>
+        <button onclick="sendTyping(true)">Bật Typing</button>
+        <button onclick="sendTyping(false)">Tắt Typing</button>
+    </div>
+
+    <h3>Sự kiện nhận được (Live Logs):</h3>
+    <pre id="logs"></pre>
+
+    <script>
+        let stompClient = null;
+
+        function log(msg) {
+            const logs = document.getElementById("logs");
+            logs.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}\n\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function connect() {
+            const token = document.getElementById("token").value.trim();
+            const roomId = document.getElementById("roomId").value.trim();
+            const wsUrl = document.getElementById("wsUrl").value.trim();
+
+            if (!token || !roomId) {
+                alert("Vui lòng nhập Token và RoomId!");
+                return;
+            }
+
+            stompClient = new StompJs.Client({
+                brokerURL: `${wsUrl}?token=${encodeURIComponent(token)}`,
+                connectHeaders: { Authorization: `Bearer ${token}` },
+                heartbeatIncoming: 15000,
+                heartbeatOutgoing: 15000,
+                reconnectDelay: 5000,
+                onConnect: function () {
+                    log(">>> ĐÃ KẾT NỐI STOMP THÀNH CÔNG!");
+
+                    // 1. Lắng nghe tin nhắn chat của phòng (Gửi, Sửa, Ghim, Thu hồi)
+                    const roomTopic = `/topic/room.${roomId}`;
+                    stompClient.subscribe(roomTopic, function (message) {
+                        const data = JSON.parse(message.body);
+                        log(`📩 [TIN NHẮN - ${roomTopic}]:\n` + JSON.stringify(data, null, 2));
+                    });
+                    log(`Đã subscribe chat: ${roomTopic}`);
+
+                    // 2. Lắng nghe sự kiện Poll
+                    const pollTopic = `/topic/room.${roomId}.poll`;
+                    stompClient.subscribe(pollTopic, function (message) {
+                        log(`📊 [POLL EVENT]:\n` + JSON.stringify(JSON.parse(message.body), null, 2));
+                    });
+
+                    // 3. Lắng nghe Typing
+                    const typingTopic = `/topic/room.${roomId}.typing`;
+                    stompClient.subscribe(typingTopic, function (message) {
+                        log(`✍️ [TYPING]:\n` + message.body);
+                    });
+
+                    // 2. Topic Reaction (Thả tim, Like, Gỡ cảm xúc)
+                    const reactionTopic = `/topic/room.${roomId}.reactions`;
+                    stompClient.subscribe(reactionTopic, function (message) {
+                        const data = JSON.parse(message.body);
+                        log(`❤️ [REACTION - ${reactionTopic}]:\n` + JSON.stringify(data, null, 2));
+                    });
+                    log(`Đã subscribe: ${reactionTopic}`);
+
+                    // 4. Lắng nghe thông báo lỗi riêng (nếu gửi tin sai)
+                    stompClient.subscribe("/user/queue/errors", function (message) {
+                        log(`❌ [LỖI SERVER]:\n` + message.body);
+                    });
+                },
+                onStompError: function (frame) {
+                    log("LỖI STOMP: " + frame.headers['message']);
+                }
+            });
+
+            stompClient.activate();
+            log("Đang kết nối...");
+        }
+
+        // HÀM GỬI TIN NHẮN QUA WEBSOCKET
+        function sendMessage() {
+            if (!stompClient || !stompClient.connected) {
+                alert("Chưa kết nối WebSocket!");
+                return;
+            }
+
+            const roomId = document.getElementById("roomId").value.trim();
+            const content = document.getElementById("chatContent").value.trim();
+            if (!content) return;
+
+            const payload = {
+                roomId: roomId,
+                content: content,
+                messageType: "TEXT",
+                repliedMessageId: null
+            };
+
+            stompClient.publish({
+                destination: "/app/chat.sendMessage",
+                body: JSON.stringify(payload)
+            });
+
+            log(`📤 [ĐÃ GỬI]: ${content}`);
+            document.getElementById("chatContent").value = "";
+        }
+
+        // HÀM GỬI TRẠNG THÁI TYPING
+        function sendTyping(isTyping) {
+            if (!stompClient || !stompClient.connected) return;
+            const roomId = document.getElementById("roomId").value.trim();
+
+            stompClient.publish({
+                destination: "/app/chat.typing",
+                body: JSON.stringify({ roomId: roomId, isTyping: isTyping })
+            });
+            log(`👉 Gửi trạng thái typing: ${isTyping}`);
+        }
+
+        function disconnect() {
+            if (stompClient) {
+                stompClient.deactivate();
+                log("Đã ngắt kết nối!");
+            }
+        }
+    </script>
+</body>
+</html>

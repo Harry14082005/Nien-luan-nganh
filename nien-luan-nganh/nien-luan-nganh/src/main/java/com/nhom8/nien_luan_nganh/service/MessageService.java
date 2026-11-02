@@ -25,11 +25,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
 
 /**
  * Service xử lý các nghiệp vụ liên quan đến Tin nhắn trong phòng chat.
@@ -63,7 +65,8 @@ public class MessageService {
      * - Nếu là phòng chat 1-1 (DIRECT): Kiểm tra trạng thái chặn (Block) giữa 2
      * người dùng.
      * - Kiểm tra tin nhắn cha khi reply (phải cùng phòng và chưa bị thu hồi).
-     * - Cập nhật hoạt động mới nhất của Room qua RoomService (đẩy phòng chat lên đầu danh bạ).
+     * - Cập nhật hoạt động mới nhất của Room qua RoomService (đẩy phòng chat lên
+     * đầu danh bạ).
      *
      * @param currentUserId Khóa chính UUID của người gửi tin nhắn (lấy từ Token)
      * @param roomId        Khóa chính UUID của phòng chat nhận tin nhắn
@@ -140,7 +143,8 @@ public class MessageService {
 
         Message savedMessage = messageRepository.save(message);
 
-        // 8. Cập nhật hoạt động mới nhất của phòng chat qua RoomService (dùng chung cho Message, Poll, Reminder)
+        // 8. Cập nhật hoạt động mới nhất của phòng chat qua RoomService (dùng chung cho
+        // Message, Poll, Reminder)
         String preview = (messageType == MessageType.TEXT || messageType == MessageType.LINK)
                 ? content
                 : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
@@ -230,7 +234,8 @@ public class MessageService {
             message.setIsEdited(true);
             message = messageRepository.save(message);
 
-            // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài Sidebar
+            // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
+            // Sidebar
             roomService.updateLastActivityContentIfMatch(message.getRoom(), message.getMessageId(), newContent);
         }
 
@@ -295,24 +300,38 @@ public class MessageService {
         message.setContent(null); // Gỡ nội dung gốc ra khỏi database để bảo mật thông tin
         message.setIsPinned(false); // Gỡ ghim nếu tin nhắn đang được ghim
 
-        // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài Sidebar
+        // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
+        // Sidebar
         roomService.updateLastActivityContentIfMatch(message.getRoom(), messageId, "Tin nhắn đã bị thu hồi");
 
-        // Xóa sạch toàn bộ lịch sử chỉnh sửa cũ trực tiếp từ repository
+        // // Xóa sạch toàn bộ lịch sử chỉnh sửa cũ trực tiếp từ repository
+        // messageHistoryRepository.deleteByMessage_MessageId(messageId);
+        // if (message.getMessageHistories() != null) {
+        // message.getMessageHistories().clear();
+        // }
+
+        // // Xóa toàn bộ cảm xúc trên tin nhắn bị thu hồi
+        // messageReactionRepository.deleteByMessageId(messageId);
+        // if (message.getMessageReactions() != null) { ---> ở trên bị xoá rồi nhưng ở
+        // đây gọi lại cái đã rỗng
+        // message.getMessageReactions().clear();
+        // }
+
+        // Message savedMessage = messageRepository.save(message);
+
+        // return messageMapper.toMessageResponse(savedMessage);
+
+        // Xóa sạch dữ liệu trong database
         messageHistoryRepository.deleteByMessage_MessageId(messageId);
-        if (message.getMessageHistories() != null) {
-            message.getMessageHistories().clear();
-        }
-
-        // Xóa toàn bộ cảm xúc trên tin nhắn bị thu hồi
         messageReactionRepository.deleteByMessageId(messageId);
-        if (message.getMessageReactions() != null) {
-            message.getMessageReactions().clear();
-        }
 
+        // Gán mảng rỗng để không kích hoạt Lazy Loading
+        message.setMessageHistories(new ArrayList<>()); // thay vì gọi để .clear() như trên thì tạo mảng giả
+        message.setMessageReactions(new ArrayList<>());
         Message savedMessage = messageRepository.save(message);
-
-        return messageMapper.toMessageResponse(savedMessage);
+        MessageResponse response = messageMapper.toMessageResponse(savedMessage);
+        response.setReactions(Collections.emptyList());
+        return response;
     }
 
     /**

@@ -16,8 +16,8 @@ public class PollEventListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPollEvent(PollBroadcastEvent event) {
-        log.info("[BROADCAST tới {}]", event.getDestination());
+        log.info("[BROADCAST to {}]", event.getDestination());
         messagingTemplate.convertAndSend(event.getDestination(), event.getPayload());
-        log.info("[BROADCAST xong]");
+        log.info("[BROADCAST finish]");
     }
 }
