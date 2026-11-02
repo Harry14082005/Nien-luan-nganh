@@ -32,8 +32,9 @@ async function handleLogin() {
     await auth.login(emailOrPhone.value.trim(), password.value)
     router.push('/chat')
   } catch (err) {
+    console.error('Lỗi đăng nhập:', err)
     errorMessage.value =
-      err.response?.data?.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
+      err.response?.data?.message || err.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
   } finally {
     loading.value = false
   }

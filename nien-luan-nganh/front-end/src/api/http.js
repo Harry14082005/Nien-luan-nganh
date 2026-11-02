@@ -19,7 +19,8 @@ http.interceptors.response.use(
         const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
           refreshToken: localStorage.getItem("refreshToken"),
         });
-        localStorage.setItem("accessToken", data.result.accessToken);
+        const newAccessToken = data.data?.accessToken ?? data.result?.accessToken ?? data.accessToken;
+        localStorage.setItem("accessToken", newAccessToken);
         return http(config);
       } catch {
         localStorage.clear();
