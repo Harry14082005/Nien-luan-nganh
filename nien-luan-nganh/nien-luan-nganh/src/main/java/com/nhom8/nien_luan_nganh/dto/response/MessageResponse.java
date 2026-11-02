@@ -33,4 +33,8 @@ public class MessageResponse {
     private Boolean isPinned;
     private LocalDateTime createdAt;
     private java.util.List<ReactionResponse> reactions;
+
+    //cho loại tin nhắn đặc thù là poll với reminder
+    private UUID pollId;
+    private UUID reminderId;
 }

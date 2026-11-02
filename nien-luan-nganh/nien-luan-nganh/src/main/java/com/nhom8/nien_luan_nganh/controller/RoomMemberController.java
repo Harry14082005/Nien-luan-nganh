@@ -86,7 +86,7 @@ public class RoomMemberController {
 
     // sửa quyền thành viên
     @PutMapping("/{userId}/role")
-    public ResponseEntity<ApiResponse<RoomMemberResponse>> leaveRoom(
+    public ResponseEntity<ApiResponse<RoomMemberResponse>> changeMemberRole(
     //    public ResponseEntity<ApiResponse<RoomMemberResponse>> changeMemberRole(
 
             Authentication authentication,
@@ -103,7 +103,7 @@ public class RoomMemberController {
 
     // phê duyệt thành viên
     @PutMapping("/{userId}/approve")
-    public ResponseEntity<ApiResponse<RoomMemberResponse>> deleteMember(
+    public ResponseEntity<ApiResponse<RoomMemberResponse>> approveMember(
     //    public ResponseEntity<ApiResponse<RoomMemberResponse>> approveMember(
 
             Authentication authentication,

@@ -11,7 +11,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PollEvent {
+public class PollEventResponse {
     private PollEventType type;     // "POLL_CREATED", "POLL_VOTED", "POLL_CLOSED", "POLL_OPTION_ADDED"
     private UUID roomId;
     private PollResponse poll;

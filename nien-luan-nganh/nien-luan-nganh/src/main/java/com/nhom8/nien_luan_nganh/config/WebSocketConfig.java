@@ -86,6 +86,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
+
         registry.enableSimpleBroker("/topic", "/queue")
                 .setTaskScheduler(messageBrokerTaskScheduler())
                 .setHeartbeatValue(new long[] { 15000, 15000 }); // Ping/Pong mỗi 15 giây
