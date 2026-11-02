@@ -1,12 +1,15 @@
 package com.nhom8.nien_luan_nganh.controller;
 
+import com.nhom8.nien_luan_nganh.dto.request.BatchPresenceRequest;
 import com.nhom8.nien_luan_nganh.dto.request.ChangePasswordRequest;
 import com.nhom8.nien_luan_nganh.dto.request.UpdateEmailRequest;
 import com.nhom8.nien_luan_nganh.dto.request.UpdatePhoneRequest;
 import com.nhom8.nien_luan_nganh.dto.request.UpdateProfileRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
+import com.nhom8.nien_luan_nganh.dto.response.UserPresenceResponse;
 import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
+import com.nhom8.nien_luan_nganh.service.UserPresenceService;
 import com.nhom8.nien_luan_nganh.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,6 +35,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private UserPresenceService userPresenceService;
 
     /**
      * API 1: Lấy thông tin hồ sơ của chính người dùng đang đăng nhập.
@@ -163,5 +170,29 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable UUID userId) {
         UserResponse response = userService.getUserById(userId);
         return ResponseEntity.ok(ApiResponse.success(response, "Lấy thông tin người dùng thành công"));
+    }
+
+    /**
+     * API 8: Lấy trạng thái Đang online / Vừa mới truy cập (User Presence) của một người dùng.
+     * Method: GET /api/v1/users/{userId}/presence
+     * Quyền: Đã đăng nhập (Gửi kèm Bearer Token)
+     */
+    @GetMapping("/{userId}/presence")
+    public ResponseEntity<ApiResponse<UserPresenceResponse>> getUserPresence(@PathVariable UUID userId) {
+        UserPresenceResponse response = userPresenceService.getUserPresence(userId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy trạng thái người dùng thành công"));
+    }
+
+    /**
+     * API 9: Lấy trạng thái hiện diện hàng loạt cho nhiều người dùng (Batch Presence).
+     * Method: POST /api/v1/users/presence/batch
+     * Body: { "userIds": ["uuid-1", "uuid-2", ...] } (Tối đa 100 người dùng, tự động khử trùng lặp)
+     * Quyền: Đã đăng nhập (Gửi kèm Bearer Token)
+     */
+    @PostMapping("/presence/batch")
+    public ResponseEntity<ApiResponse<List<UserPresenceResponse>>> getUsersPresence(
+            @Valid @RequestBody BatchPresenceRequest request) {
+        List<UserPresenceResponse> response = userPresenceService.getUsersPresence(request.getUserIds());
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách trạng thái người dùng thành công"));
     }
 }

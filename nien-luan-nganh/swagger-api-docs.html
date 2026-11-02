@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swagger UI - Tài liệu API & DTOs (Nhóm 8 - Web Chat AI Assistant)</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    body {
+      margin: 0;
+      background: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .top-banner {
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 3px solid #3b82f6;
+    }
+    .top-banner h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .top-banner p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+    .banner-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: #2563eb;
+    }
+    .btn-secondary {
+      background: #475569;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-banner">
+    <div>
+      <h1>📘 Tài liệu API &amp; DTO Specification — Nhóm 8 (Web Chat AI Assistant)</h1>
+      <p>File độc lập bên ngoài đồ án: Mở trực tiếp trên trình duyệt hoặc bấm "Copy OpenAPI JSON" để dán lên <b>editor.swagger.io</b></p>
+    </div>
+    <div class="banner-actions">
+      <button class="btn" onclick="copySpec()">📋 Copy OpenAPI JSON (Dán lên editor.swagger.io)</button>
+      <a class="btn btn-secondary" href="https://editor.swagger.io/" target="_blank" rel="noopener">🌐 Mở editor.swagger.io</a>
+    </div>
+  </div>
+
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+  <script>
+    const openApiSpec = {
+      openapi: "3.0.3",
+      info: {
+        title: "Web Chat AI Assistant API & DTO Contract - Nhóm 8",
+        version: "1.0.0",
+        description:
+          "Bản hợp đồng dữ liệu (API & DTO Contract) giữa Backend (Spring Boot) và Frontend (Vue.js 3).\n\n" +
+          "- **Base URL (REST):** `http://localhost:8080/api/v1`\n" +
+          "- **WebSocket (SockJS):** `http://localhost:8080/ws` (STOMP Header `Authorization: Bearer <accessToken>`)\n" +
+          "- **WebSocket (Native WS):** `ws://localhost:8080/ws-raw` (STOMP Header `Authorization: Bearer <accessToken>`)\n" +
+          "- **Mẹo cho Frontend:** Kéo xuống cuối trang mục **Schemas** để xem toàn bộ cấu trúc các `Request DTO`, `Response DTO`, `WebSocket Payload` và `Enum`."
+      },
+      servers: [
+        {
+          url: "http://localhost:8080",
+          description: "Local Backend Server (Spring Boot)"
+        }
+      ],
+      tags: [
+        { name: "1. Auth", description: "Đăng ký, Đăng nhập, Làm mới Token, Đăng xuất (/api/v1/auth)" },
+        { name: "2. Users", description: "Hồ sơ cá nhân, Đổi mật khẩu/Email/SĐT, Tìm kiếm người dùng (/api/v1/users)" },
+        { name: "3. Friendships", description: "Kết bạn, Chấp nhận/Từ chối, Hủy kết bạn, Chặn/Bỏ chặn (/api/v1/friendships)" },
+        { name: "4. Rooms", description: "Phòng chat 1-1 (DIRECT), Phòng nhóm (GROUP), Danh sách phòng Sidebar (/api/v1/rooms)" },
+        { name: "5. Room Members", description: "Quản lý thành viên nhóm, Phân quyền, Duyệt thành viên, Rời phòng (/api/v1/rooms/{roomId}/members)" },
+        { name: "6. Messages & Reactions", description: "Gửi/Sửa/Thu hồi tin nhắn, Ghim tin nhắn, Thả/Gỡ cảm xúc, Phân trang Cursor (/api/v1/rooms/{roomId}/messages)" },
+        { name: "7. WebSocket STOMP (Reference)", description: "Tài liệu tham khảo các kênh WebSocket STOMP gửi lên (/app/*) và nhận về (/topic/*)" }
+      ],
+      security: [{ bearerAuth: [] }],
+      paths: {
+        "/api/v1/auth/register": {
+          post: {
+            tags: ["1. Auth"],
+            summary: "Đăng ký tài khoản mới (Email hoặc SĐT)",
+            security: [],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/RegisterRequest" } } }
+            },
+            responses: {
+              "201": { description: "Đăng ký thành công, trả về bộ JWT Token và thông tin User", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_AuthResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/auth/login": {
+          post: {
+            tags: ["1. Auth"],
+            summary: "Đăng nhập bằng Email hoặc SĐT",
+            security: [],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/LoginRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đăng nhập thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_AuthResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/auth/refresh": {
+          post: {
+            tags: ["1. Auth"],
+            summary: "Làm mới Access Token từ Refresh Token",
+            security: [],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/RefreshTokenRequest" } } }
+            },
+            responses: {
+              "200": { description: "Cấp mới token thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_AuthResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/auth/logout": {
+          post: {
+            tags: ["1. Auth"],
+            summary: "Đăng xuất khỏi hệ thống",
+            responses: {
+              "200": { description: "Đăng xuất thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/users/me": {
+          get: {
+            tags: ["2. Users"],
+            summary: "Lấy thông tin cá nhân hiện tại",
+            responses: {
+              "200": { description: "Thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserResponse" } } } }
+            }
+          },
+          put: {
+            tags: ["2. Users"],
+            summary: "Cập nhật hồ sơ cá nhân (username, avatarUrl, gender, description, preferredLanguage)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateProfileRequest" } } }
+            },
+            responses: {
+              "200": { description: "Cập nhật thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/me/password": {
+          put: {
+            tags: ["2. Users"],
+            summary: "Đổi mật khẩu (hỗ trợ cả /api/v1/user/me/password)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ChangePasswordRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đổi mật khẩu thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/users/me/email": {
+          put: {
+            tags: ["2. Users"],
+            summary: "Đổi địa chỉ Email (hỗ trợ cả /api/v1/user/me/email)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateEmailRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đổi email thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/me/phone": {
+          put: {
+            tags: ["2. Users"],
+            summary: "Đổi Số điện thoại (hỗ trợ cả /api/v1/user/me/phone)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/UpdatePhoneRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đổi số điện thoại thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/search": {
+          get: {
+            tags: ["2. Users"],
+            summary: "Tìm kiếm người dùng theo từ khóa (email, SĐT, username)",
+            parameters: [
+              { name: "q", in: "query", required: true, schema: { type: "string" }, description: "Từ khóa tìm kiếm" },
+              { name: "page", in: "query", schema: { type: "integer", default: 0 } },
+              { name: "size", in: "query", schema: { type: "integer", default: 10 } }
+            ],
+            responses: {
+              "200": { description: "Danh sách người dùng phân trang", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_PageUserResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/{userId}": {
+          get: {
+            tags: ["2. Users"],
+            summary: "Xem thông tin trang cá nhân của người dùng khác",
+            parameters: [
+              { name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/{userId}/presence": {
+          get: {
+            tags: ["2. Users"],
+            summary: "Lấy trạng thái hiện diện (User Presence) của người dùng",
+            parameters: [
+              { name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_UserPresenceResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/users/presence/batch": {
+          post: {
+            tags: ["2. Users"],
+            summary: "Lấy trạng thái hiện diện hàng loạt cho nhiều người dùng (Batch Presence - Tối đa 100 users, tự khử trùng lặp)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/BatchPresenceRequest" } } }
+            },
+            responses: {
+              "200": { description: "Thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListUserPresenceResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships": {
+          get: {
+            tags: ["3. Friendships"],
+            summary: "Lấy danh sách bạn bè / lời mời / chặn theo trạng thái",
+            parameters: [
+              { name: "status", in: "query", required: false, schema: { $ref: "#/components/schemas/FriendshipStatus" }, description: "Mặc định ACCEPTED" },
+              { name: "page", in: "query", schema: { type: "integer", default: 0 } },
+              { name: "size", in: "query", schema: { type: "integer", default: 10 } }
+            ],
+            responses: {
+              "200": { description: "Danh sách quan hệ bạn bè", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_PageFriendshipResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/request": {
+          post: {
+            tags: ["3. Friendships"],
+            summary: "Gửi lời mời kết bạn",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/FriendshipRequest" } } }
+            },
+            responses: {
+              "201": { description: "Đã gửi lời mời kết bạn", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_FriendshipResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/{friendshipId}/accept": {
+          put: {
+            tags: ["3. Friendships"],
+            summary: "Chấp nhận lời mời kết bạn",
+            parameters: [{ name: "friendshipId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Đã chấp nhận kết bạn", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_FriendshipResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/{friendshipId}/decline": {
+          put: {
+            tags: ["3. Friendships"],
+            summary: "Từ chối lời mời kết bạn",
+            parameters: [{ name: "friendshipId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Đã từ chối lời mời", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/{friendshipId}": {
+          delete: {
+            tags: ["3. Friendships"],
+            summary: "Hủy kết bạn hoặc thu hồi lời mời đã gửi",
+            parameters: [{ name: "friendshipId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Đã hủy kết bạn", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/block": {
+          post: {
+            tags: ["3. Friendships"],
+            summary: "Chặn một người dùng",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/BlockUserRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đã chặn người dùng", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_FriendshipResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/friendships/block/{userId}": {
+          delete: {
+            tags: ["3. Friendships"],
+            summary: "Bỏ chặn người dùng",
+            parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Đã bỏ chặn", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms": {
+          get: {
+            tags: ["4. Rooms"],
+            summary: "Lấy danh sách phòng chat (Sidebar) kèm tin cuối, hasUnread và unreadCount",
+            parameters: [
+              { name: "type", in: "query", required: false, schema: { $ref: "#/components/schemas/RoomType" }, description: "Lọc theo DIRECT hoặc GROUP (bỏ trống để lấy tất cả)" },
+              { name: "pageNo", in: "query", schema: { type: "integer", default: 0 } },
+              { name: "pageSize", in: "query", schema: { type: "integer", default: 20 } }
+            ],
+            responses: {
+              "200": { description: "Danh sách phòng chat phân trang", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_PageRoomListResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/group": {
+          post: {
+            tags: ["4. Rooms"],
+            summary: "Tạo phòng chat nhóm (GROUP)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/CreateGroupRequest" } } }
+            },
+            responses: {
+              "201": { description: "Tạo nhóm thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_RoomDetailResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/direct": {
+          post: {
+            tags: ["4. Rooms"],
+            summary: "Tạo hoặc lấy phòng chat trực tiếp 1-1 (DIRECT)",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/CreateDirectRoomRequest" } } }
+            },
+            responses: {
+              "201": { description: "Trả về thông tin phòng 1-1", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_RoomDetailResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}": {
+          get: {
+            tags: ["4. Rooms"],
+            summary: "Lấy thông tin chi tiết một phòng chat",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Chi tiết phòng", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_RoomDetailResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members": {
+          get: {
+            tags: ["5. Room Members"],
+            summary: "Lấy danh sách thành viên trong phòng (lọc theo ACTIVE hoặc PENDING)",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "status", in: "query", required: false, schema: { $ref: "#/components/schemas/RoomMemberStatus" } }
+            ],
+            responses: {
+              "200": { description: "Danh sách thành viên", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListRoomMemberResponse" } } } }
+            }
+          },
+          post: {
+            tags: ["5. Room Members"],
+            summary: "Thêm thành viên mới vào nhóm",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/AddMemberRequest" } } }
+            },
+            responses: {
+              "200": { description: "Thêm thành viên thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListRoomMemberResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members/{userId}": {
+          delete: {
+            tags: ["5. Room Members"],
+            summary: "Xóa thành viên khỏi nhóm",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            requestBody: {
+              required: false,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/RemoveMemberRequest" } } }
+            },
+            responses: {
+              "200": { description: "Xóa thành viên thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members/leave": {
+          delete: {
+            tags: ["5. Room Members"],
+            summary: "Rời phòng chat (kèm newAdminId nếu Admin duy nhất rời nhóm)",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            requestBody: {
+              required: false,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/LeaveRoomRequest" } } }
+            },
+            responses: {
+              "200": { description: "Rời phòng thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members/{userId}/role": {
+          put: {
+            tags: ["5. Room Members"],
+            summary: "Thay đổi vai trò thành viên (ADMIN / MEMBER)",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ChangeMemberRoleRequest" } } }
+            },
+            responses: {
+              "200": { description: "Đổi quyền thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_RoomMemberResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/members/{userId}/approve": {
+          put: {
+            tags: ["5. Room Members"],
+            summary: "Phê duyệt thành viên đang chờ vào nhóm",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ApproveMemberRequest" } } }
+            },
+            responses: {
+              "200": { description: "Phê duyệt thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_RoomMemberResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages": {
+          get: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Lấy lịch sử tin nhắn theo phân trang con trỏ (Cursor-based Pagination)",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "cursor", in: "query", required: false, schema: { type: "string", format: "uuid" }, description: "ID tin nhắn mốc để tải các tin cũ hơn" },
+              { name: "before", in: "query", required: false, schema: { type: "string", format: "uuid" }, description: "Alias cho cursor" },
+              { name: "limit", in: "query", required: false, schema: { type: "integer", default: 20 } }
+            ],
+            responses: {
+              "200": { description: "Danh sách tin nhắn kèm nextCursor và hasMore", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_CursorMessageResponse" } } } }
+            }
+          },
+          post: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Gửi tin nhắn qua REST API (Tự động phát WebSocket tới /topic/room.{roomId})",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/SendMessageRequest" } } }
+            },
+            responses: {
+              "201": { description: "Gửi tin nhắn thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages/{messageId}": {
+          put: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Chỉnh sửa tin nhắn (Tự động phát WebSocket tới /topic/room.{roomId})",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateMessageRequest" } } }
+            },
+            responses: {
+              "200": { description: "Chỉnh sửa thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageResponse" } } } }
+            }
+          },
+          delete: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Thu hồi tin nhắn - Xóa mềm (Tự động phát WebSocket tới /topic/room.{roomId})",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Thu hồi thành công (isRevoked = true)", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages/{messageId}/history": {
+          get: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Xem lịch sử các lần chỉnh sửa của tin nhắn",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Danh sách lịch sử chỉnh sửa", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListMessageHistoryResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages/{messageId}/pins": {
+          post: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Ghim tin nhắn (Tự động phát WebSocket tới /topic/room.{roomId})",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Ghim thành công (isPinned = true)", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageResponse" } } } }
+            }
+          },
+          delete: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Bỏ ghim tin nhắn (Tự động phát WebSocket tới /topic/room.{roomId})",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Bỏ ghim thành công (isPinned = false)", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_MessageResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages/pins": {
+          get: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Lấy danh sách các tin nhắn đang được ghim trong phòng",
+            parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+            responses: {
+              "200": { description: "Danh sách tin nhắn đã ghim", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListMessageResponse" } } } }
+            }
+          }
+        },
+        "/api/v1/rooms/{roomId}/messages/{messageId}/reactions": {
+          get: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Xem danh sách cảm xúc trên tin nhắn",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Danh sách cảm xúc", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ListReactionResponse" } } } }
+            }
+          },
+          post: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Thả hoặc cập nhật cảm xúc (Phát WebSocket tới /topic/room.{roomId}.reactions)",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ReactionRequest" } } }
+            },
+            responses: {
+              "200": { description: "Thả cảm xúc thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_ReactionResponse" } } } }
+            }
+          },
+          delete: {
+            tags: ["6. Messages & Reactions"],
+            summary: "Gỡ cảm xúc đã thả (Phát WebSocket với reactionType = null tới /topic/room.{roomId}.reactions)",
+            parameters: [
+              { name: "roomId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+              { name: "messageId", in: "path", required: true, schema: { type: "string", format: "uuid" } }
+            ],
+            responses: {
+              "200": { description: "Gỡ cảm xúc thành công", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiResponse_Void" } } } }
+            }
+          }
+        },
+        "/app/chat.sendMessage": {
+          post: {
+            tags: ["7. WebSocket STOMP (Reference)"],
+            summary: "[STOMP SEND] Gửi tin nhắn realtime qua WebSocket -> Broadcast về /topic/room.{roomId}",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/ChatMessagePayload" } } }
+            },
+            responses: {
+              "200": { description: "Server phát MessageResponse về Topic: /topic/room.{roomId}", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } }
+            }
+          }
+        },
+        "/app/chat.typing": {
+          post: {
+            tags: ["7. WebSocket STOMP (Reference)"],
+            summary: "[STOMP SEND] Báo đang gõ chữ (isTyping: true/false) -> Broadcast về /topic/room.{roomId}.typing",
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { $ref: "#/components/schemas/TypingPayload" } } }
+            },
+            responses: {
+              "200": { description: "Server phát TypingEventResponse về Topic: /topic/room.{roomId}.typing", content: { "application/json": { schema: { $ref: "#/components/schemas/TypingEventResponse" } } } }
+            }
+          }
+        }
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+            description: "Nhập JWT accessToken lấy từ API /api/v1/auth/login"
+          }
+        },
+        schemas: {
+          // ==================== ENUMS ====================
+          UserRole: { type: "string", enum: ["USER", "ADMIN"] },
+          RoomType: { type: "string", enum: ["DIRECT", "GROUP"] },
+          RoomRole: { type: "string", enum: ["OWNER", "ADMIN", "MEMBER"] },
+          RoomMemberStatus: { type: "string", enum: ["PENDING", "ACTIVE", "DECLINED"] },
+          FriendshipStatus: { type: "string", enum: ["PENDING", "ACCEPTED", "DECLINED", "BLOCKED"] },
+          MessageType: { type: "string", enum: ["TEXT", "IMAGE", "FILE", "LINK", "POLL", "REMINDER"] },
+          ReactionType: { type: "string", enum: ["LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY"] },
+          ReminderType: { type: "string", enum: ["PERSONAL", "GROUP"] },
+          ReminderStatus: { type: "string", enum: ["PENDING", "DONE", "CANCELLED"] },
+          RsvpResponse: { type: "string", enum: ["PENDING", "ACCEPTED", "DECLINED"] },
+          NotificationType: { type: "string", enum: ["NEW_MESSAGE", "POLL_CREATED", "POLL_ENDED", "REMINDER", "FRIEND_REQUEST", "RSVP_REMINDER"] },
+
+          // ==================== REQUEST DTOs ====================
+          RegisterRequest: {
+            type: "object",
+            required: ["username", "identifier", "password", "confirmPassword"],
+            properties: {
+              username: { type: "string", minLength: 2, maxLength: 50, example: "Harry Potter" },
+              identifier: { type: "string", description: "Email HOẶC Số điện thoại", example: "harry@hogwarts.edu" },
+              password: { type: "string", minLength: 6, example: "123456" },
+              confirmPassword: { type: "string", example: "123456" },
+              gender: { type: "string", example: "MALE" },
+              preferredLanguage: { type: "string", example: "vi" }
+            }
+          },
+          LoginRequest: {
+            type: "object",
+            required: ["identifier", "password"],
+            properties: {
+              identifier: { type: "string", description: "Email hoặc Số điện thoại", example: "harry@hogwarts.edu" },
+              password: { type: "string", example: "123456" }
+            }
+          },
+          RefreshTokenRequest: {
+            type: "object",
+            required: ["refreshToken"],
+            properties: {
+              refreshToken: { type: "string", example: "eyJhbGciOiJIUzI1NiJ9..." }
+            }
+          },
+          UpdateProfileRequest: {
+            type: "object",
+            properties: {
+              username: { type: "string", minLength: 2, maxLength: 50, example: "Harry Potter" },
+              avatarUrl: { type: "string", example: "https://example.com/avatar.png" },
+              gender: { type: "string", example: "MALE" },
+              description: { type: "string", description: "Tiểu sử (Bio)", example: "Sinh viên Kỹ thuật Phần mềm" },
+              preferredLanguage: { type: "string", example: "vi" }
+            }
+          },
+          BatchPresenceRequest: {
+            type: "object",
+            required: ["userIds"],
+            properties: {
+              userIds: {
+                type: "array",
+                items: { type: "string", format: "uuid" },
+                description: "Danh sách UUID người dùng cần kiểm tra (Tối đa 100 người dùng, tự động lọc trùng lặp)"
+              }
+            }
+          },
+          ChangePasswordRequest: {
+            type: "object",
+            required: ["oldPassword", "newPassword", "confirmNewPassword"],
+            properties: {
+              oldPassword: { type: "string", example: "123456" },
+              newPassword: { type: "string", minLength: 6, example: "654321" },
+              confirmNewPassword: { type: "string", example: "654321" }
+            }
+          },
+          UpdateEmailRequest: {
+            type: "object",
+            required: ["email"],
+            properties: {
+              email: { type: "string", format: "email", example: "new_email@gmail.com" }
+            }
+          },
+          UpdatePhoneRequest: {
+            type: "object",
+            required: ["phoneNumber"],
+            properties: {
+              phoneNumber: { type: "string", pattern: "^(0|\\+84)\\d{9}$", example: "0912345678" }
+            }
+          },
+          FriendshipRequest: {
+            type: "object",
+            required: ["friendId"],
+            properties: {
+              friendId: { type: "string", format: "uuid", description: "UUID của người muốn kết bạn" }
+            }
+          },
+          BlockUserRequest: {
+            type: "object",
+            required: ["userId"],
+            properties: {
+              userId: { type: "string", format: "uuid", description: "UUID của người muốn chặn" }
+            }
+          },
+          CreateDirectRoomRequest: {
+            type: "object",
+            required: ["userId"],
+            properties: {
+              userId: { type: "string", format: "uuid", description: "UUID của người đối diện trong phòng chat 1-1" }
+            }
+          },
+          CreateGroupRequest: {
+            type: "object",
+            properties: {
+              roomName: { type: "string", example: "Nhóm 8 Niên luận" },
+              roomAvatarURL: { type: "string", example: "https://example.com/group.png" },
+              memberIds: { type: "array", items: { type: "string", format: "uuid" }, description: "Danh sách UUID các thành viên được mời vào nhóm" }
+            }
+          },
+          AddMemberRequest: {
+            type: "object",
+            properties: {
+              memberIds: { type: "array", items: { type: "string", format: "uuid" } }
+            }
+          },
+          RemoveMemberRequest: {
+            type: "object",
+            properties: {
+              targetUserId: { type: "string", format: "uuid" }
+            }
+          },
+          ApproveMemberRequest: {
+            type: "object",
+            properties: {
+              targetUserId: { type: "string", format: "uuid" }
+            }
+          },
+          ChangeMemberRoleRequest: {
+            type: "object",
+            required: ["role"],
+            properties: {
+              role: { $ref: "#/components/schemas/RoomRole" }
+            }
+          },
+          LeaveRoomRequest: {
+            type: "object",
+            properties: {
+              newAdminId: { type: "string", format: "uuid", nullable: true, description: "UUID người kế nhiệm Admin (chỉ bắt buộc khi mình là Admin duy nhất trong nhóm)" }
+            }
+          },
+          SendMessageRequest: {
+            type: "object",
+            required: ["content"],
+            properties: {
+              content: { type: "string", example: "Tối nay 8h họp nhóm nhé mọi người!" },
+              messageType: { $ref: "#/components/schemas/MessageType" },
+              repliedMessageId: { type: "string", format: "uuid", nullable: true, description: "UUID tin nhắn cha nếu là Reply (để null nếu nhắn bình thường)" }
+            }
+          },
+          UpdateMessageRequest: {
+            type: "object",
+            required: ["content"],
+            properties: {
+              content: { type: "string", example: "Tối nay đổi sang 8h30 họp nhé!" }
+            }
+          },
+          ReactionRequest: {
+            type: "object",
+            required: ["reactionType"],
+            properties: {
+              reactionType: { $ref: "#/components/schemas/ReactionType" }
+            }
+          },
+          ChatMessagePayload: {
+            type: "object",
+            description: "Payload gửi lên WebSocket STOMP tại đích /app/chat.sendMessage",
+            required: ["roomId", "content"],
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              content: { type: "string", example: "Tin nhắn gửi qua WebSocket" },
+              messageType: { $ref: "#/components/schemas/MessageType" },
+              repliedMessageId: { type: "string", format: "uuid", nullable: true }
+            }
+          },
+          TypingPayload: {
+            type: "object",
+            description: "Payload gửi lên WebSocket STOMP tại đích /app/chat.typing",
+            required: ["roomId"],
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              isTyping: { type: "boolean", default: true, description: "true: bắt đầu gõ, false: ngừng gõ" }
+            }
+          },
+          MarkReadRequest: {
+            type: "object",
+            properties: {
+              messageId: { type: "string", format: "uuid", description: "ID của Message / Poll / Reminder vừa đọc" }
+            }
+          },
+          CreatePollRequest: {
+            type: "object",
+            required: ["question", "options"],
+            properties: {
+              question: { type: "string", example: "Trưa nay ăn gì?" },
+              options: { type: "array", minItems: 2, maxItems: 10, items: { type: "string" }, example: ["Cơm tấm", "Bún đậu", "Phở"] }
+            }
+          },
+          AddPollOptionRequest: {
+            type: "object",
+            required: ["optionText"],
+            properties: {
+              optionText: { type: "string", example: "Mì cay" }
+            }
+          },
+          VotePollRequest: {
+            type: "object",
+            properties: {
+              optionIds: { type: "array", items: { type: "string", format: "uuid" }, description: "Danh sách UUID phương án được chọn (trống nếu rút phiếu)" }
+            }
+          },
+
+          // ==================== RESPONSE DTOs ====================
+          UserResponse: {
+            type: "object",
+            properties: {
+              userId: { type: "string", format: "uuid" },
+              username: { type: "string", example: "Harry Potter" },
+              email: { type: "string", example: "harry@hogwarts.edu" },
+              phoneNumber: { type: "string", example: "0912345678" },
+              avatarUrl: { type: "string", description: "Lưu ý chữ Url viết thường", example: "https://example.com/harry.png" },
+              gender: { type: "string", example: "MALE" },
+              preferredLanguage: { type: "string", example: "vi" },
+              role: { $ref: "#/components/schemas/UserRole" },
+              description: { type: "string", example: "Bio cá nhân" },
+              isBanned: { type: "boolean", example: false },
+              bannedAt: { type: "string", format: "date-time", nullable: true },
+              lastSeenAt: { type: "string", format: "date-time", nullable: true },
+              isOnline: { type: "boolean", example: true, description: "Trạng thái trực tuyến tính từ WebSocket session" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" }
+            }
+          },
+          UserPresenceResponse: {
+            type: "object",
+            properties: {
+              userId: { type: "string", format: "uuid" },
+              isOnline: { type: "boolean", example: true },
+              lastSeenAt: { type: "string", format: "date-time", nullable: true, description: "Thời gian rời mạng lần cuối (null nếu đang online)" }
+            }
+          },
+          AuthResponse: {
+            type: "object",
+            properties: {
+              accessToken: { type: "string" },
+              refreshToken: { type: "string" },
+              tokenType: { type: "string", example: "Bearer" },
+              user: { $ref: "#/components/schemas/UserResponse" }
+            }
+          },
+          FriendshipResponse: {
+            type: "object",
+            properties: {
+              friendshipId: { type: "string", format: "uuid" },
+              friend: { $ref: "#/components/schemas/UserResponse" },
+              status: { $ref: "#/components/schemas/FriendshipStatus" },
+              direction: { type: "string", enum: ["INCOMING", "OUTGOING"], description: "INCOMING: lời mời gửi đến tôi | OUTGOING: lời mời tôi gửi đi" },
+              createdAt: { type: "string", format: "date-time" }
+            }
+          },
+          RoomDetailResponse: {
+            type: "object",
+            description: "Thông tin chi tiết khi mở 1 phòng chat",
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              roomType: { $ref: "#/components/schemas/RoomType" },
+              theme: { type: "string", example: "default" },
+              roomName: { type: "string", example: "Nhóm 8 Niên luận" },
+              roomAvatarURL: { type: "string", description: "Lưu ý chữ URL viết hoa", example: "https://example.com/room.png" },
+              createdBy: { type: "string", format: "uuid" },
+              requireApproval: { type: "boolean", example: false },
+              createdAt: { type: "string", format: "date-time" }
+            }
+          },
+          RoomListResponse: {
+            type: "object",
+            description: "Thông tin từng phòng hiển thị ở danh sách bên trái (Sidebar)",
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              roomType: { $ref: "#/components/schemas/RoomType" },
+              roomName: { type: "string", example: "Nhóm 8 Niên luận" },
+              roomAvatarURL: { type: "string", description: "Lưu ý chữ URL viết hoa", example: "https://example.com/room.png" },
+              lastMessageId: { type: "string", format: "uuid", nullable: true, description: "ID của Message / Poll / Reminder mới nhất" },
+              lastMessageContent: { type: "string", nullable: true, example: "Tối nay 8h họp nhóm nhé!" },
+              lastMessageSenderName: { type: "string", nullable: true, example: "Hermione" },
+              lastMessageAt: { type: "string", format: "date-time", nullable: true },
+              lastDeliveredMessageId: { type: "string", format: "uuid", nullable: true },
+              lastReadMessageId: { type: "string", format: "uuid", nullable: true },
+              hasUnread: { type: "boolean", description: "true: in đậm tên phòng / bật chấm đỏ chưa đọc", example: true },
+              unreadCount: { type: "integer", format: "int64", description: "Tổng số Message + Poll + Reminder mới tạo chưa đọc", example: 3 }
+            }
+          },
+          RoomMemberResponse: {
+            type: "object",
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              userId: { type: "string", format: "uuid" },
+              roomMemberRole: { $ref: "#/components/schemas/RoomRole" },
+              status: { type: "string", example: "ACTIVE" },
+              joinedAt: { type: "string", format: "date-time" },
+              lastDeliveredMessagedId: { type: "string", format: "uuid", nullable: true },
+              lastReadMessageId: { type: "string", format: "uuid", nullable: true }
+            }
+          },
+          RepliedMessageResponse: {
+            type: "object",
+            description: "Thông tin tóm tắt của tin nhắn cha khi Reply",
+            properties: {
+              messageId: { type: "string", format: "uuid" },
+              senderId: { type: "string", format: "uuid" },
+              senderUsername: { type: "string", example: "Ron Weasley" },
+              content: { type: "string", example: "Mấy giờ nộp báo cáo vậy?" },
+              messageType: { $ref: "#/components/schemas/MessageType" },
+              isRevoked: { type: "boolean", example: false }
+            }
+          },
+          ReactionResponse: {
+            type: "object",
+            description: "Thông tin cảm xúc trên tin nhắn (khi gỡ cảm xúc qua WS thì reactionType = null)",
+            properties: {
+              messageId: { type: "string", format: "uuid" },
+              userId: { type: "string", format: "uuid" },
+              username: { type: "string", example: "Hermione" },
+              avatarUrl: { type: "string", nullable: true },
+              reactionType: { $ref: "#/components/schemas/ReactionType", nullable: true },
+              createdAt: { type: "string", format: "date-time", nullable: true }
+            }
+          },
+          MessageResponse: {
+            type: "object",
+            description: "Chi tiết một tin nhắn (Trả về qua REST API và phát qua WebSocket /topic/room.{roomId})",
+            properties: {
+              messageId: { type: "string", format: "uuid" },
+              roomId: { type: "string", format: "uuid" },
+              sender: { $ref: "#/components/schemas/UserResponse" },
+              messageType: { $ref: "#/components/schemas/MessageType" },
+              content: { type: "string", nullable: true, example: "Xin chào cả nhóm!" },
+              repliedMessage: { $ref: "#/components/schemas/RepliedMessageResponse", nullable: true },
+              isEdited: { type: "boolean", example: false },
+              isRevoked: { type: "boolean", example: false },
+              revokedAt: { type: "string", format: "date-time", nullable: true },
+              isPinned: { type: "boolean", example: false },
+              createdAt: { type: "string", format: "date-time" },
+              reactions: { type: "array", items: { $ref: "#/components/schemas/ReactionResponse" } }
+            }
+          },
+          MessageHistoryResponse: {
+            type: "object",
+            properties: {
+              messageHistoryId: { type: "string", format: "uuid" },
+              messageId: { type: "string", format: "uuid" },
+              content: { type: "string", example: "Nội dung cũ trước khi sửa" },
+              editedAt: { type: "string", format: "date-time" }
+            }
+          },
+          TypingEventResponse: {
+            type: "object",
+            description: "Sự kiện đang gõ chữ phát về Topic /topic/room.{roomId}.typing",
+            properties: {
+              roomId: { type: "string", format: "uuid" },
+              userId: { type: "string", format: "uuid" },
+              username: { type: "string", example: "Harry Potter" },
+              avatarUrl: { type: "string", nullable: true },
+              isTyping: { type: "boolean", example: true }
+            }
+          },
+          PollOptionResponse: {
+            type: "object",
+            properties: {
+              pollOptionId: { type: "string", format: "uuid" },
+              optionText: { type: "string", example: "Cơm tấm" },
+              voteCount: { type: "integer", format: "int64", example: 4 },
+              votedByMe: { type: "boolean", example: true }
+            }
+          },
+          PollResponse: {
+            type: "object",
+            properties: {
+              pollId: { type: "string", format: "uuid" },
+              roomId: { type: "string", format: "uuid" },
+              messageId: { type: "string", format: "uuid", nullable: true },
+              question: { type: "string", example: "Trưa nay ăn gì?" },
+              createdById: { type: "string", format: "uuid" },
+              createdByName: { type: "string", example: "Harry Potter" },
+              isActive: { type: "boolean", example: true },
+              createdAt: { type: "string", format: "date-time" },
+              totalVoters: { type: "integer", format: "int64", example: 5 },
+              options: { type: "array", items: { $ref: "#/components/schemas/PollOptionResponse" } }
+            }
+          },
+
+          // ==================== GENERIC WRAPPERS (ApiResponse, PageResponse, CursorResponse) ====================
+          ApiResponse_Void: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Thao tác thành công" },
+              timestamp: { type: "string", example: "2026-11-01 10:30:00" }
+            }
+          },
+          ApiResponse_AuthResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Đăng nhập thành công" },
+              data: { $ref: "#/components/schemas/AuthResponse" },
+              timestamp: { type: "string", example: "2026-11-01 10:30:00" }
+            }
+          },
+          ApiResponse_UserResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Thành công" },
+              data: { $ref: "#/components/schemas/UserResponse" },
+              timestamp: { type: "string", example: "2026-11-01 10:30:00" }
+            }
+          },
+          ApiResponse_UserPresenceResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Thành công" },
+              data: { $ref: "#/components/schemas/UserPresenceResponse" },
+              timestamp: { type: "string", example: "2026-11-01 10:30:00" }
+            }
+          },
+          ApiResponse_ListUserPresenceResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Thành công" },
+              data: { type: "array", items: { $ref: "#/components/schemas/UserPresenceResponse" } },
+              timestamp: { type: "string", example: "2026-11-01 10:30:00" }
+            }
+          },
+          ApiResponse_PageUserResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: {
+                type: "object",
+                properties: {
+                  content: { type: "array", items: { $ref: "#/components/schemas/UserResponse" } },
+                  pageNo: { type: "integer", example: 0 },
+                  pageSize: { type: "integer", example: 10 },
+                  totalElements: { type: "integer", format: "int64", example: 1 },
+                  totalPages: { type: "integer", example: 1 },
+                  last: { type: "boolean", example: true }
+                }
+              },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_FriendshipResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/FriendshipResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_PageFriendshipResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: {
+                type: "object",
+                properties: {
+                  content: { type: "array", items: { $ref: "#/components/schemas/FriendshipResponse" } },
+                  pageNo: { type: "integer", example: 0 },
+                  pageSize: { type: "integer", example: 10 },
+                  totalElements: { type: "integer", format: "int64", example: 2 },
+                  totalPages: { type: "integer", example: 1 },
+                  last: { type: "boolean", example: true }
+                }
+              },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_RoomDetailResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/RoomDetailResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_PageRoomListResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Lấy danh sách phòng thành công" },
+              data: {
+                type: "object",
+                properties: {
+                  content: { type: "array", items: { $ref: "#/components/schemas/RoomListResponse" } },
+                  pageNo: { type: "integer", example: 0 },
+                  pageSize: { type: "integer", example: 20 },
+                  totalElements: { type: "integer", format: "int64", example: 5 },
+                  totalPages: { type: "integer", example: 1 },
+                  last: { type: "boolean", example: true }
+                }
+              },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_RoomMemberResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/RoomMemberResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_ListRoomMemberResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { type: "array", items: { $ref: "#/components/schemas/RoomMemberResponse" } },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_MessageResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/MessageResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_ListMessageResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { type: "array", items: { $ref: "#/components/schemas/MessageResponse" } },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_CursorMessageResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string", example: "Lấy danh sách tin nhắn thành công" },
+              data: {
+                type: "object",
+                properties: {
+                  data: { type: "array", items: { $ref: "#/components/schemas/MessageResponse" } },
+                  nextCursor: { type: "string", format: "uuid", nullable: true, description: "Truyền giá trị này vào ?cursor=... ở lần cuộn tiếp theo" },
+                  hasMore: { type: "boolean", example: true }
+                }
+              },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_ListMessageHistoryResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { type: "array", items: { $ref: "#/components/schemas/MessageHistoryResponse" } },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_ReactionResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { $ref: "#/components/schemas/ReactionResponse" },
+              timestamp: { type: "string" }
+            }
+          },
+          ApiResponse_ListReactionResponse: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 200 },
+              message: { type: "string" },
+              data: { type: "array", items: { $ref: "#/components/schemas/ReactionResponse" } },
+              timestamp: { type: "string" }
+            }
+          }
+        }
+      }
+    };
+
+    window.onload = function () {
+      SwaggerUIBundle({
+        spec: openApiSpec,
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        defaultModelsExpandDepth: 2,
+        defaultModelExpandDepth: 2,
+        docExpansion: "list",
+        filter: true
+      });
+    };
+
+    function copySpec() {
+      navigator.clipboard.writeText(JSON.stringify(openApiSpec, null, 2)).then(() => {
+        alert("Đã copy toàn bộ OpenAPI JSON! Bạn có thể mở https://editor.swagger.io và dán (Ctrl+V) vào khung bên trái.");
+      });
+    }
+  </script>
+</body>
+</html>
+

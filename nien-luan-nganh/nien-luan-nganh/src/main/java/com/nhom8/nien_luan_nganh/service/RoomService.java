@@ -5,7 +5,6 @@ import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
 import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
-import com.nhom8.nien_luan_nganh.entity.Message;
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.entity.User;
@@ -15,6 +14,8 @@ import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.RoomMapper;
 import com.nhom8.nien_luan_nganh.repository.MessageRepository;
+import com.nhom8.nien_luan_nganh.repository.PollRepository;
+import com.nhom8.nien_luan_nganh.repository.ReminderRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -38,6 +40,8 @@ public class RoomService {
     private final RoomMemberService roomMemberService;
     private final RoomMemberRepository roomMemberRepository;
     private final MessageRepository messageRepository;
+    private final PollRepository pollRepository;
+    private final ReminderRepository reminderRepository;
 
     // tạo group
     @Transactional
@@ -50,6 +54,7 @@ public class RoomService {
         room.setCreatedBy(creator);
 
         roomRepository.save(room);
+        updateLastActivity(room, room.getRoomId(), "Đã tạo nhóm", creator, room.getCreatedAt());
 
         /// xử lý thêm danh sách thành viên
         // người tạo là Admin
@@ -97,8 +102,8 @@ public class RoomService {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
 
-        // 2. Tạo thông tin phân trang (sắp xếp theo updatedAt DESC để phòng vừa có tin
-        // nhắn mới nổi lên đầu)
+        // 2. Tạo thông tin phân trang (sắp xếp theo updatedAt DESC để phòng vừa có hoạt
+        // động mới nổi lên đầu)
         Pageable pageable = PageRequest.of(pageNo, pageSize, Sort.Direction.DESC, "updatedAt");
 
         // 3. Lấy danh sách phòng
@@ -140,25 +145,18 @@ public class RoomService {
             }
         }
 
-        // 4.3. Lấy tin nhắn mới nhất của các phòng trong trang hiện tại bằng 1 query
-        Map<UUID, Message> latestMessageByRoomId = new HashMap<>();
-        List<Message> latestMessages = messageRepository.findLatestMessagesByRoomIds(roomIds);
-        for (Message msg : latestMessages) {
-            // putIfAbsent: nếu có rồi thì thôi, không replace (2 phong co tin nhan cung
-            // luc)
-            latestMessageByRoomId.putIfAbsent(msg.getRoom().getRoomId(), msg);
-        }
-
-        // 4.4. Đếm số tin nhắn chưa đọc của từng phòng bằng 1 query gộp GROUP BY
+        // 4.3. Đếm tổng số hoạt động chưa đọc (Message + Poll + Reminder mới tạo)
+        // của từng phòng bằng các query gộp GROUP BY
         Map<UUID, Long> unreadCountByRoomId = new HashMap<>();
-        List<Object[]> unreadRows = messageRepository.countUnreadMessagesByRoomIds(roomIds, currentUserId);
-        for (Object[] row : unreadRows) {
-            UUID rId = (UUID) row[0];
-            Long count = (Long) row[1];
-            unreadCountByRoomId.put(rId, count);
-        }
+        accumulateUnreadCounts(unreadCountByRoomId,
+                messageRepository.countUnreadMessagesByRoomIds(roomIds, currentUserId));
+        accumulateUnreadCounts(unreadCountByRoomId,
+                pollRepository.countUnreadPollsByRoomIds(roomIds, currentUserId));
+        accumulateUnreadCounts(unreadCountByRoomId,
+                reminderRepository.countUnreadRemindersByRoomIds(roomIds, currentUserId));
 
         // 5. Chuyển sang DTO và làm giàu dữ liệu hiển thị bên ngoài (Sidebar)
+        // lastMessageId/Content/SenderName/At được mapper copy trực tiếp từ Room
         Page<RoomListResponse> responses = rooms.map(room -> {
             RoomListResponse item = roomMapper.toRoomListResponse(room);
             UUID roomId = room.getRoomId();
@@ -177,19 +175,6 @@ public class RoomService {
                 }
             }
 
-            // Gán tin nhắn mới nhất bên ngoài
-            Message lastMsg = latestMessageByRoomId.get(roomId);
-            if (lastMsg != null) {
-                item.setLastMessageId(lastMsg.getMessageId());
-                item.setLastMessageContent(Boolean.TRUE.equals(lastMsg.getIsRevoked())
-                        ? "Tin nhắn đã bị thu hồi"
-                        : lastMsg.getContent());
-                item.setLastMessageSenderName(lastMsg.getSender() != null
-                        ? lastMsg.getSender().getUsername()
-                        : null);
-                item.setLastMessageAt(lastMsg.getCreatedAt());
-            }
-
             // Gán mốc đã nhận / đã đọc của thành viên hiện tại
             RoomMember myMember = myMemberByRoomId.get(roomId);
             if (myMember != null) {
@@ -197,16 +182,78 @@ public class RoomService {
                 item.setLastReadMessageId(myMember.getLastReadMessageId());
             }
 
-            // Gán số tin chưa đọc và cờ in đậm (hasUnread)
+            // Gán tổng số hoạt động chưa đọc (tin nhắn + bình chọn + lịch hẹn mới)
             long unreadCount = unreadCountByRoomId.getOrDefault(roomId, 0L);
             item.setUnreadCount(unreadCount);
-            item.setHasUnread(unreadCount > 0);
+
+            // Cờ in đậm: đối chiếu trực tiếp lastMessageId của phòng với lastReadMessageId
+            // của mình (không tính hoạt động do chính mình tạo) hoặc còn mục chưa đọc
+            UUID myLastReadId = myMember != null ? myMember.getLastReadMessageId() : null;
+            boolean hasUnread = unreadCount > 0 || (room.getLastMessageId() != null
+                    && !room.getLastMessageId().equals(myLastReadId) // Id new hoat dong != id cuoi user doc
+                    && !currentUserId.equals(room.getLastMessageSenderId())); // new hoat dong khong phai do ban than
+                                                                              // user tao ra
+            item.setHasUnread(hasUnread);
 
             return item;
         });
 
         // 6. Trả kết quả phân trang
         return PageResponse.from(responses);
+    }
+
+    private void accumulateUnreadCounts(Map<UUID, Long> targetMap, List<Object[]> rows) {
+        if (rows == null) {
+            return;
+        }
+        for (Object[] row : rows) {
+            UUID rId = (UUID) row[0]; // roomId
+            Long count = (Long) row[1]; // So luong dem duoc
+            if (rId != null && count != null) {
+                targetMap.merge(rId, count, Long::sum); // Cộng dồn vào Map
+            }
+        }
+    }
+
+    /**
+     * Cập nhật hoạt động mới nhất của phòng (dùng chung cho MessageService,
+     * PollService, ReminderService).
+     * Tự động đẩy thời gian updatedAt của phòng lên đầu danh sách Sidebar.
+     *
+     * @param room           Phòng chat cần cập nhật
+     * @param activityId     ID của hoạt động mới nhất (messageId, pollId hoặc
+     *                       reminderId)
+     * @param previewContent Nội dung hiển thị ngoài Sidebar (vd: "Alo", "📊 [Bình
+     *                       chọn] ...", "⏰ [Lịch hẹn] ...")
+     * @param sender         Người tạo hoạt động
+     * @param activityAt     Thời điểm tạo hoạt động
+     */
+    @Transactional
+    public void updateLastActivity(Room room, UUID activityId, String previewContent, User sender,
+            LocalDateTime activityAt) {
+        LocalDateTime timestamp = (activityAt != null) ? activityAt : LocalDateTime.now();
+        room.setLastMessageId(activityId);
+        room.setLastMessageContent(previewContent);
+        if (sender != null) {
+            room.setLastMessageSenderId(sender.getUserId());
+            room.setLastMessageSenderName(sender.getUsername());
+        }
+        room.setLastMessageAt(timestamp);
+        room.setUpdatedAt(LocalDateTime.now());
+        roomRepository.save(room);
+    }
+
+    /**
+     * Cập nhật lại nội dung hiển thị bên ngoài (preview) nếu hoạt động bị chỉnh sửa
+     * hoặc thu hồi
+     * chính là hoạt động mới nhất hiện tại của phòng.
+     */
+    @Transactional
+    public void updateLastActivityContentIfMatch(Room room, UUID activityId, String newPreviewContent) {
+        if (room != null && activityId != null && activityId.equals(room.getLastMessageId())) {
+            room.setLastMessageContent(newPreviewContent);
+            roomRepository.save(room);
+        }
     }
 
     // lấy thông tin phòng

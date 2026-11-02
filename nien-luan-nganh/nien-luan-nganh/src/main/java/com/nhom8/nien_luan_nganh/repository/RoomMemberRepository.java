@@ -18,64 +18,68 @@ import java.util.UUID;
 @Repository
 public interface RoomMemberRepository extends JpaRepository<RoomMember, RoomMemberId> {
 
-    // Kiem tra user co trong room khong
-    boolean existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
+       // Kiem tra user co trong room khong
+       boolean existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
 
-    // Lay thong tin member
-    Optional<RoomMember> findByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
+       // Lay thong tin member
+       Optional<RoomMember> findByRoomMemberId_UserIdAndRoomMemberId_RoomId(UUID userId, UUID roomId);
 
-    // Lay tat ca member trong room
-    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.roomMemberId.roomId = :roomId")
-    List<RoomMember> findMembersByRoomId(@Param("roomId") UUID roomId);
+       // Lay tat ca member trong room
+       @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.user WHERE rm.roomMemberId.roomId = :roomId")
+       List<RoomMember> findMembersByRoomId(@Param("roomId") UUID roomId);
 
-    // Lay tat ca room cua user
-    @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.room WHERE rm.roomMemberId.userId = :userId")
-    List<RoomMember> findRoomsByUserId(@Param("userId") UUID userId);
+       // Lay tat ca room cua user
+       @Query("SELECT rm FROM RoomMember rm JOIN FETCH rm.room WHERE rm.roomMemberId.userId = :userId")
+       List<RoomMember> findRoomsByUserId(@Param("userId") UUID userId);
 
-    // Lay thong tin RoomMember cua currentUser trong danh sach phong (lay lastReadMessageId, lastDeliveredMessageId)
-    @Query("SELECT rm FROM RoomMember rm " +
-           "WHERE rm.roomMemberId.roomId IN :roomIds " +
-           "AND rm.roomMemberId.userId = :userId")
-    List<RoomMember> findByRoomIdsAndUserId(@Param("roomIds") List<UUID> roomIds,
-                                            @Param("userId") UUID userId);
+       // Lay thong tin RoomMember cua currentUser trong danh sach phong (lay
+       // lastReadMessageId, lastDeliveredMessageId)
+       @Query("SELECT rm FROM RoomMember rm " +
+                     "WHERE rm.roomMemberId.roomId IN :roomIds " +
+                     "AND rm.roomMemberId.userId = :userId")
+       List<RoomMember> findByRoomIdsAndUserId(@Param("roomIds") List<UUID> roomIds,
+                     @Param("userId") UUID userId);
 
-    // Lay thong tin thanh vien doi phuong trong cac phong chat 1-1 (tranh N+1 query)
-    @Query("SELECT rm FROM RoomMember rm " +
-           "JOIN FETCH rm.user " +
-           "WHERE rm.roomMemberId.roomId IN :roomIds " +
-           "AND rm.roomMemberId.userId <> :currentUserId")
-    List<RoomMember> findOtherMembersInRooms(@Param("roomIds") List<UUID> roomIds,
-                                             @Param("currentUserId") UUID currentUserId);
+       // Lay thong tin thanh vien doi phuong trong cac phong chat 1-1 (tranh N+1
+       // query)
+       @Query("SELECT rm FROM RoomMember rm " +
+                     "JOIN FETCH rm.user " +
+                     "WHERE rm.roomMemberId.roomId IN :roomIds " +
+                     "AND rm.roomMemberId.userId <> :currentUserId")
+       List<RoomMember> findOtherMembersInRooms(@Param("roomIds") List<UUID> roomIds,
+                     @Param("currentUserId") UUID currentUserId);
 
-    // Lay member theo role
-    List<RoomMember> findByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
+       // Lay member theo role
+       List<RoomMember> findByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole roomMemberRole);
 
-    // Dem so member trong room
-    long countByRoomMemberId_RoomId(UUID roomId);
+       // Dem so member trong room
+       long countByRoomMemberId_RoomId(UUID roomId);
 
-    // Lay user trong room
-    @Query("SELECT rm.user FROM RoomMember rm WHERE rm.roomMemberId.roomId = :roomId")
-    List<User> findUsersByRoomId(@Param("roomId") UUID roomId);
+       // Lay user trong room
+       @Query("SELECT rm.user FROM RoomMember rm WHERE rm.roomMemberId.roomId = :roomId")
+       List<User> findUsersByRoomId(@Param("roomId") UUID roomId);
 
-    long countByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole role);
+       long countByRoomMemberId_RoomIdAndRoomMemberRole(UUID roomId, RoomRole role);
 
-    List<RoomMember> findByRoomMemberId_RoomId(UUID roomId);
-    List<RoomMember> findByRoomMemberId_RoomIdAndStatus(UUID roomId, RoomMemberStatus status);
-    List<RoomMember> findByRoomMemberId_UserId(UUID userId);
+       List<RoomMember> findByRoomMemberId_RoomId(UUID roomId);
 
-    @Query("""
-    select rm.roomMemberId.userId
-    from RoomMember rm
-    where rm.roomMemberId.roomId = :roomId
-      and rm.roomMemberId.userId in :userIds
-    """)
-    List<UUID> findExistingUserIds(@Param("roomId") UUID roomId,
-                                   @Param("userIds") Collection<UUID> userIds);
+       List<RoomMember> findByRoomMemberId_RoomIdAndStatus(UUID roomId, RoomMemberStatus status);
 
-    @Query("""
-    SELECT rm.roomMemberId.userId
-    FROM RoomMember rm
-    WHERE rm.roomMemberId.roomId = :roomId
-    """)
-    List<UUID> findMemberIdsByRoomId(@Param("roomId") UUID roomId);
+       List<RoomMember> findByRoomMemberId_UserId(UUID userId);
+
+       @Query("""
+                     select rm.roomMemberId.userId
+                     from RoomMember rm
+                     where rm.roomMemberId.roomId = :roomId
+                       and rm.roomMemberId.userId in :userIds
+                     """)
+       List<UUID> findExistingUserIds(@Param("roomId") UUID roomId,
+                     @Param("userIds") Collection<UUID> userIds);
+
+       @Query("""
+                     SELECT rm.roomMemberId.userId
+                     FROM RoomMember rm
+                     WHERE rm.roomMemberId.roomId = :roomId
+                     """)
+       List<UUID> findMemberIdsByRoomId(@Param("roomId") UUID roomId);
 }

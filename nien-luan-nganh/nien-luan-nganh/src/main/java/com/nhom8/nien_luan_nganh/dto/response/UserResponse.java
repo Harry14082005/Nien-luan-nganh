@@ -1,5 +1,6 @@
 package com.nhom8.nien_luan_nganh.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nhom8.nien_luan_nganh.enums.UserRole;
 import lombok.*;
 
@@ -27,6 +28,10 @@ public class UserResponse {
     private Boolean isBanned;
     private LocalDateTime bannedAt;
     private LocalDateTime lastSeenAt;
+
+    @JsonProperty("isOnline")
+    private Boolean isOnline;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

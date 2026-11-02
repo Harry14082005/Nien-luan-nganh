@@ -1,36 +1,35 @@
 package com.nhom8.nien_luan_nganh.service;
 
+import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
 import com.nhom8.nien_luan_nganh.dto.request.SendMessageRequest;
+import com.nhom8.nien_luan_nganh.dto.request.TypingPayload;
 import com.nhom8.nien_luan_nganh.dto.request.UpdateMessageRequest;
 import com.nhom8.nien_luan_nganh.dto.response.CursorResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageHistoryResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
+import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
+import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
-import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
-import com.nhom8.nien_luan_nganh.dto.request.TypingPayload;
-import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
-import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Service xử lý các nghiệp vụ liên quan đến Tin nhắn trong phòng chat.
@@ -49,6 +48,7 @@ public class MessageService {
     private final MessageHistoryRepository messageHistoryRepository;
     private final MessageReactionRepository messageReactionRepository;
     private final MessageMapper messageMapper;
+    private final RoomService roomService;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
@@ -63,7 +63,7 @@ public class MessageService {
      * - Nếu là phòng chat 1-1 (DIRECT): Kiểm tra trạng thái chặn (Block) giữa 2
      * người dùng.
      * - Kiểm tra tin nhắn cha khi reply (phải cùng phòng và chưa bị thu hồi).
-     * - Cập nhật thời gian hoạt động của Room (đẩy phòng chat lên đầu danh bạ).
+     * - Cập nhật hoạt động mới nhất của Room qua RoomService (đẩy phòng chat lên đầu danh bạ).
      *
      * @param currentUserId Khóa chính UUID của người gửi tin nhắn (lấy từ Token)
      * @param roomId        Khóa chính UUID của phòng chat nhận tin nhắn
@@ -140,10 +140,11 @@ public class MessageService {
 
         Message savedMessage = messageRepository.save(message);
 
-        // 8. Cập nhật thời gian hoạt động của phòng chat (đẩy phòng chat lên đầu danh
-        // bạ)
-        room.setUpdatedAt(LocalDateTime.now());
-        roomRepository.save(room);
+        // 8. Cập nhật hoạt động mới nhất của phòng chat qua RoomService (dùng chung cho Message, Poll, Reminder)
+        String preview = (messageType == MessageType.TEXT || messageType == MessageType.LINK)
+                ? content
+                : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
+        roomService.updateLastActivity(room, savedMessage.getMessageId(), preview, sender, savedMessage.getCreatedAt());
 
         // 9. Chuyển đổi sang MessageResponse và trả về cho Controller
         return messageMapper.toMessageResponse(savedMessage);
@@ -228,6 +229,9 @@ public class MessageService {
             message.setContent(newContent);
             message.setIsEdited(true);
             message = messageRepository.save(message);
+
+            // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài Sidebar
+            roomService.updateLastActivityContentIfMatch(message.getRoom(), message.getMessageId(), newContent);
         }
 
         return messageMapper.toMessageResponse(message);
@@ -241,9 +245,6 @@ public class MessageService {
      * - Tin nhắn chưa bị thu hồi trước đó.
      * - Phân quyền:
      * + Người gửi (Sender) có quyền thu hồi tin nhắn của chính mình.
-     * + Trưởng nhóm (OWNER) hoặc Quản trị viên (ADMIN) có quyền thu hồi tin nhắn
-     * của thành viên khác để kiểm duyệt.
-     * + Thành viên bình thường không được thu hồi tin nhắn của người khác.
      * - Khi thu hồi: Đánh dấu isRevoked = true, revokedAt = now(), và xoá nội dung
      * gốc (content = null) để bảo mật.
      *
@@ -293,6 +294,9 @@ public class MessageService {
         message.setRevokedAt(LocalDateTime.now());
         message.setContent(null); // Gỡ nội dung gốc ra khỏi database để bảo mật thông tin
         message.setIsPinned(false); // Gỡ ghim nếu tin nhắn đang được ghim
+
+        // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài Sidebar
+        roomService.updateLastActivityContentIfMatch(message.getRoom(), messageId, "Tin nhắn đã bị thu hồi");
 
         // Xóa sạch toàn bộ lịch sử chỉnh sửa cũ trực tiếp từ repository
         messageHistoryRepository.deleteByMessage_MessageId(messageId);
@@ -507,7 +511,7 @@ public class MessageService {
      * @return ReactionResponse Chi tiết cảm xúc sau khi lưu
      */
     @Transactional
-    public com.nhom8.nien_luan_nganh.dto.response.ReactionResponse reactMessage(
+    public ReactionResponse reactMessage(
             UUID currentUserId, UUID roomId, UUID messageId, ReactionRequest request) {
         // 1. Kiểm tra người dùng có tồn tại không
         User user = userRepository.findById(currentUserId)
@@ -777,13 +781,4 @@ public class MessageService {
                 .typing(payload.isTyping())
                 .build();
     }
-
-    // cập nhật tin nhắn mới nhất của phòng (hiển thị ngoài danh sách phòng)
-
-    // public void updateLastMessage(Room room, Message message, String preview) {
-    // room.setLastMessageId(message.getMessageId());
-    // room.setLastMessageContent(preview);
-    // room.setLastMessageSenderId(message.getSender().getUserId());
-    // room.setLastMessageAt(message.getCreatedAt());
-    // }
 }

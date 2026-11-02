@@ -70,18 +70,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
         // 2. Thống kê theo loại tin nhắn (TEXT, IMAGE, FILE...)
         long countByMessageType(MessageType messageType);
 
-        // Lay tin nhan moi nhat cua danh sach phong chat trong 1 cau query (Tranh N+1
-        // khi load Sidebar)
-        @Query("SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "WHERE m.room.roomId IN :roomIds " +
-                        "AND m.createdAt = (" +
-                        "    SELECT MAX(m2.createdAt) FROM Message m2 WHERE m2.room.roomId = m.room.roomId" +
-                        ")")
-        List<Message> findLatestMessagesByRoomIds(@Param("roomIds") List<UUID> roomIds);
-
-        // Dem so tin nhan chua doc theo tung phong chat trong 1 cau query gop (Phuong
-        // an A)
+        // Đếm số tin nhắn chưa đọc theo từng phòng chat trong 1 câu query gộp.
+        // Hỗ trợ trường hợp lastReadMessageId là ID của Message, Poll hoặc Reminder.
         @Query("SELECT m.room.roomId, COUNT(m) " +
                         "FROM Message m, RoomMember rm " +
                         "WHERE rm.room.roomId = m.room.roomId " +
@@ -89,8 +79,10 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "AND m.room.roomId IN :roomIds " +
                         "AND (m.sender IS NULL OR m.sender.userId <> :userId) " +
                         "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
-                        "AND (rm.lastReadMessageId IS NULL OR m.createdAt > (" +
-                        "    SELECT mr.createdAt FROM Message mr WHERE mr.messageId = rm.lastReadMessageId" +
+                        "AND (rm.lastReadMessageId IS NULL OR m.createdAt > COALESCE(" +
+                        "    (SELECT mr.createdAt FROM Message mr WHERE mr.messageId = rm.lastReadMessageId)," +
+                        "    (SELECT pr.createdAt FROM Poll pr WHERE pr.pollId = rm.lastReadMessageId)," +
+                        "    (SELECT rr.createdAt FROM Reminder rr WHERE rr.reminderId = rm.lastReadMessageId)" +
                         ")) " +
                         "GROUP BY m.room.roomId")
         List<Object[]> countUnreadMessagesByRoomIds(@Param("roomIds") List<UUID> roomIds,

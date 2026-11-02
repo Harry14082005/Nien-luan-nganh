@@ -12,7 +12,7 @@
 | Nhóm | Loại | Số API |
 |---|---|---|
 | Auth | REST | 4 |
-| Users | REST | 7 |
+| Users | REST | 9 |
 | Friendship | REST | 7 |
 | Rooms | REST | 15 |
 | Messages | REST | 11 |
@@ -24,7 +24,7 @@
 | Admin | REST | 10 |
 | WebSocket gửi lên | WebSocket | 8 |
 | WebSocket nhận về | WebSocket | 20 |
-| **Tổng** | | **100** |
+| **Tổng** | | **102** |
 
 **Theo tình trạng:**
 
@@ -32,7 +32,7 @@
 |---|---|
 | Đã có trong spec | 79 |
 | Cần bổ sung | 11 |
-| — | 7 |
+| — | 9 |
 | Nên có thêm | 3 |
 
 ## Auth
@@ -48,13 +48,15 @@
 
 | STT | Method | Endpoint | Mô tả | STT CN | Quyền | Tình trạng | Ghi chú |
 |---|---|---|---|---|---|---|---|
-| 5 | `GET` | `/users/me` | Lấy thông tin bản thân | 4 | Đăng nhập | Đã hoàn thành |  |
+| 5 | `GET` | `/users/me` | Lấy thông tin bản thân | 4 | Đăng nhập | Đã hoàn thành | Kèm trường `isOnline` |
 | 6 | `PUT` | `/users/me` | Cập nhật hồ sơ, avatar, ngôn ngữ ưa thích | 4 | Đăng nhập | Đã hoàn thành |  |
 | — | `PUT` | `/user/me/email` | Đổi email | — | Đăng nhập | Đã hoàn thành | Hỗ trợ cả `/users/me/email` |
 | — | `PUT` | `/user/me/phone` | Đổi SĐT | — | Đăng nhập | Đã hoàn thành | Hỗ trợ cả `/users/me/phone` |
 | — | `PUT` | `/user/me/password` | Đổi mật khẩu | — | Đăng nhập | Đã hoàn thành | Hỗ trợ cả `/users/me/password` |
-| 7 | `GET` | `/users/search` | Tìm người dùng theo email, SĐT hoặc username (`?q=...`) | 17 | Đăng nhập | Đã hoàn thành |  |
-| 8 | `GET` | `/users/{userId}` | Xem profile người dùng | — | Đăng nhập | Đã hoàn thành |  |
+| 7 | `GET` | `/users/search` | Tìm người dùng theo email, SĐT hoặc username (`?q=...`) | 17 | Đăng nhập | Đã hoàn thành | Kèm trường `isOnline` của từng kết quả |
+| 8 | `GET` | `/users/{userId}` | Xem profile người dùng | — | Đăng nhập | Đã hoàn thành | Kèm trường `isOnline` |
+| — | `GET` | `/users/{userId}/presence` | Lấy trạng thái hiện diện (Online / lastSeenAt) | 16 | Đăng nhập | Đã hoàn thành | Trả `UserPresenceResponse` |
+| — | `POST` | `/users/presence/batch` | Lấy trạng thái hiện diện hàng loạt cho nhiều user | 16 | Đăng nhập | Đã hoàn thành | Nhận `BatchPresenceRequest` (tối đa 100 ID, tự khử trùng). Khuyên dùng cho Sidebar: Polling 30–60s kết hợp Window Focus & Tab Visibility Change |
 
 ## Friendship
 
@@ -174,7 +176,7 @@
 | 67 | Client → Server | `SEND /app/chat.typing` (`typing: false`) | Báo ngừng gõ chữ (`TypingPayload`: `roomId`, `typing: false`) | — | Đã kết nối | Đã hoàn thành | Gộp chung endpoint `/app/chat.typing` với cờ boolean `typing` |
 | 68 | Client → Server | `mark_seen` | Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`) | — | Đã kết nối | Đang thực hiện | Lưu trên bảng `room_members` |
 | 69 | Client → Server | `poll_vote` | Bình chọn poll qua WebSocket | 28 | Đã kết nối | Đã có trong spec |  |
-| 70 | Client → Server | `ping` | Kiểm tra kết nối còn sống (STOMP Heartbeat) | — | Đã kết nối | Đã có trong spec |  |
+| 70 | Client → Server | `ping` | Kiểm tra kết nối còn sống (STOMP Heartbeat) | — | Đã kết nối | Đã hoàn thành | Cấu hình Heartbeat 15s/15s kèm `ThreadPoolTaskScheduler` |
 
 ## WebSocket nhận về (STOMP Server → Client)
 
@@ -195,9 +197,9 @@
 | 82 | Server → Client | `reminder_updated` | Có người phản hồi RSVP hoặc lịch hẹn đổi trạng thái | 26 | Đã kết nối | Đã có trong spec |  |
 | 83 | Server → Client | `ai_suggestion` | AI gợi ý poll hoặc lịch hẹn (chưa lưu DB) | 30, 31 | Đã kết nối | Đã có trong spec |  |
 | 84 | Server → Client | `/user/queue/notifications` | Thông báo mới | 24 | Đã kết nối | Đã có trong spec |  |
-| 85 | Server → Client | `user_online` | Bạn bè kết nối | 16 | Đã kết nối | Đang thực hiện |  |
-| 86 | Server → Client | `user_offline` | Bạn bè ngắt kết nối | 16 | Đã kết nối | Đang thực hiện |  |
+| 85 | Server → Client | `/topic/users.presence` & `/topic/users.{userId}.presence` | Trạng thái Online (`UserPresenceResponse` với `isOnline = true`) | 16 | Đã kết nối | Đã hoàn thành | Broadcast khi sessionCount chuyển từ 0 lên 1 (Multi-session) |
+| 86 | Server → Client | `/topic/users.presence` & `/topic/users.{userId}.presence` | Trạng thái Offline (`UserPresenceResponse` với `isOnline = false`, `lastSeenAt`) | 16 | Đã kết nối | Đã hoàn thành | Broadcast & lưu DB khi sessionCount về 0 hoặc ngắt do rớt mạng |
 | 87 | Server → Client | `room_updated` | Phòng đổi tên, avatar hoặc theme | — | Đã kết nối | Đã có trong spec |  |
 | 88 | Server → Client | `member_changed` | Thành viên được thêm, bị xóa hoặc rời phòng | 14 | Đã kết nối | Đã có trong spec |  |
 | 89 | Server → Client | `/user/queue/errors` | Báo lỗi (`ApiResponse`) riêng cho user vừa gửi frame STOMP lỗi | — | Đã kết nối | Đã hoàn thành | Xử lý qua `@MessageExceptionHandler` |
-| 90 | Server → Client | `pong` | Trả lời ping | — | Đã kết nối | Đã có trong spec |  |
+| 90 | Server → Client | `pong` | Trả lời ping | — | Đã kết nối | Đã hoàn thành | Tự động xử lý qua STOMP Heartbeat ping-pong định kỳ |

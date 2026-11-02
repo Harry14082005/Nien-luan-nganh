@@ -79,6 +79,7 @@ public class User {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
     // Relationships
     @Builder.Default
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)

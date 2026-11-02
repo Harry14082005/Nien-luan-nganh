@@ -32,6 +32,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -67,6 +68,9 @@ class MessageServiceTest {
 
     @Mock
     private MessageMapper messageMapper;
+
+    @Mock
+    private RoomService roomService;
 
     @InjectMocks
     private MessageService messageService;
@@ -129,7 +133,7 @@ class MessageServiceTest {
 
         assertNotNull(response);
         assertEquals("Xin chào cả nhóm", response.getContent());
-        verify(roomRepository, times(1)).save(room);
+        verify(roomService, times(1)).updateLastActivity(eq(room), any(), any(), eq(user), any());
         verify(messageRepository, times(1)).save(any(Message.class));
     }
 

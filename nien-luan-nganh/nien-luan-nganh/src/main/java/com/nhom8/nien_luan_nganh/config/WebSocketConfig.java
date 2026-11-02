@@ -2,6 +2,7 @@ package com.nhom8.nien_luan_nganh.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -16,6 +17,8 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.util.StringUtils;
@@ -33,6 +36,8 @@ import java.util.UUID;
  * Tích hợp xác thực danh tính người dùng qua JWT Token ở cả 2 bước:
  * 1. HTTP Handshake (/ws?token=...)
  * 2. STOMP CONNECT frame (Authorization: Bearer ...)
+ * Bật Heartbeat ping/pong 15s để phát hiện rớt mạng đột ngột (Zombie
+ * Connections).
  */
 @Configuration
 @EnableWebSocketMessageBroker
@@ -55,11 +60,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .addInterceptors(new JwtHandshakeInterceptor())
-                // Danh cho web browser. Neu mang user bi chan Websocket (tuong lua cong ty,
-                // proxy cu)
-                // SockJS auto chuyen sang co che gia lap nhu HTTP Streaming hoac Long-Polling
-                // de khong dut mang
-                .withSockJS();
+                // Dành cho web browser. Nếu mạng user bị chặn Websocket (tường lửa công ty, proxy cũ),
+                // SockJS auto chuyển sang cơ chế giả lập như HTTP Streaming hoặc Long-Polling để không đứt mạng
+                .withSockJS()
+                .setHeartbeatTime(15000); // SockJS heartbeat ping định kỳ 15s
 
         // Endpoint WebSocket thuần riêng biệt (Postman, Mobile App, Native WS client)
         // Đặt /ws-raw để tránh xung đột HandlerMapping với endpoint /ws của SockJS
@@ -72,18 +76,36 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /**
      * Cấu hình Message Broker định tuyến tin nhắn:
      * - /topic: Broadcast tin nhắn công cộng / phòng chat nhóm (ví dụ
-     * /topic/room.{roomId})
+     * /topic/room.{roomId}, /topic/users.presence)
      * - /queue: Gửi tin nhắn riêng / thông báo cá nhân (ví dụ
      * /user/queue/notifications)
-     * - /app: Tiền tố các event do Client gửi lên Server, Spring chuyen tin nhan
-     * vao Controller co gang @MessageMapping
-     * - /user: Tiền tố định tuyến tin nhắn riêng cho từng User cụ thể (doc quyen)
+     * - /app: Tiền tố các event do Client gửi lên Server, Spring chuyển tin nhắn
+     * vào Controller có gắn @MessageMapping
+     * - /user: Tiền tố định tuyến tin nhắn riêng cho từng User cụ thể (độc quyền)
+     * - Heartbeat (15s/15s): Phát hiện Zombie Connections khi rớt mạng đột ngột
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setTaskScheduler(messageBrokerTaskScheduler())
+                .setHeartbeatValue(new long[] { 15000, 15000 }); // Ping/Pong mỗi 15 giây
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
+    }
+
+    /**
+     * TaskScheduler chuyên dụng cho SimpleBroker để gửi và nhận ping-pong Heartbeat
+     * theo định kỳ.
+     */
+    @Bean
+    public TaskScheduler messageBrokerTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler(); // wrapper cua spring -
+                                                                           // ScheduledThreadPoolExecutor
+        scheduler.setPoolSize(1); // 1 because: chi can gui 1 ky tu qua socket va doc lai 1 timestamp tren RAM xem
+                                  // client co tra loi hong (khong query)
+        scheduler.setThreadNamePrefix("ws-heartbeat-"); // dat tien to cho luong he thong
+        scheduler.initialize();
+        return scheduler;
     }
 
     /**

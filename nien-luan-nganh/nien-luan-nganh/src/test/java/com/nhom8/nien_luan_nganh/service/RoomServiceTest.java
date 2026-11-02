@@ -3,12 +3,13 @@ package com.nhom8.nien_luan_nganh.service;
 import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
-import com.nhom8.nien_luan_nganh.enums.MessageType;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.mapper.RoomMapper;
 import com.nhom8.nien_luan_nganh.repository.MessageRepository;
+import com.nhom8.nien_luan_nganh.repository.PollRepository;
+import com.nhom8.nien_luan_nganh.repository.ReminderRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
@@ -55,6 +56,12 @@ class RoomServiceTest {
     @Mock
     private MessageRepository messageRepository;
 
+    @Mock
+    private PollRepository pollRepository;
+
+    @Mock
+    private ReminderRepository reminderRepository;
+
     @InjectMocks
     private RoomService roomService;
 
@@ -82,19 +89,26 @@ class RoomServiceTest {
     }
 
     @Test
-    @DisplayName("Lấy danh sách phòng chat (Phương án A): đầy đủ tên phòng DIRECT, preview tin nhắn cuối, hasUnread và unreadCount")
-    void getRooms_ReturnsPreviewAndUnreadStatus() {
+    @DisplayName("Lấy danh sách phòng chat: đếm gộp cả Message, Poll và Reminder mới tạo chưa đọc")
+    void getRooms_ReturnsPreviewAndUnreadStatusIncludingPollsAndReminders() {
         UUID groupRoomId = UUID.randomUUID();
         UUID directRoomId = UUID.randomUUID();
 
+        // Phòng nhóm: hoạt động mới nhất do người khác tạo, mình chưa đọc (lastReadMessageId = null)
         Room groupRoom = Room.builder()
                 .roomId(groupRoomId)
                 .roomName("Nhóm 8 Niên luận")
                 .roomAvatarURL("group.png")
                 .roomType(RoomType.GROUP)
+                .lastMessageId(UUID.randomUUID())
+                .lastMessageContent("Tối nay họp lúc 8h nhé!")
+                .lastMessageSenderId(peerUserId)
+                .lastMessageSenderName("hermione")
+                .lastMessageAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
+        // Phòng 1-1: chưa có tin nhắn nào
         Room directRoom = Room.builder()
                 .roomId(directRoomId)
                 .roomName(null)
@@ -127,16 +141,6 @@ class RoomServiceTest {
                 .status(RoomMemberStatus.ACTIVE)
                 .build();
 
-        Message latestGroupMsg = Message.builder()
-                .messageId(UUID.randomUUID())
-                .room(groupRoom)
-                .sender(peerUser)
-                .messageType(MessageType.TEXT)
-                .content("Tối nay họp lúc 8h nhé!")
-                .isRevoked(false)
-                .createdAt(LocalDateTime.now())
-                .build();
-
         Page<Room> roomPage = new PageImpl<>(List.of(groupRoom, directRoom));
 
         when(userRepository.existsById(currentUserId)).thenReturn(true);
@@ -148,6 +152,10 @@ class RoomServiceTest {
                         .roomType(RoomType.GROUP)
                         .roomName("Nhóm 8 Niên luận")
                         .roomAvatarURL("group.png")
+                        .lastMessageId(groupRoom.getLastMessageId())
+                        .lastMessageContent(groupRoom.getLastMessageContent())
+                        .lastMessageSenderName(groupRoom.getLastMessageSenderName())
+                        .lastMessageAt(groupRoom.getLastMessageAt())
                         .build()
         );
         when(roomMapper.toRoomListResponse(directRoom)).thenReturn(
@@ -162,24 +170,27 @@ class RoomServiceTest {
                 .thenReturn(List.of(groupMembership, directMembership));
         when(roomMemberRepository.findOtherMembersInRooms(anyList(), eq(currentUserId)))
                 .thenReturn(List.of(peerDirectMembership));
-        when(messageRepository.findLatestMessagesByRoomIds(anyList()))
-                .thenReturn(List.of(latestGroupMsg));
+        // Giả lập: 2 tin nhắn chưa đọc + 1 Poll mới chưa đọc + 1 Reminder mới chưa đọc = tổng 4 mục chưa đọc
         when(messageRepository.countUnreadMessagesByRoomIds(anyList(), eq(currentUserId)))
-                .thenReturn(Collections.singletonList(new Object[]{groupRoomId, 3L}));
+                .thenReturn(Collections.singletonList(new Object[]{groupRoomId, 2L}));
+        when(pollRepository.countUnreadPollsByRoomIds(anyList(), eq(currentUserId)))
+                .thenReturn(Collections.singletonList(new Object[]{groupRoomId, 1L}));
+        when(reminderRepository.countUnreadRemindersByRoomIds(anyList(), eq(currentUserId)))
+                .thenReturn(Collections.singletonList(new Object[]{groupRoomId, 1L}));
 
         PageResponse<RoomListResponse> pageResponse = roomService.getRooms(currentUserId, null, 0, 20);
         List<RoomListResponse> result = pageResponse.getContent();
 
         assertEquals(2, result.size());
 
-        // Kiểm tra phòng nhóm (có 3 tin chưa đọc -> in đậm)
+        // Kiểm tra phòng nhóm: tổng unreadCount = 2 + 1 + 1 = 4
         RoomListResponse groupItem = result.get(0);
         assertEquals(groupRoomId, groupItem.getRoomId());
         assertEquals("Nhóm 8 Niên luận", groupItem.getRoomName());
         assertEquals("Tối nay họp lúc 8h nhé!", groupItem.getLastMessageContent());
         assertEquals("hermione", groupItem.getLastMessageSenderName());
         assertTrue(groupItem.isHasUnread());
-        assertEquals(3L, groupItem.getUnreadCount());
+        assertEquals(4L, groupItem.getUnreadCount());
 
         // Kiểm tra phòng 1-1 DIRECT (lấy tên & avatar của đối phương, không có tin chưa đọc)
         RoomListResponse directItem = result.get(1);
@@ -190,4 +201,3 @@ class RoomServiceTest {
         assertEquals(0L, directItem.getUnreadCount());
     }
 }
-

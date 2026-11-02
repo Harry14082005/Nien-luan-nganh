@@ -116,7 +116,7 @@
 - [x] Gửi / Nhận tin nhắn tức thời qua `@MessageMapping("/chat.sendMessage")` và đồng bộ thời gian thực Sửa, Thu hồi, Ghim, Bỏ ghim qua Topic `/topic/room.{roomId}`.
 - [x] Đồng bộ thời gian thực Thả / Gỡ cảm xúc tin nhắn qua Topic `/topic/room.{roomId}.reactions` và bắt lỗi WebSocket riêng tư qua `/user/queue/errors`.
 - [x] Trạng thái Đang gõ chữ (Typing indicator: `@MessageMapping("/chat.typing")` -> `/topic/room.{roomId}.typing`, tối ưu với RAM Cache TTL 5 phút).
-- [ ] Trạng thái Đang online / Vừa mới truy cập (User Presence).
+- [x] Trạng thái Đang online / Vừa mới truy cập (User Presence: Multi-session Counter trên RAM, Zombie Heartbeat 15s, `/topic/users.presence`, `GET /api/v1/users/{userId}/presence`, `POST /api/v1/users/presence/batch`).
 - [ ] Đánh dấu đã nhận (`lastDeliveredMessageId`) và đã đọc (`lastReadMessageId`).
 
 ---

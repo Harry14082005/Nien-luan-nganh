@@ -42,6 +42,9 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private UserPresenceService userPresenceService;
+
     /**
      * Nghiệp vụ 1: Lấy thông tin hồ sơ của chính người dùng đang đăng nhập.
      *
@@ -53,7 +56,9 @@ public class UserService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        return userMapper.toUserResponse(user);
+        UserResponse response = userMapper.toUserResponse(user);
+        response.setIsOnline(userPresenceService.isUserOnline(user.getUserId()));
+        return response;
     }
 
     /**
@@ -198,7 +203,11 @@ public class UserService {
         }
 
         Page<User> users = userRepository.searchUsers(query.trim(), currentUserId, pageable);
-        Page<UserResponse> userResponses = users.map(userMapper::toUserResponse);
+        Page<UserResponse> userResponses = users.map(user -> {
+            UserResponse res = userMapper.toUserResponse(user);
+            res.setIsOnline(userPresenceService.isUserOnline(user.getUserId()));
+            return res;
+        });
         return PageResponse.from(userResponses);
     }
 
@@ -213,6 +222,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        return userMapper.toUserResponse(user);
+        UserResponse response = userMapper.toUserResponse(user);
+        response.setIsOnline(userPresenceService.isUserOnline(user.getUserId()));
+        return response;
     }
 }
