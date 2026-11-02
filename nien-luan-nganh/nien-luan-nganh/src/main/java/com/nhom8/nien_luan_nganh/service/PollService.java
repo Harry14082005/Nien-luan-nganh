@@ -1,9 +1,9 @@
 package com.nhom8.nien_luan_nganh.service;
 
-import com.nhom8.nien_luan_nganh.dto.event.PollBroadcastEvent;
 import com.nhom8.nien_luan_nganh.dto.request.AddPollOptionRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreatePollRequest;
 import com.nhom8.nien_luan_nganh.dto.request.VotePollRequest;
+import com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent;
 import com.nhom8.nien_luan_nganh.dto.response.*;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.*;
@@ -37,35 +37,35 @@ public class PollService {
 
     private final ApplicationEventPublisher eventPublisher;
 
-    //Tạo poll
+    // Tạo poll
     @Transactional
     public PollResponse createPoll(UUID roomId, CreatePollRequest request, UUID currentUserId) {
         Room room = getRoomOrThrow(roomId);
 
-        //nếu là phòng DIRECT thì không có poll
+        // nếu là phòng DIRECT thì không có poll
         if (room.getRoomType() == RoomType.DIRECT) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
 
         RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
 
-        //kiểm tra đầu vào
+        // kiểm tra đầu vào
         List<String> texts = normalizeOptions(request.getOptions());
-        if(texts.size() < 2){
+        if (texts.size() < 2) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
-        if(texts.size() > MAX_OPTIONS){
+        if (texts.size() > MAX_OPTIONS) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
 
-        //tạo poll
+        // tạo poll
         Poll poll = Poll.builder()
                 .room(room)
                 .createdBy(actor.getUser())
                 .question(request.getQuestion().trim())
                 .build();
-        //thêm lựa chọn vô
-        for (String text : texts){
+        // thêm lựa chọn vô
+        for (String text : texts) {
             PollOption option = PollOption.builder()
                     .poll(poll)
                     .optionText(text)
@@ -75,7 +75,7 @@ public class PollService {
 
         pollRepository.save(poll);
 
-        //tạo thành dạng tin nhắn
+        // tạo thành dạng tin nhắn
         Message message = Message.builder()
                 .room(room)
                 .sender(actor.getUser())
@@ -87,7 +87,7 @@ public class PollService {
         poll.setMessage(message);
         pollRepository.flush();
 
-        ///xử lý Websocket
+        /// xử lý Websocket
 
         /// todo: sẽ xử lý trong roomservice
         roomService.updateLastActivity(
@@ -95,25 +95,22 @@ public class PollService {
                 message.getMessageId(),
                 "Bình chọn: " + preview(poll.getQuestion()),
                 actor.getUser(),
-                message.getCreatedAt()
-        );
+                message.getCreatedAt());
 
-
-        //broadcast tin nhắn POLL
+        // broadcast tin nhắn POLL
         MessageResponse messageResponse = buildPollMessageResponse(message, poll.getPollId());
-        eventPublisher.publishEvent(new PollBroadcastEvent("/topic/room." + roomId, messageResponse));
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, messageResponse));
 
-        //xử lý cập nhật tin nhắn mới nhất
+        // xử lý cập nhật tin nhắn mới nhất
         // broadcast PollEvent để client vẽ giao diện poll
         PollResponse pollResponse = toResponse(poll, currentUserId);
-        eventPublisher.publishEvent(new PollBroadcastEvent(
+        eventPublisher.publishEvent(new BroadcastEvent(
                 "/topic/room." + roomId + ".poll",
                 PollEventResponse.builder()
                         .type(PollEventType.POLL_CREATED)
                         .roomId(roomId)
                         .poll(pollResponse)
                         .build()));
-
 
         return pollResponse;
     }
@@ -127,17 +124,17 @@ public class PollService {
         ensureActive(poll);
 
         String text = request.getOptionText().trim();
-        if(text.isEmpty()){
+        if (text.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
-        //nếu lượt đã tối đa thì hông thêm được
-        if(poll.getOptions().size() >= MAX_OPTIONS){
+        // nếu lượt đã tối đa thì hông thêm được
+        if (poll.getOptions().size() >= MAX_OPTIONS) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
 
-        //kiểm tra không trùng với lựa chọn đã có
-        for(PollOption existing : poll.getOptions()){
-            if(existing.getOptionText().equalsIgnoreCase(text)){
+        // kiểm tra không trùng với lựa chọn đã có
+        for (PollOption existing : poll.getOptions()) {
+            if (existing.getOptionText().equalsIgnoreCase(text)) {
                 throw new AppException(ErrorCode.EXISTING_POLL_OPTION);
             }
         }
@@ -149,9 +146,9 @@ public class PollService {
         poll.getOptions().add(option);
         pollRepository.flush(); // để option mới có id trước khi dựng response
 
-        //TODO: Websocket
+        // TODO: Websocket
         PollResponse pollResponse = toResponse(poll, currentUserId);
-        eventPublisher.publishEvent(new PollBroadcastEvent(
+        eventPublisher.publishEvent(new BroadcastEvent(
                 "/topic/room." + roomId + ".poll",
                 PollEventResponse.builder()
                         .type(PollEventType.POLL_OPTION_ADDED)
@@ -169,31 +166,32 @@ public class PollService {
         RoomMember member = getActiveMemberOrThrow(roomId, currentUserId);
 
         Poll poll = getPollInRoomOrThrow(roomId, pollId);
-        ensureActive(poll); //poll đóng  rồi thì không thay đổi được
+        ensureActive(poll); // poll đóng rồi thì không thay đổi được
 
         // gom tất cả pollOption của poll lại
         Map<UUID, PollOption> optionMap = new HashMap<>();
-        for(PollOption option : poll.getOptions()){
+        for (PollOption option : poll.getOptions()) {
             optionMap.put(option.getPollOptionId(), option);
         }
 
-        //các option mà user muốn chọn
+        // các option mà user muốn chọn
         Set<UUID> wanted = new HashSet<>(request.getOptionIds());
 
-        //kiểm tra có option nào không khớp id hay không
-        for(UUID optionId : wanted){
-            if(!optionMap.containsKey(optionId)){
+        // kiểm tra có option nào không khớp id hay không
+        for (UUID optionId : wanted) {
+            if (!optionMap.containsKey(optionId)) {
                 throw new AppException(ErrorCode.POLL_OPTION_NOT_FOUND);
             }
         }
 
-        //lấy trạng thái vote hiện tại của user trong poll
-        List<PollVote> currentVotes = pollVoteRepository.findByPollOption_Poll_PollIdAndUser_UserId(pollId, currentUserId);
+        // lấy trạng thái vote hiện tại của user trong poll
+        List<PollVote> currentVotes = pollVoteRepository.findByPollOption_Poll_PollIdAndUser_UserId(pollId,
+                currentUserId);
         Set<UUID> currentOptionIds = new HashSet<>();
 
-        //lọc ra những lựa chọn đã bị bỏ chọn
+        // lọc ra những lựa chọn đã bị bỏ chọn
         List<PollVote> votesToRemove = new ArrayList<>();
-        for(PollVote vote : currentVotes){
+        for (PollVote vote : currentVotes) {
             UUID optionId = vote.getPollOption().getPollOptionId();
             currentOptionIds.add(optionId);
 
@@ -202,10 +200,10 @@ public class PollService {
             }
         }
 
-        //lọc ra những lựa chọn mà trước đó chưa có
+        // lọc ra những lựa chọn mà trước đó chưa có
         List<PollVote> votesToAdd = new ArrayList<>();
-        for(UUID optionId : wanted){
-            if(!currentOptionIds.contains(optionId)){
+        for (UUID optionId : wanted) {
+            if (!currentOptionIds.contains(optionId)) {
                 PollVote newVote = PollVote.builder()
                         .pollVoteId(new PollVoteId(optionId, currentUserId))
                         .pollOption(optionMap.get(optionId))
@@ -217,11 +215,11 @@ public class PollService {
 
         pollVoteRepository.deleteAll(votesToRemove);
         pollVoteRepository.saveAll(votesToAdd);
-        pollVoteRepository.flush();   // để query đếm phiếu bên dưới thấy dữ liệu mới
+        pollVoteRepository.flush(); // để query đếm phiếu bên dưới thấy dữ liệu mới
 
         // TODO WebSocket: đẩy kết quả mới cho cả phòng
         PollResponse pollResponse = toResponse(poll, currentUserId);
-        eventPublisher.publishEvent(new PollBroadcastEvent(
+        eventPublisher.publishEvent(new BroadcastEvent(
                 "/topic/room." + roomId + ".poll",
                 PollEventResponse.builder()
                         .type(PollEventType.POLL_VOTED)
@@ -234,18 +232,18 @@ public class PollService {
 
     // Đóng poll: người tạo hoặc admin
     @Transactional
-    public PollResponse closePoll(UUID roomId, UUID pollId, UUID currentUserId){
+    public PollResponse closePoll(UUID roomId, UUID pollId, UUID currentUserId) {
         RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
         Poll poll = getPollInRoomOrThrow(roomId, pollId);
 
         boolean isCreator = poll.getCreatedBy().getUserId().equals(currentUserId);
         boolean isAdmin = actor.getRoomMemberRole() == RoomRole.ADMIN;
 
-        if(!isCreator && !isAdmin){
+        if (!isCreator && !isAdmin) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        ensureActive(poll);   // đã đóng rồi thì báo lỗi
+        ensureActive(poll); // đã đóng rồi thì báo lỗi
         poll.setIsActive(false);
 
         // TODO WebSocket: đẩy trạng thái đã đóng
@@ -256,12 +254,11 @@ public class PollService {
                     poll.getMessage().getMessageId(),
                     "Bình chọn đã kết thúc: " + preview(poll.getQuestion()),
                     actor.getUser(),
-                    LocalDateTime.now()
-            );
+                    LocalDateTime.now());
         }
 
         PollResponse pollResponse = toResponse(poll, currentUserId);
-        eventPublisher.publishEvent(new PollBroadcastEvent(
+        eventPublisher.publishEvent(new BroadcastEvent(
                 "/topic/room." + roomId + ".poll",
                 PollEventResponse.builder()
                         .type(PollEventType.POLL_CLOSED)
@@ -295,16 +292,16 @@ public class PollService {
     }
 
     /// các hàm phụ
-    private Room getRoomOrThrow(UUID roomId){
+    private Room getRoomOrThrow(UUID roomId) {
         return roomRepository.findById(roomId).orElseThrow(
-                () -> new AppException(ErrorCode.ROOM_NOT_FOUND)
-        );
+                () -> new AppException(ErrorCode.ROOM_NOT_FOUND));
     }
 
     private RoomMember getRoomMemberOrThrow(UUID roomId, UUID userId) {
         return roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(userId, roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
     }
+
     private RoomMember getActiveMemberOrThrow(UUID roomId, UUID userId) {
         RoomMember member = getRoomMemberOrThrow(roomId, userId);
         if (member.getStatus() != RoomMemberStatus.ACTIVE) {
@@ -383,10 +380,9 @@ public class PollService {
         return response;
     }
 
-
-    //đảm bảo poll chưa bị đóng
-    private void ensureActive(Poll poll){
-        if(!Boolean.TRUE.equals(poll.getIsActive())){
+    // đảm bảo poll chưa bị đóng
+    private void ensureActive(Poll poll) {
+        if (!Boolean.TRUE.equals(poll.getIsActive())) {
             throw new AppException(ErrorCode.POLL_CLOSED);
         }
     }
@@ -408,8 +404,7 @@ public class PollService {
                 .build();
     }
 
-
-    //hiển thị .. nếu quá dài
+    // hiển thị .. nếu quá dài
     private String preview(String text) {
         if (text.length() > 100) {
             return text.substring(0, 100) + "...";

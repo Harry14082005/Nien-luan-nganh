@@ -1,4 +1,4 @@
-# 🗺️ Lộ Trình Phát Triển Dự Án (Roadmap) - Nhóm 8
+﻿# 🗺️ Lộ Trình Phát Triển Dự Án (Roadmap) - Nhóm 8
 
 > **Đề tài:** Xây dựng ứng dụng Web nhắn tin và kết nối cộng đồng tích hợp trợ lý AI thông minh (*Web Chat AI Assistant*)  
 > **Tech Stack:** Spring Boot (Java 21), MySQL 8.0, Vue.js 3, Pinia, Spring Security, JJWT 0.12.6, WebSocket STOMP, Google Gemini AI.
@@ -120,12 +120,12 @@
 
 ---
 
-### 🔹 Chặng 9: Phân hệ Bình chọn Biểu quyết (Polls Module)
-- [ ] Tạo cuộc bình chọn trong nhóm chat (`POST /api/v1/rooms/{roomId}/polls`).
-- [ ] Thêm các phương án lựa chọn (`poll_options`).
-- [ ] Bỏ phiếu / Đổi phiếu bầu (`poll_votes`).
-- [ ] Cập nhật kết quả số phiếu bầu real-time qua WebSocket.
-- [ ] Đóng / Kết thúc cuộc bình chọn (`isActive = false`).
+### ✅ Chặng 9: Phân hệ Bình chọn Biểu quyết (Polls Module) - *[HOÀN THÀNH]*
+- [x] Tạo cuộc bình chọn trong nhóm chat (`POST /api/v1/rooms/{roomId}/polls` hoặc `/poll`).
+- [x] Thêm các phương án lựa chọn (`poll_options`, `POST .../options`).
+- [x] Bỏ phiếu / Đổi phiếu bầu (`poll_votes`, `PUT .../vote`).
+- [x] Cập nhật kết quả số phiếu bầu real-time qua WebSocket (`/topic/room.{roomId}.poll` và `/topic/room.{roomId}`).
+- [x] Đóng / Kết thúc cuộc bình chọn (`isActive = false`, `PUT .../close`).
 
 ---
 
