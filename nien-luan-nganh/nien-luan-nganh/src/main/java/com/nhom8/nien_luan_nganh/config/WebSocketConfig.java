@@ -87,7 +87,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/topic", "/queue")
-                .setTaskScheduler(messageBrokerTaskScheduler())
+                .setTaskScheduler(customHeartbeatTaskScheduler())
                 .setHeartbeatValue(new long[] { 15000, 15000 }); // Ping/Pong mỗi 15 giây
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
@@ -97,8 +97,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * TaskScheduler chuyên dụng cho SimpleBroker để gửi và nhận ping-pong Heartbeat
      * theo định kỳ.
      */
-    @Bean
-    public TaskScheduler messageBrokerTaskScheduler() {
+    @Bean("customHeartbeatTaskScheduler")
+    public TaskScheduler customHeartbeatTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler(); // wrapper cua spring -
                                                                            // ScheduledThreadPoolExecutor
         scheduler.setPoolSize(1); // 1 because: chi can gui 1 ky tu qua socket va doc lai 1 timestamp tren RAM xem
