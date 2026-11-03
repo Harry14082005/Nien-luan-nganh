@@ -440,8 +440,18 @@ public class MessageService {
         message.setIsPinned(true);
         Message savedMessage = messageRepository.save(message);
 
-        // 9. Cập nhật hoạt động mới nhất cho phòng để hiển thị ngoài Sidebar
-        roomService.updateLastActivity(room, savedMessage.getMessageId(), "đã ghim 1 tin nhắn", currentUser, LocalDateTime.now());
+        // 9. Cập nhật hoạt động ngoài Sidebar và chuyển thành 1 tin chưa đọc cho thành viên khác nếu là tin cuối
+        if (room.getLastMessageId() != null && room.getLastMessageId().equals(savedMessage.getMessageId())) {
+            roomService.updateLastActivity(room, savedMessage.getMessageId(), "đã ghim 1 tin nhắn", currentUser, LocalDateTime.now());
+
+            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+            for (RoomMember m : members) {
+                if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                    m.setLastReadMessageId(null);
+                }
+            }
+            roomMemberRepository.saveAll(members);
+        }
 
         return messageMapper.toMessageResponse(savedMessage);
     }

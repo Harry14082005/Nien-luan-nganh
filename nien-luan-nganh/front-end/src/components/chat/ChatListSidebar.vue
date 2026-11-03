@@ -122,16 +122,21 @@ function getLastMessageText(room) {
         }
     }
 
+    // 2. Hiển thị thông báo ghim tin nhắn tạm thời (khi vừa bấm ghim)
+    if (chatStore.pinNotices && chatStore.pinNotices[String(room.roomId)]) {
+        return chatStore.pinNotices[String(room.roomId)];
+    }
+
     if (!room.lastMessageContent) return 'Chưa có tin nhắn';
 
-    // 2. Hiển thị thông báo khi có tin nhắn được ghim: "A đã ghim 1 tin nhắn"
+    // 3. Hiển thị thông báo khi có tin nhắn được ghim: "A đã ghim 1 tin nhắn"
     if (room.lastMessageContent.includes('đã ghim')) {
         const isMyAction = authStore.user?.username && room.lastMessageSenderName === authStore.user.username;
         const sender = isMyAction ? 'Bạn' : (room.lastMessageSenderName || 'Thành viên');
         return `📌 ${sender} đã ghim 1 tin nhắn`;
     }
 
-    // 3. Tin nhắn bình thường
+    // 4. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
     if (room.lastMessageSenderName) {
         return `${room.lastMessageSenderName}: ${room.lastMessageContent}`;
     }
@@ -312,6 +317,23 @@ span{
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.ChatList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ChatList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ChatList::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.ChatList::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 
 </style>

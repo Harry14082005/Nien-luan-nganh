@@ -20,7 +20,8 @@ public class RoomListResponse {
 
     // Thông tin đối phương (cho phòng DIRECT) và trạng thái Online
     private UUID peerId; // Friend dang chat trong phong
-    private Boolean isOnline; 
+    private Boolean isOnline;
+    private LocalDateTime lastSeenAt; 
 
     // private String theme;
     // private UUID createdBy;

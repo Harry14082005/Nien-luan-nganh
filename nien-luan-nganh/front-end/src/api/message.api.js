@@ -60,3 +60,26 @@ export const unpinMessage = (roomId, messageId) => {
     .delete(`/rooms/${roomId}/messages/${messageId}/pins`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+/**
+ * Chỉnh sửa nội dung tin nhắn của chính mình.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn cần sửa
+ * @param {string} content Nội dung văn bản mới
+ */
+export const updateMessage = (roomId, messageId, content) => {
+  return http
+    .put(`/rooms/${roomId}/messages/${messageId}`, { content })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Thu hồi tin nhắn (xóa mềm).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn cần thu hồi
+ */
+export const revokeMessage = (roomId, messageId) => {
+  return http
+    .delete(`/rooms/${roomId}/messages/${messageId}`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}

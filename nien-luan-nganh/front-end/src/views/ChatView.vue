@@ -10,7 +10,7 @@
  * - Lắng nghe sự kiện ghim/bỏ ghim tin nhắn bất kỳ (handleTogglePin).
  * - Hiển thị trạng thái đang gõ phím của đối phương với hiệu ứng chấm nhảy (Typing indicator).
  */
-import { ref, nextTick, watch, onMounted } from 'vue';
+import { ref, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
 import ChatHeader from '@/components/chat/ChatHeader.vue';
@@ -24,6 +24,50 @@ import { initGlobalWebSocket } from '@/services/websocket';
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const chatBodyRef = ref(null); // Tham chiếu tới vùng cuộn tin nhắn (.chat-body)
+const ticker = ref(Date.now()); // Bộ đếm thời gian cập nhật lại thời gian offline mỗi 30 giây
+let tickerTimer = null;
+
+/**
+ * Định dạng trạng thái hiện diện (Online / Offline / Thời gian offline)
+ * - Nếu đang online: "Đang hoạt động"
+ * - Nếu là nhóm: "Nhóm trò chuyện"
+ * - Nếu offline dưới 1 phút: "Vừa mới truy cập"
+ * - Nếu offline trên 1 phút: "Đã offline X phút trước" / "X giờ trước" / "X ngày trước"
+ */
+const formatPresenceStatus = (room) => {
+  const _now = ticker.value; // Kích hoạt tính phản ứng khi ticker nhảy
+  if (!room) return '';
+  if (room.roomType === 'GROUP') {
+    return 'Nhóm trò chuyện';
+  }
+  if (room.isOnline) {
+    return 'Đang hoạt động';
+  }
+  if (!room.lastSeenAt) {
+    return 'Offline';
+  }
+
+  const lastSeen = new Date(room.lastSeenAt);
+  if (isNaN(lastSeen.getTime())) {
+    return 'Offline';
+  }
+
+  const diffMs = _now - lastSeen.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) {
+    return 'Vừa mới truy cập';
+  }
+  if (diffMinutes < 60) {
+    return `Đã offline ${diffMinutes} phút trước`;
+  }
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `Đã offline ${diffHours} giờ trước`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  return `Đã offline ${diffDays} ngày trước`;
+};
 
 /**
  * Cuộn khung chat xuống đáy mượt mà sau khi DOM cập nhật
@@ -85,6 +129,15 @@ onMounted(async () => {
     await chatStore.fetchPinnedMessages(chatStore.activeRoomId);
   }
   scrollToBottom();
+
+  // 4. Kích hoạt timer cập nhật trạng thái offline mỗi 30s
+  tickerTimer = setInterval(() => {
+    ticker.value = Date.now();
+  }, 30000);
+});
+
+onUnmounted(() => {
+  if (tickerTimer) clearInterval(tickerTimer);
 });
 
 /**
@@ -98,6 +151,26 @@ const handleTogglePin = async (messageId) => {
     await chatStore.unpinMessage(messageId);
   } else {
     await chatStore.pinMessage(messageId);
+  }
+};
+
+/**
+ * Xử lý chỉnh sửa nội dung tin nhắn
+ * @param {object} param0 { messageId, content }
+ */
+const handleEditMessage = async ({ messageId, content }) => {
+  if (!messageId || !content) return;
+  await chatStore.editMessage(messageId, content);
+};
+
+/**
+ * Xử lý thu hồi tin nhắn
+ * @param {string} messageId UUID của tin nhắn
+ */
+const handleRevokeMessage = async (messageId) => {
+  if (!messageId) return;
+  if (confirm('Bạn có chắc chắn muốn thu hồi tin nhắn này không?')) {
+    await chatStore.revokeMessage(messageId);
   }
 };
 
@@ -153,7 +226,7 @@ watch(
   <div class="chat-view">
     <ChatHeader 
       :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
-      :StatusRoom="chatStore.activeRoom?.isOnline ? 'Đang hoạt động' : (chatStore.activeRoom?.roomType === 'GROUP' ? 'Nhóm trò chuyện' : 'Offline')"
+      :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
     />
     <PinnedMessage @scrollToMessage="handleScrollToMessage" />
 
@@ -175,11 +248,15 @@ watch(
         :key="msg.messageId"
         :messageId="msg.messageId"
         :isPinned="!!msg.isPinned"
+        :isRevoked="!!msg.isRevoked"
+        :isEdited="!!msg.isEdited"
         :Content_Message="msg.content"
         :Time="formatTime(msg.createdAt)"
         :Sender="isMyMessage(msg) ? '' : (msg.sender?.username || 'Thành viên')"
         :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
         @togglePin="handleTogglePin"
+        @editMessage="handleEditMessage"
+        @revokeMessage="handleRevokeMessage"
       />
 
       <!-- Trạng thái đang soạn tin nhắn (Typing indicator) -->
@@ -197,11 +274,21 @@ watch(
   </div>
 </template>
 <style scoped>
+.ChatListSidebar {
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .chat-view {
   display: flex;
   flex-direction: column;
   height: 100vh;
   max-height: 100vh;
+  min-height: 0;
   overflow: hidden;
   background-color: #f8f9fd;
   border-right: 1px solid #e6eaf2;   
@@ -214,6 +301,23 @@ watch(
   overflow-y: auto; 
   overflow-x: hidden;
   padding: 10px;  
+}
+
+.chat-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-body::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.chat-body::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 .app-container{
   display: grid;

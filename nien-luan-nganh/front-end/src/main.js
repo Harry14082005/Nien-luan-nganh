@@ -22,7 +22,7 @@ import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
-import { faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
+import { faChevronDown, faChevronUp, faEllipsisVertical, faPen, faTrash } from '@fortawesome/free-solid-svg-icons'
 library.add(faMagnifyingGlass,
             faCircleInfo,
             faList,faThumbTack,
@@ -38,7 +38,10 @@ library.add(faMagnifyingGlass,
             faBars,
             faPlus,
             faChevronDown,
-            faChevronUp)
+            faChevronUp,
+            faEllipsisVertical,
+            faPen,
+            faTrash)
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return
   const { worker } = await import('./mocks/browser')

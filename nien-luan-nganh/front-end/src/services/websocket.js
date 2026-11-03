@@ -306,7 +306,7 @@ export function initGlobalWebSocket(token) {
       console.log('📡 [Event Online/Offline]:', presenceEvent)
       if (presenceEvent && presenceEvent.userId) {
         const isOnline = presenceEvent.isOnline ?? presenceEvent.online ?? false
-        chatStore.updatePresence(presenceEvent.userId, isOnline)
+        chatStore.updatePresence(presenceEvent.userId, isOnline, presenceEvent.lastSeenAt)
       }
     })
 

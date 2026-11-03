@@ -169,7 +169,9 @@ public class RoomService {
                 if (peer != null) {
                     //Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan online hong
                     item.setPeerId(peer.getUserId());
-                    item.setIsOnline(userPresenceService.isUserOnline(peer.getUserId()));
+                    boolean online = userPresenceService.isUserOnline(peer.getUserId());
+                    item.setIsOnline(online);
+                    item.setLastSeenAt(online ? null : peer.getLastSeenAt());
                     if (item.getRoomName() == null || item.getRoomName().isBlank()) {
                         item.setRoomName(peer.getUsername());
                     }
