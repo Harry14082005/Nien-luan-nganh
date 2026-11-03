@@ -10,6 +10,41 @@ export const getMessages = (roomId, params = {}) => {
 }
 
 /**
+ * Lấy danh sách tin nhắn cũ hơn con trỏ cursor (phân trang lên trên).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} cursor UUID tin nhắn làm mốc con trỏ
+ * @param {number} limit Số lượng tin nhắn cần lấy
+ */
+export const getMessagesBefore = (roomId, cursor, limit = 20) => {
+  return http
+    .get(`/rooms/${roomId}/messages`, { params: { cursor, limit } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Lấy danh sách tin nhắn mới hơn con trỏ cursor (phân trang hai chiều khi cuộn xuống).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} cursor UUID tin nhắn làm mốc con trỏ
+ * @param {number} limit Số lượng tin nhắn cần lấy
+ */
+export const getMessagesAfter = (roomId, cursor, limit = 20) => {
+  return http
+    .get(`/rooms/${roomId}/messages/after`, { params: { cursor, limit } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh một tin nhắn cụ thể (ví dụ tin nhắn ghim).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn mục tiêu
+ */
+export const getMessageContext = (roomId, messageId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/${messageId}/context`)
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
  * Gửi tin nhắn vào phòng chat qua REST API (dự phòng khi WebSocket chưa sẵn sàng).
  * @param {string} roomId UUID của phòng chat
  * @param {object} data { content, messageType, repliedMessageId }
@@ -81,5 +116,16 @@ export const updateMessage = (roomId, messageId, content) => {
 export const revokeMessage = (roomId, messageId) => {
   return http
     .delete(`/rooms/${roomId}/messages/${messageId}`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Lấy danh sách lịch sử các lần chỉnh sửa của tin nhắn.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn
+ */
+export const getMessageHistory = (roomId, messageId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/${messageId}/history`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }

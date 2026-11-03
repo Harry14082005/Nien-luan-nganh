@@ -8,6 +8,7 @@ const props = defineProps({
   lastMessage: { type: String, default: '' },
   time: { type: String, default: '' },
   unread: { type: Number, default: 0 },
+  hasUnread: { type: Boolean, default: false },
   online: { type: Boolean, default: false },
   active: { type: Boolean, default: false },
 })
@@ -43,12 +44,22 @@ const avatarStyle = computed(() => {
   const c = palette[hash % palette.length]
   return { backgroundColor: c.bg, color: c.color }
 })
+
+// Trạng thái in đậm:
+// - Chỉ in đậm khi phòng CHƯA ĐỌC (unread > 0 hoặc hasUnread = true) và phòng KHÔNG active
+// - Khi người dùng bấm vào phòng (active hoặc đã đọc): TỰ ĐỘNG MẤT IN ĐẬM
+// - Nếu là hành động do chính mình thực hiện ("Bạn..."): KHÔNG in đậm
+const isBold = computed(() => {
+  if (props.active) return false
+  if (props.lastMessage && props.lastMessage.startsWith('Bạn')) return false
+  return Boolean(props.hasUnread || props.unread > 0)
+})
 </script>
 
 <template>
   <div
     class="chat-item"
-    :class="{ active, 'has-unread': unread > 0 }"
+    :class="{ active, 'has-unread': isBold }"
     role="button"
     tabindex="0"
     @click="emit('select')"
@@ -76,7 +87,12 @@ const avatarStyle = computed(() => {
         <span class="time">{{ time }}</span>
       </div>
       <div class="bottom-row">
-        <span class="last-message">{{ lastMessage }}</span>
+        <span 
+          class="last-message" 
+          :class="{ 'last-message--bold': isBold }"
+        >
+          {{ lastMessage }}
+        </span>
         <span v-if="unread > 0" class="badge">{{ unread > 99 ? '99+' : unread }}</span>
       </div>
     </div>
@@ -181,6 +197,12 @@ const avatarStyle = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.last-message--bold,
+.has-unread .last-message {
+  font-weight: 700 !important;
+  color: #1e293b !important;
 }
 .has-unread .last-message {
   color: #4a5470;

@@ -10,20 +10,55 @@
  *   + Nếu ngừng gõ sau 2.5 giây -> tự động gửi tín hiệu isTyping = false.
  *   + Khi bấm gửi tin nhắn -> hủy trạng thái gõ ngay lập tức để ẩn dấu nhấp nháy bên người nhận.
  */
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useChatStore } from '@/stores/chat';
 
 const chatStore = useChatStore();
 const text = ref(''); // Nội dung văn bản đang soạn trong ô textarea
+const drafts = ref({}); // Lưu trữ nội dung nháp riêng cho từng phòng chat: { [roomId]: string }
 
 let typingTimer = null; // Bộ đếm thời gian debounce phát hiện người dùng dừng gõ
 let isCurrentlyTyping = false; // Cờ ghi nhận trạng thái đang gõ phím hiện tại
 
 /**
+ * Theo dõi sự thay đổi phòng chat:
+ * - Khi chuyển khỏi phòng A -> lưu nội dung đang gõ vào drafts của phòng A, tắt typing indicator
+ * - Khi mở phòng B -> khôi phục nội dung nháp của phòng B (nếu có) hoặc để trống
+ */
+watch(
+    () => chatStore.activeRoomId,
+    (newRoomId, oldRoomId) => {
+        // 1. Tắt trạng thái typing của phòng cũ nếu đang gõ dở
+        if (isCurrentlyTyping) {
+            clearTimeout(typingTimer);
+            isCurrentlyTyping = false;
+            chatStore.sendTypingStatus(false);
+        }
+
+        // 2. Lưu lại nội dung chưa gửi của phòng cũ
+        if (oldRoomId) {
+            drafts.value[String(oldRoomId)] = text.value;
+        }
+
+        // 3. Khôi phục lại nội dung nháp riêng của phòng mới
+        if (newRoomId) {
+            text.value = drafts.value[String(newRoomId)] || '';
+        } else {
+            text.value = '';
+        }
+    }
+);
+
+/**
  * Xử lý sự kiện khi người dùng gõ phím trong ô nhập tin nhắn
  */
 const handleInput = () => {
+    // Lưu lại nháp ngay lập tức cho phòng hiện tại
+    if (chatStore.activeRoomId) {
+        drafts.value[String(chatStore.activeRoomId)] = text.value;
+    }
+
     if (text.value.trim().length > 0) {
         // Nếu trước đó chưa ở trạng thái gõ -> gửi tín hiệu bắt đầu gõ
         if (!isCurrentlyTyping) {
@@ -54,6 +89,11 @@ const handleSend = async () => {
     const content = text.value.trim();
     if (!content) return;
     text.value = ''; // Xóa sạch ô nhập liệu ngay lập tức
+
+    // Xóa bản nháp của phòng sau khi gửi thành công
+    if (chatStore.activeRoomId) {
+        delete drafts.value[String(chatStore.activeRoomId)];
+    }
 
     // Dừng trạng thái gõ phím ngay khi gửi tin
     clearTimeout(typingTimer);

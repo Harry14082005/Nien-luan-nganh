@@ -19,13 +19,22 @@ import MessageList from '@/components/chat/MessageList.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
+import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue';
 import { initGlobalWebSocket } from '@/services/websocket';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const chatBodyRef = ref(null); // Tham chiếu tới vùng cuộn tin nhắn (.chat-body)
+const isLoadingOlder = ref(false); // Cờ chặn scrollToBottom khi tải tin nhắn cũ
+const showScrollBottomBtn = ref(false); // Trạng thái hiển thị nút cuộn xuống đáy
 const ticker = ref(Date.now()); // Bộ đếm thời gian cập nhật lại thời gian offline mỗi 30 giây
 let tickerTimer = null;
+
+// Quản lý popup lịch sử chỉnh sửa tin nhắn
+const showHistoryModal = ref(false);
+const selectedHistoryList = ref([]);
+const historyCurrentContent = ref('');
+const historySenderName = ref('');
 
 /**
  * Định dạng trạng thái hiện diện (Online / Offline / Thời gian offline)
@@ -111,6 +120,80 @@ const formatTime = (isoString) => {
   }
 };
 
+/**
+ * Kiểm tra xem 2 tin nhắn có cùng người gửi hay không
+ */
+const isSameSender = (msg1, msg2) => {
+  if (!msg1 || !msg2) return false;
+  const isMsg1Mine = isMyMessage(msg1);
+  const isMsg2Mine = isMyMessage(msg2);
+  if (isMsg1Mine !== isMsg2Mine) return false;
+  if (!isMsg1Mine) {
+    const id1 = msg1.sender?.userId || msg1.sender?.username;
+    const id2 = msg2.sender?.userId || msg2.sender?.username;
+    return id1 === id2;
+  }
+  return true;
+};
+
+/**
+ * Kiểm tra xem khoảng cách thời gian giữa 2 tin nhắn có trong vòng 2 phút hay không
+ */
+const isCloseInTime = (msg1, msg2) => {
+  if (!msg1?.createdAt || !msg2?.createdAt) return false;
+  const t1 = new Date(msg1.createdAt).getTime();
+  const t2 = new Date(msg2.createdAt).getTime();
+  if (isNaN(t1) || isNaN(t2)) return false;
+  return Math.abs(t2 - t1) <= 2 * 60 * 1000;
+};
+
+/**
+ * Tin nhắn thứ idx có phải là tin nhắn liên tiếp (consecutive) tiếp nối tin trước đó không?
+ */
+const isConsecutiveMessage = (idx) => {
+  if (idx <= 0) return false;
+  const current = chatStore.messages[idx];
+  const prev = chatStore.messages[idx - 1];
+  if (current?.isEvent || prev?.isEvent) return false;
+  return isSameSender(current, prev) && isCloseInTime(current, prev);
+};
+
+/**
+ * Có hiển thị mốc thời gian ở tin nhắn thứ idx không?
+ * Chỉ hiển thị ở tin nhắn cuối cùng của chuỗi tin nhắn liên tiếp (hoặc khi tin sau khác người gửi / cách > 2 phút / là sự kiện)
+ */
+const shouldShowTime = (idx) => {
+  if (idx >= chatStore.messages.length - 1) return true;
+  const current = chatStore.messages[idx];
+  const next = chatStore.messages[idx + 1];
+  if (current?.isEvent) return false;
+  if (next?.isEvent) return true;
+  return !isSameSender(current, next) || !isCloseInTime(current, next);
+};
+
+/**
+ * Xác định vị trí của tin nhắn trong cụm tin nhắn liên tiếp (Messenger style bo góc):
+ * - 'single': Tin nhắn đơn lẻ
+ * - 'first': Tin nhắn đầu tiên của cụm
+ * - 'middle': Tin nhắn ở giữa cụm
+ * - 'last': Tin nhắn cuối cùng của cụm
+ */
+const getGroupPosition = (idx) => {
+  const current = chatStore.messages[idx];
+  if (!current || current.isEvent) return 'single';
+
+  const prev = idx > 0 ? chatStore.messages[idx - 1] : null;
+  const next = idx < chatStore.messages.length - 1 ? chatStore.messages[idx + 1] : null;
+
+  const hasPrev = prev && !prev.isEvent && isSameSender(current, prev) && isCloseInTime(current, prev);
+  const hasNext = next && !next.isEvent && isSameSender(current, next) && isCloseInTime(current, next);
+
+  if (hasPrev && hasNext) return 'middle';
+  if (hasPrev && !hasNext) return 'last';
+  if (!hasPrev && hasNext) return 'first';
+  return 'single';
+};
+
 onMounted(async () => {
   // 1. Tải thông tin tài khoản nếu chưa có
   if (!authStore.user) {
@@ -175,26 +258,166 @@ const handleRevokeMessage = async (messageId) => {
 };
 
 /**
- * Cuộn khung chat tới vị trí tin nhắn được ghim và kích hoạt hiệu ứng chớp sáng (flash)
- * @param {string} messageId UUID của tin nhắn cần tìm
+ * Xử lý mở popup xem lịch sử chỉnh sửa tin nhắn
+ * @param {object} param0 { messageId, content, sender }
  */
-const handleScrollToMessage = (messageId) => {
+const handleViewHistory = async ({ messageId, content, sender }) => {
   if (!messageId) return;
-  const el = document.getElementById('msg-' + messageId);
+  historyCurrentContent.value = content || '';
+  historySenderName.value = sender || 'Thành viên';
+  selectedHistoryList.value = await chatStore.fetchMessageHistory(messageId);
+  showHistoryModal.value = true;
+};
+
+const highlightedMessageId = ref(null); // ID tin nhắn đang được nhấp nháy sáng (2s)
+
+/**
+ * Cuộn mượt tới phần tử tin nhắn trong DOM và tạo hiệu ứng nhấp nháy sáng 2 giây
+ */
+const scrollToElement = (messageId) => {
+  const el = document.getElementById(`msg-${messageId}`);
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightedMessageId.value = String(messageId);
     el.classList.add('highlight-msg');
     setTimeout(() => {
+      highlightedMessageId.value = null;
       el.classList.remove('highlight-msg');
-    }, 1800);
+    }, 2000);
   }
 };
 
-// Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào
+/**
+ * Nhảy tới tin nhắn ghim:
+ * 1. Nếu đã có trong danh sách hiển thị -> Cuộn mượt + Nhấp nháy 2s
+ * 2. Nếu chưa có -> Gọi API lấy Cửa sổ ngữ cảnh 20 tin bao quanh tin ghim (10 trước + target + 10 sau)
+ *    và thay thế danh sách hiển thị, bật cờ isDetachedFromBottom = true
+ */
+const handleScrollToMessage = async (pinnedId) => {
+  if (!pinnedId) return;
+  const exists = chatStore.messages.some((m) => String(m.messageId) === String(pinnedId));
+
+  if (exists) {
+    scrollToElement(pinnedId);
+  } else {
+    const ok = await chatStore.jumpToPinnedMessageContext(pinnedId);
+    if (ok) {
+      await nextTick();
+      scrollToElement(pinnedId);
+      showScrollBottomBtn.value = true;
+    }
+  }
+};
+
+const isLoadingNewer = ref(false);
+
+/**
+ * Xử lý cuộn tin nhắn hai chiều (Bi-directional Infinite Scroll):
+ * - Cuộn sát đỉnh (<= 60px): Tải thêm tin cũ hơn (Prepend)
+ * - Cuộn sát đáy (distanceFromBottom <= 60px) & còn tin mới hơn (hasMoreNewer): Tải thêm tin mới hơn (Append)
+ * - Hiện nút mũi tên cuộn xuống khi đang xem đoạn tin ghim (isDetachedFromBottom / hasMoreNewer) HOẶC cách đáy > 150px
+ */
+const handleChatBodyScroll = async () => {
+  const el = chatBodyRef.value;
+  if (!el) return;
+
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+
+  // Cách đáy hơn 150px HOẶC đang xem đoạn cắt khúc quanh tin ghim
+  showScrollBottomBtn.value = Boolean(
+    chatStore.hasMoreNewer || chatStore.isDetachedFromBottom || distanceFromBottom > 150
+  );
+
+  // 1. Cuộn sát đỉnh (còn cách mép trên <= 60px) -> Tải tin cũ hơn
+  if (
+    scrollTop <= 60 &&
+    chatStore.hasMoreOlder &&
+    !chatStore.isLoadingOlder &&
+    !chatStore.loadingMessages &&
+    !isLoadingOlder.value
+  ) {
+    await loadMoreOlder();
+  }
+
+  // 2. Cuộn sát đáy (còn cách mép dưới <= 60px) VÀ đang còn tin mới hơn -> Tải tiếp tin mới
+  if (
+    distanceFromBottom <= 60 &&
+    chatStore.hasMoreNewer &&
+    !chatStore.isLoadingNewer &&
+    !chatStore.loadingMessages &&
+    !isLoadingNewer.value
+  ) {
+    await loadMoreNewer();
+  }
+};
+
+/**
+ * Tải thêm tin nhắn cũ hơn và giữ nguyên vị trí cuộn không bị giật
+ */
+const loadMoreOlder = async () => {
+  const el = chatBodyRef.value;
+  if (!el || chatStore.isLoadingOlder || !chatStore.hasMoreOlder) return;
+
+  const prevScrollHeight = el.scrollHeight;
+  const prevScrollTop = el.scrollTop;
+  isLoadingOlder.value = true;
+
+  const success = await chatStore.loadOlderMessages();
+  if (success) {
+    await nextTick();
+    // Giữ nguyên vị trí cuộn hiện tại của người dùng sau khi prepend dữ liệu
+    el.scrollTop = el.scrollHeight - prevScrollHeight + prevScrollTop;
+  }
+
+  setTimeout(() => {
+    isLoadingOlder.value = false;
+  }, 150);
+};
+
+/**
+ * Tải thêm tin nhắn mới hơn khi cuộn xuống đáy
+ */
+const loadMoreNewer = async () => {
+  const el = chatBodyRef.value;
+  if (!el || chatStore.isLoadingNewer || !chatStore.hasMoreNewer) return;
+
+  isLoadingNewer.value = true;
+  await chatStore.loadNewerMessages();
+  await nextTick();
+
+  setTimeout(() => {
+    isLoadingNewer.value = false;
+  }, 150);
+};
+
+/**
+ * Bấm nút cuộn về mới nhất:
+ * Nếu đang ở khúc giữa lịch sử (isDetachedFromBottom hoặc hasMoreNewer) -> Tải lại 20 tin nhắn mới nhất rồi cuộn sát đáy
+ */
+const scrollToLatestMessages = async () => {
+  if (chatStore.isDetachedFromBottom || chatStore.hasMoreNewer) {
+    await chatStore.fetchMessages(chatStore.activeRoomId);
+    await nextTick();
+  }
+  scrollToBottom();
+  showScrollBottomBtn.value = false;
+};
+
+// Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
   () => chatStore.messages.length,
   () => {
-    scrollToBottom();
+    if (
+      !isLoadingOlder.value &&
+      !isLoadingNewer.value &&
+      !chatStore.isLoadingOlder &&
+      !chatStore.isLoadingNewer &&
+      !chatStore.isDetachedFromBottom &&
+      !chatStore.hasMoreNewer
+    ) {
+      scrollToBottom();
+    }
   }
 );
 
@@ -202,6 +425,7 @@ watch(
 watch(
   () => chatStore.activeRoomId,
   () => {
+    showScrollBottomBtn.value = false;
     scrollToBottom();
   }
 );
@@ -230,7 +454,24 @@ watch(
     />
     <PinnedMessage @scrollToMessage="handleScrollToMessage" />
 
-    <div class="chat-body" ref="chatBodyRef">
+    <div class="chat-body" ref="chatBodyRef" @scroll="handleChatBodyScroll">
+      <!-- 0. Thanh tải thêm tin nhắn cũ (Cursor-based Pagination limit: 20) -->
+      <div v-if="chatStore.hasMoreOlder" class="load-more-container">
+        <button 
+          v-if="!chatStore.isLoadingOlder" 
+          type="button" 
+          class="load-more-btn"
+          @click="loadMoreOlder"
+        >
+          <font-awesome-icon icon="clock-rotate-left" class="load-more-icon" />
+          <span>Tải thêm tin nhắn cũ hơn</span>
+        </button>
+        <div v-else class="loading-more-indicator">
+          <div class="spinner-small"></div>
+          <span>Đang tải tin nhắn cũ...</span>
+        </div>
+      </div>
+
       <div 
         v-if="chatStore.loadingMessages" 
         style="text-align: center; color: #a0aec0; margin-top: 20px; font-family: 'Quicksand', sans-serif;"
@@ -243,21 +484,41 @@ watch(
       >
         Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên! 👋
       </div>
-      <MessageList 
-        v-for="msg in chatStore.messages" 
-        :key="msg.messageId"
-        :messageId="msg.messageId"
-        :isPinned="!!msg.isPinned"
-        :isRevoked="!!msg.isRevoked"
-        :isEdited="!!msg.isEdited"
-        :Content_Message="msg.content"
-        :Time="formatTime(msg.createdAt)"
-        :Sender="isMyMessage(msg) ? '' : (msg.sender?.username || 'Thành viên')"
-        :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
-        @togglePin="handleTogglePin"
-        @editMessage="handleEditMessage"
-        @revokeMessage="handleRevokeMessage"
-      />
+      <template v-for="(msg, idx) in chatStore.messages" :key="msg.messageId">
+        <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat -->
+        <div v-if="msg.isEvent" class="chat-event-row">
+          <div class="chat-event-pill">
+            <font-awesome-icon icon="thumbtack" class="event-pin-icon" />
+            <span>{{ msg.content }}</span>
+          </div>
+        </div>
+
+        <!-- 2. Dòng tin nhắn thông thường -->
+        <MessageList 
+          v-else
+          :messageId="msg.messageId"
+          :isPinned="!!msg.isPinned"
+          :isRevoked="!!msg.isRevoked"
+          :isEdited="!!msg.isEdited"
+          :isConsecutive="isConsecutiveMessage(idx)"
+          :groupPosition="getGroupPosition(idx)"
+          :showTime="shouldShowTime(idx)"
+          :Content_Message="msg.content"
+          :Time="formatTime(msg.createdAt)"
+          :Sender="isMyMessage(msg) ? '' : (msg.sender?.username || 'Thành viên')"
+          :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
+          @togglePin="handleTogglePin"
+          @editMessage="handleEditMessage"
+          @revokeMessage="handleRevokeMessage"
+          @viewHistory="handleViewHistory"
+        />
+      </template>
+
+      <!-- Chỉ báo đang tải tin nhắn mới hơn khi cuộn xuống dưới (Bi-directional scroll) -->
+      <div v-if="chatStore.isLoadingNewer" class="loading-newer-container">
+        <div class="spinner-small"></div>
+        <span>Đang tải tin nhắn mới hơn...</span>
+      </div>
 
       <!-- Trạng thái đang soạn tin nhắn (Typing indicator) -->
       <div v-if="chatStore.activeTypingText" class="typing-indicator">
@@ -269,9 +530,32 @@ watch(
         </span>
       </div>
     </div>
+
+    <!-- Nút mũi tên nổi cuộn tới tin nhắn mới nhất khi vượt lên trên -->
+    <transition name="fade">
+      <button 
+        v-if="showScrollBottomBtn" 
+        type="button" 
+        class="scroll-bottom-btn" 
+        title="Cuộn tới tin nhắn mới nhất"
+        @click="scrollToLatestMessages"
+      >
+        <font-awesome-icon icon="chevron-down" />
+      </button>
+    </transition>
+
     <ChatInput></ChatInput>
   </div>
   </div>
+
+  <!-- Popup Modal lịch sử các lần chỉnh sửa tin nhắn -->
+  <MessageHistoryModal 
+    :show="showHistoryModal"
+    :historyList="selectedHistoryList"
+    :currentContent="historyCurrentContent"
+    :senderName="historySenderName"
+    @close="showHistoryModal = false"
+  />
 </template>
 <style scoped>
 .ChatListSidebar {
@@ -284,6 +568,7 @@ watch(
 }
 
 .chat-view {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -334,6 +619,34 @@ watch(
   align-items: center;
   justify-content: center;
   background-color: white;
+}
+
+.chat-event-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 12px 0 8px;
+  width: 100%;
+}
+
+.chat-event-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 12px;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.event-pin-icon {
+  color: #4b7bec;
+  font-size: 11px;
 }
 
 .typing-indicator {
@@ -410,10 +723,130 @@ watch(
   padding: 16px 24px;
 }
 
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0 16px;
+  width: 100%;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background-color: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b82f6;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.08);
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+}
+
+.load-more-icon {
+  font-size: 12px;
+}
+
+.loading-more-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.loading-newer-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  width: 100%;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.spinner-small {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .chat-input-wrapper {
   flex-shrink: 0;
   background-color: #ffffff;
   border-top: 1px solid #e6eaf2;
   padding: 12px 10px;
+}
+
+.scroll-bottom-btn {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 92px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  color: #3b82f6;
+  border: 1px solid #dbeafe;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  z-index: 30;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scroll-bottom-btn:hover {
+  background-color: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.38);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
 }
 </style>

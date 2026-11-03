@@ -190,7 +190,6 @@ public class RoomService {
 
             // Gán tổng số hoạt động chưa đọc (tin nhắn + bình chọn + lịch hẹn mới)
             long unreadCount = unreadCountByRoomId.getOrDefault(roomId, 0L);
-            item.setUnreadCount(unreadCount);
 
             // Cờ in đậm: đối chiếu trực tiếp lastMessageId của phòng với lastReadMessageId
             // của mình (không tính hoạt động do chính mình tạo) hoặc còn mục chưa đọc
@@ -199,7 +198,11 @@ public class RoomService {
                     && !room.getLastMessageId().equals(myLastReadId) // Id new hoat dong != id cuoi user doc
                     && !currentUserId.equals(room.getLastMessageSenderId())); // new hoat dong khong phai do ban than
                                                                               // user tao ra
+            if (unreadCount == 0 && hasUnread) {
+                unreadCount = 1L;
+            }
             item.setHasUnread(hasUnread);
+            item.setUnreadCount(unreadCount);
 
             return item;
         });

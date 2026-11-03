@@ -48,6 +48,36 @@ public class MessageController {
      * @param limit          Số lượng tin nhắn cần lấy (mặc định 20)
      * @return HTTP 200 OK kèm dữ liệu CursorResponse<MessageResponse>
      */
+
+    /**
+     * API: Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh một tin nhắn cụ thể (ví dụ tin nhắn ghim)
+     * Method: GET /api/v1/rooms/{roomId}/messages/{messageId}/context
+     */
+    @GetMapping("/{messageId}/context")
+    public ResponseEntity<ApiResponse<List<MessageResponse>>> getMessageContext(
+            Authentication authentication,
+            @PathVariable UUID roomId,
+            @PathVariable UUID messageId) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+        List<MessageResponse> response = messageService.getMessageContext(currentUserId, roomId, messageId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy cửa sổ ngữ cảnh tin nhắn thành công"));
+    }
+
+    /**
+     * API: Lấy danh sách tin nhắn MỚI HƠN con trỏ cursor (sắp xếp tăng dần theo thời gian)
+     * Method: GET /api/v1/rooms/{roomId}/messages/after
+     */
+    @GetMapping("/after")
+    public ResponseEntity<ApiResponse<List<MessageResponse>>> getMessagesAfter(
+            Authentication authentication,
+            @PathVariable UUID roomId,
+            @RequestParam UUID cursor,
+            @RequestParam(defaultValue = "20") int limit) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+        List<MessageResponse> response = messageService.getMessagesAfter(currentUserId, roomId, cursor, limit);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách tin nhắn mới hơn thành công"));
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<CursorResponse<MessageResponse>>> getMessages(
             Authentication authentication,

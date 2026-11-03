@@ -31,6 +31,7 @@ public class MessageResponse {
     private Boolean isRevoked;
     private LocalDateTime revokedAt;
     private Boolean isPinned;
+    private UserResponse pinnedBy;
     private LocalDateTime createdAt;
     private java.util.List<ReactionResponse> reactions;
 

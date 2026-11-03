@@ -129,11 +129,14 @@ function getLastMessageText(room) {
 
     if (!room.lastMessageContent) return 'Chưa có tin nhắn';
 
-    // 3. Hiển thị thông báo khi có tin nhắn được ghim: "A đã ghim 1 tin nhắn"
-    if (room.lastMessageContent.includes('đã ghim')) {
-        const isMyAction = authStore.user?.username && room.lastMessageSenderName === authStore.user.username;
+    // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim
+    if (room.lastMessageContent && (room.lastMessageContent.includes('ghim') || room.lastMessageContent.includes('gỡ'))) {
+        const isMyAction = (authStore.user?.username && room.lastMessageSenderName === authStore.user.username) || room.lastMessageSenderName === 'Bạn';
         const sender = isMyAction ? 'Bạn' : (room.lastMessageSenderName || 'Thành viên');
-        return `📌 ${sender} đã ghim 1 tin nhắn`;
+        const actionText = (room.lastMessageContent.includes('bỏ') || room.lastMessageContent.includes('gỡ'))
+            ? 'đã bỏ ghim 1 tin nhắn'
+            : 'đã ghim 1 tin nhắn';
+        return `${sender}: ${actionText}`;
     }
 
     // 4. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
@@ -147,7 +150,14 @@ function getLastMessageText(room) {
  * Danh sách phòng chat sau khi lọc theo Tab (Tất cả / Chưa đọc) và Từ khóa tìm kiếm
  */
 const displayRooms = computed(() => {
-    let list = chatStore.rooms;
+    let list = [...chatStore.rooms];
+
+    // Luôn sắp xếp phòng có hoạt động mới nhất lên vị trí đầu tiên (giống như khi có tin nhắn mới)
+    list.sort((a, b) => {
+        const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+        const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+        return timeB - timeA;
+    });
 
     if (activeFilter.value === 'Unread') {
         list = list.filter(r => r.hasUnread || (r.unreadCount && r.unreadCount > 0));
@@ -195,6 +205,7 @@ const displayRooms = computed(() => {
         :last-message="getLastMessageText(c)"
         :time="formatTime(c.lastMessageAt)"
         :unread="c.unreadCount || 0"
+        :has-unread="Boolean(c.hasUnread || (c.unreadCount && c.unreadCount > 0))"
         :online="c.roomType === 'DIRECT' ? !!c.isOnline : false"
         :active="c.roomId === chatStore.activeRoomId"
         @select="chatStore.selectRoom(c.roomId)"

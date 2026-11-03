@@ -444,13 +444,6 @@ public class MessageService {
         if (room.getLastMessageId() != null && room.getLastMessageId().equals(savedMessage.getMessageId())) {
             roomService.updateLastActivity(room, savedMessage.getMessageId(), "đã ghim 1 tin nhắn", currentUser, LocalDateTime.now());
 
-            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
-            for (RoomMember m : members) {
-                if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
-                    m.setLastReadMessageId(null);
-                }
-            }
-            roomMemberRepository.saveAll(members);
         }
 
         return messageMapper.toMessageResponse(savedMessage);
@@ -775,6 +768,70 @@ public class MessageService {
                 .nextCursor(nextCursor)
                 .hasMore(messagePage.hasNext())
                 .build();
+    }
+
+    /**
+     * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh tin ghim (10 tin trước + tin ghim + 10 tin sau)
+     * Trả về danh sách MessageResponse theo thứ tự thời gian tăng dần [cũ -> mới]
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getMessageContext(UUID currentUserId, UUID roomId, UUID targetMessageId) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        Message targetMessage = messageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!targetMessage.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // Lấy 11 tin cũ hơn hoặc bằng tin ghim (đã bao gồm targetMessage)
+        List<Message> older = messageRepository.findOlderContext(
+                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 11));
+
+        // Lấy 10 tin mới hơn tin ghim
+        List<Message> newer = messageRepository.findNewerContext(
+                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 10));
+
+        // Đảo ngược danh sách older để theo thứ tự thời gian tăng dần
+        Collections.reverse(older);
+
+        // Ghép lại thành một dải 20 tin liên tục: [older... -> target -> newer...]
+        List<Message> context = new ArrayList<>(older);
+        context.addAll(newer);
+
+        return messageMapper.toMessageResponseList(context);
+    }
+
+    /**
+     * Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời gian)
+     * Hỗ trợ phân trang hai chiều khi người dùng cuộn kịch xuống dưới sau khi nhảy vào đoạn tin ghim.
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getMessagesAfter(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
+        Pageable pageable = PageRequest.of(0, effectiveLimit);
+
+        List<Message> newerMessages = messageRepository.findMessagesAfterCursor(roomId, cursorId, pageable);
+        return messageMapper.toMessageResponseList(newerMessages);
     }
 
     /**

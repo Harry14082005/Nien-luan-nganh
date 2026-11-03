@@ -311,9 +311,11 @@ export function initGlobalWebSocket(token) {
     })
 
     // 2. Lắng nghe các phòng chat hiện có trong store để cập nhật tin nhắn mới
-    chatStore.rooms.forEach((room) => {
-      subscribeToRoom(room.roomId)
-    })
+    if (Array.isArray(chatStore.rooms)) {
+      chatStore.rooms.forEach((room) => {
+        subscribeToRoom(room.roomId)
+      })
+    }
   })
 }
 
