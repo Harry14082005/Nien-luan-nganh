@@ -120,18 +120,27 @@ function goToRegister() {
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
 
 .auth-page {
-  display: grid;
-  grid-template-columns: 480px 1fr;
+  display: flex;
   height: 100vh;
   font-family: 'Quicksand', sans-serif;
+  overflow: hidden;
+}
+
+:deep(.auth-sidebar) {
+  width: 480px;
+  flex-shrink: 0;
 }
 
 .auth-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
   padding: 40px;
+  overflow-y: auto;
+  transition: padding 0.35s ease;
 }
 
 .auth-card {

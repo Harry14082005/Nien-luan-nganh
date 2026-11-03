@@ -16,9 +16,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const fullName        = ref('')
 const gender          = ref('male')
-const contactType     = ref('email')
-const email           = ref('')
-const phone           = ref('')
+const emailOrPhone    = ref('')
 const password        = ref('')
 const confirmPassword = ref('')
 const showPassword        = ref(false)
@@ -30,15 +28,19 @@ function validate() {
   const name = fullName.value.trim()
   if (name.length < 2 || name.length > 50) return 'Họ và tên phải từ 2 đến 50 ký tự'
 
-  if (contactType.value === 'email') {
-    if (!email.value.trim()) return 'Vui lòng nhập địa chỉ email'
-    if (!/^\S+@\S+\.\S+$/.test(email.value.trim())) return 'Địa chỉ email không hợp lệ'
-  } else {
-    const p = phone.value.replace(/\s/g, '')
-    if (!p) return 'Vui lòng nhập số điện thoại'
-    if (!/^(\+84|0)\d{9}$/.test(p)) return 'Số điện thoại không hợp lệ'
-  }
+  const identifier = emailOrPhone.value.trim().replace(/\s/g, '')
 
+  if (!identifier) {
+    return 'Vui lòng nhập email hoặc số điện thoại'
+  }
+  // Regex kiểm tra email theo đúng ý bạn
+  const emailRegex = /^[A-Za-z0-9]+([._%+-]?[A-Za-z0-9]+)*@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/
+  // Regex kiểm tra số điện thoại: có thể bắt đầu bằng dấu + (tùy chọn), theo sau là các chữ số (độ dài thông thường từ 7 đến 15 chữ số)
+  const phoneRegex = /^\+?[0-9]{7,15}$/
+  if (!emailRegex.test(identifier) && !phoneRegex.test(identifier)) {
+    return 'Email hoặc số điện thoại không đúng định dạng'
+  }
+  
   if (password.value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự'
   if (password.value !== confirmPassword.value) return 'Mật khẩu xác nhận không khớp'
   return ''
@@ -48,12 +50,9 @@ async function handleRegister() {
   errorMessage.value = validate()
   if (errorMessage.value) return
 
-  const identifier =
-    contactType.value === 'email' ? email.value.trim() : phone.value.replace(/\s/g, '')
-
   const body = {
     username: fullName.value.trim(),
-    identifier,
+    identifier: emailOrPhone.value.trim(),
     password: password.value,
     confirmPassword: confirmPassword.value,
     gender: gender.value.toUpperCase(),
@@ -120,42 +119,15 @@ function goToLogin() {
           </div>
 
           <div class="field-group">
-            <div class="contact-toggle">
-              <button type="button" id="contact-email"
-                :class="['contact-btn', { active: contactType === 'email' }]"
-                @click="contactType = 'email'">
-                <IconMail :size="14" />
-                Email
-              </button>
-              <button type="button" id="contact-phone"
-                :class="['contact-btn', { active: contactType === 'phone' }]"
-                @click="contactType = 'phone'">
-                <IconPhone :size="14" />
-                Số điện thoại
-              </button>
-            </div>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">{{ contactType === 'email' ? 'Địa chỉ email' : 'Số điện thoại' }}</label>
+            <label class="field-label">Email hoặc số điện thoại</label>
             <div class="input-wrapper">
-              <IconMail v-if="contactType === 'email'" :size="16" class="input-icon" />
-              <IconPhone v-else :size="16" class="input-icon" />
+              <IconMail :size="16" class="input-icon" />
               <input
-                v-if="contactType === 'email'"
-                id="register-email"
-                v-model="email"
-                type="email"
+                id="register-identifier"
+                v-model="emailOrPhone"
+                type="text"
                 class="auth-input"
-                placeholder="user@email.com"
-              />
-              <input
-                v-else
-                id="register-phone"
-                v-model="phone"
-                type="tel"
-                class="auth-input"
-                placeholder="0123 456 789"
+                placeholder="Email hoặc số điện thoại"
               />
             </div>
           </div>
@@ -209,19 +181,27 @@ function goToLogin() {
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
 
 .auth-page {
-  display: grid;
-  grid-template-columns: 480px 1fr;
+  display: flex;
   height: 100vh;
   font-family: 'Quicksand', sans-serif;
+  overflow: hidden;
+}
+
+:deep(.auth-sidebar) {
+  width: 480px;
+  flex-shrink: 0;
 }
 
 .auth-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
   padding: 40px;
   overflow-y: auto;
+  transition: padding 0.35s ease;
 }
 
 .auth-card {
