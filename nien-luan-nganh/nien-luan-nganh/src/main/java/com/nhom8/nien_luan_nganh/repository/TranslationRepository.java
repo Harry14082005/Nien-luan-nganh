@@ -7,5 +7,5 @@ import java.util.*;
 
 @Repository
 public interface TranslationRepository extends JpaRepository<Translation, UUID> {
-
+    Optional<Translation> findByMessage_MessageIdAndTargetLanguage(UUID messageId, String targetLanguage);
 }

@@ -59,6 +59,10 @@ import IconBarChart     from '@/components/icons/IconBarChart.vue'
   padding: 36px 40px;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
 }
 
 .auth-sidebar::before {
@@ -176,4 +180,15 @@ import IconBarChart     from '@/components/icons/IconBarChart.vue'
   flex-shrink: 0;
 }
 
+@media (max-width: 900px) {
+  .auth-sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
 </style>
