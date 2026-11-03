@@ -192,6 +192,7 @@ watch(
         </span>
       </div>
     </div>
+    <ChatInput></ChatInput>
   </div>
   </div>
 </template>

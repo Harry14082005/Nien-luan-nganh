@@ -100,7 +100,6 @@ const handleItemClick = (messageId) => {
         <font-awesome-icon icon="thumbtack" style="margin-right: 5px; color: #4b7bec;"/>
         Danh sách tin đã ghim ({{ chatStore.pinnedMessages.length }}/5)
       </span>
-      <span class="dropdown-close" @click="showList = false">✕</span>
     </div>
     <div class="dropdown-body">
       <div 
@@ -131,12 +130,17 @@ const handleItemClick = (messageId) => {
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
-
+.chatheader{
+  display: flex;
+  padding:10px 24px;
+}
 .pinned-container {
   position: relative;
   width: 100%;
   flex-shrink: 0;
   z-index: 10;
+  background-color:#f0f4fe;
+  border-bottom: 1px solid #e6eaf2;
 }
 
 .AvatarRoom{
@@ -164,7 +168,7 @@ const handleItemClick = (messageId) => {
     width: 100%;
     box-sizing: border-box;
     align-items: center;
-    justify-content: space-between;
+    justify-content:stretch;
     border-bottom: 1px solid #e1ebfd;
 }
 .left-header{
@@ -173,12 +177,13 @@ const handleItemClick = (messageId) => {
     flex: 1;
     align-items: center;
     min-width: 0;
-}
+  }
 .right-header{
     display: flex;
     color: #94a3b8;
     margin-left: 12px;
     flex-shrink: 0;
+    margin-right:8px;
 }
 .btn-close-pin {
     cursor: pointer;
@@ -202,19 +207,20 @@ const handleItemClick = (messageId) => {
 }
 .info-group{
     display: flex;
+    flex-grow: 1;
     flex-direction: column;
     font-family:"Quicksand", sans-serif; 
     margin-left: 10px;
     align-self: center;
-    justify-items: center;
+    justify-items: left;
     align-content: center;
     justify-content: left; 
     overflow: hidden;
+    width: 1fr;
 }
 .Label{
     display: flex;
     align-items: center;
-    margin-left: 12px;
     min-width: 0;
 }
 .Label{
@@ -237,6 +243,7 @@ const handleItemClick = (messageId) => {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 90%;
+    width: 100%;
 }
 
 /* Dropdown sổ xuống danh sách ghim */
@@ -264,11 +271,6 @@ const handleItemClick = (messageId) => {
     font-size: 12.5px;
     font-weight: 600;
     color: #2d3748;
-}
-.dropdown-close {
-    cursor: pointer;
-    font-size: 13px;
-    color: #a0aec0;
 }
 .dropdown-close:hover {
     color: #4a5568;
@@ -330,12 +332,12 @@ const handleItemClick = (messageId) => {
     transition: all 0.15s;
 }
 .item-unpin-btn:hover {
-    color: #e01d1d;
-    background-color: #fff5f5;
+    background-color: #e6edfd;
     font-size: 13px;
     color: #334155;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    border-radius: 1.25rem;
 }
 </style>

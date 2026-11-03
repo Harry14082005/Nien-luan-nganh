@@ -1,5 +1,4 @@
 <script setup>
-<<<<<<< HEAD
 /**
  * =========================================================================
  * Component: ChatInput.vue
@@ -67,17 +66,9 @@ const handleSend = async () => {
     await chatStore.sendChatMessage(content);
 };
 </script>
-=======
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-
-defineProps({})
-</script>
-
->>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 <template>
   <div class="chatInput">
     <div class="input_area">
-<<<<<<< HEAD
         <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip"/>
         <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint"/>
         <textarea 
@@ -94,16 +85,6 @@ defineProps({})
             style="cursor: pointer;"
             @click="handleSend"
         />
-=======
-      <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip" title="Đính kèm" />
-      <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint" title="Icon cảm xúc" />
-      <textarea
-        placeholder="Nhập tin nhắn..."
-        spellcheck="false"
-        rows="1"
-      ></textarea>
-      <font-awesome-icon id="paperPlane" icon="paper-plane" title="Gửi" />
->>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
     </div>
   </div>
 </template>
@@ -118,6 +99,9 @@ defineProps({})
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
+  padding: 20px;
+  background-color: white;
+  border-top: 1px solid #e6edfd;
 }
 
 .input_area {
@@ -189,12 +173,9 @@ defineProps({})
   background-color: #e6edfd;
   color: #4b7bec;
 }
-<<<<<<< HEAD
-=======
 
 .input_area textarea:focus + #paperPlane,
 .input_area textarea:not(:placeholder-shown) + #paperPlane {
   color: #4b7bec;
 }
->>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 </style>
