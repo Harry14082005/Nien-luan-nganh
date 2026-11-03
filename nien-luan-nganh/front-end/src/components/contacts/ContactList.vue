@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
+import Modal_AddFriend from './Modal_AddFriend.vue';
+
+const showNewAddFriendModal = ref(false)
 
 const props = defineProps({
   contacts: {
@@ -86,8 +89,6 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['select', 'add'])
-
 const searchQuery = ref('')
 
 const filteredContacts = computed(() => {
@@ -145,7 +146,8 @@ function getInitials(contact) {
             <h1 class="page-title">Danh bạ</h1>
             <span class="contact-count">{{ filteredContacts.length }}</span>
           </div>
-          <button class="add-button" title="Thêm liên hệ" @click="emit('add')">
+          <button class="add-button" title="Thêm liên hệ"
+          style="cursor: pointer;"  @click="showNewAddFriendModal = true">
             <font-awesome-icon icon="plus" />
           </button>
         </div>
@@ -213,6 +215,8 @@ function getInitials(contact) {
         <span>Không tìm thấy liên hệ phù hợp</span>
       </div>
     </div>
+     <NewAddModal v-if="showNewChatModal" @close="showNewChatModal = false" />
+     <Modal_AddFriend v-if="showNewAddFriendModal" @close="showNewAddFriendModal = false"/>
   </div>
 </template>
 

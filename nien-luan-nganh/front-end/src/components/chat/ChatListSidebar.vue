@@ -1,16 +1,4 @@
 <script setup>
-/**
- * =========================================================================
- * Component: ChatListSidebar.vue
- * =========================================================================
- * - Cột danh sách các cuộc trò chuyện bên trái (Sidebar).
- * - Hiển thị danh sách phòng chat kèm avatar, tên phòng, tin nhắn cuối, mốc thời gian, số tin chưa đọc.
- * - Tự động hiển thị chấm xanh Online/Offline của đối phương cho phòng 1-1.
- * - Tự động hiển thị "✍️ [Tên] đang soạn..." khi đối phương đang gõ chữ.
- * - Tự động hiển thị "📌 [Tên] đã ghim 1 tin nhắn" khi có sự kiện ghim tin nhắn.
- * - Hỗ trợ lọc theo tab "Tất cả" / "Chưa đọc" và tìm kiếm theo tên phòng / nội dung tin nhắn.
- * - Nút "+" mở Modal tạo cuộc trò chuyện 1-1 mới hoặc tạo Nhóm chat mới.
- */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import ChatItem from './ChatItem.vue';
 import NewChatModal from './NewChatModal.vue';
@@ -117,14 +105,21 @@ function getLastMessageText(room) {
         const users = Object.values(roomTyping);
         if (users.length > 0) {
             return users.length === 1
-                ? `✍️ ${users[0].username} đang soạn...`
-                : '✍️ Đang soạn tin nhắn...';
+                ? `${users[0].username} đang soạn...`
+                : 'Đang soạn tin nhắn...';
         }
     }
 
     // 2. Hiển thị thông báo ghim tin nhắn tạm thời (khi vừa bấm ghim)
     if (chatStore.pinNotices && chatStore.pinNotices[String(room.roomId)]) {
         return chatStore.pinNotices[String(room.roomId)];
+    if (!room.lastMessageContent) return 'Chưa có tin nhắn';
+
+    // 2. Hiển thị thông báo khi có tin nhắn được ghim: "A đã ghim 1 tin nhắn"
+    if (room.lastMessageContent.includes('đã ghim')) {
+        const isMyAction = authStore.user?.username && room.lastMessageSenderName === authStore.user.username;
+        const sender = isMyAction ? 'Bạn' : (room.lastMessageSenderName || 'Thành viên');
+        return `${sender} đã ghim 1 tin nhắn`;
     }
 
     if (!room.lastMessageContent) return 'Chưa có tin nhắn';
@@ -176,28 +171,45 @@ const displayRooms = computed(() => {
 </script>
 
 <template>
-    <div class="ChatListSidebar">
-        <section class="nameApp">
-        <div class="logo-title">bluespace.</div>
-       <font-awesome-icon icon="bars" class="menu-icon" />
+  <div class="ChatListSidebar">
+    <section class="nameApp">
+      <div class="logo-title">bluespace.</div>
+      <font-awesome-icon icon="bars" class="menu-icon" />
     </section>
-        <section class="namePage">
-            <section class="left-namePage">
-            <div>Tin nhắn</div>
-            <div class="NumberOfMessages">{{ chatStore.totalUnreadCount }}</div>
-            </section>
-            <section class="right-namePage" style="cursor: pointer;" title="Tạo cuộc trò chuyện / nhóm mới" @click="showNewChatModal = true">
-                <font-awesome-icon icon="plus"></font-awesome-icon>
-            </section>
-        </section>
+    <section class="namePage">
+      <section class="left-namePage">
+        <div>Tin nhắn</div>
+        <div class="NumberOfMessages">{{ chatStore.totalUnreadCount }}</div>
+      </section>
+      <section
+        class="right-namePage"
+        style="cursor: pointer"
+        title="Tạo cuộc trò chuyện / nhóm mới"
+        @click="showNewChatModal = true"
+      >
+        <font-awesome-icon icon="plus"></font-awesome-icon>
+      </section>
+    </section>
     <div class="search_bar"><SearchBar v-model="searchQuery"></SearchBar></div>
     <div class="filter">
-        <div class="SelectedFilter" :class="{active: activeFilter ==='SelectAll'}" @click="activeFilter = 'SelectAll'">Tất cả</div>
-        <div class="SelectedFilter" :class="{active: activeFilter ==='Unread'}" @click="activeFilter = 'Unread'">Chưa đọc</div>
+      <div
+        class="SelectedFilter"
+        :class="{ active: activeFilter === 'SelectAll' }"
+        @click="activeFilter = 'SelectAll'"
+      >
+        Tất cả
+      </div>
+      <div
+        class="SelectedFilter"
+        :class="{ active: activeFilter === 'Unread' }"
+        @click="activeFilter = 'Unread'"
+      >
+        Chưa đọc
+      </div>
     </div>
     <span>GẦN ĐÂY</span>
     <div class="ChatList">
-        <ChatItem
+      <ChatItem
         v-for="c in displayRooms"
         :key="c.roomId"
         :name="c.roomName || 'Cuộc trò chuyện'"
@@ -209,29 +221,39 @@ const displayRooms = computed(() => {
         :online="c.roomType === 'DIRECT' ? !!c.isOnline : false"
         :active="c.roomId === chatStore.activeRoomId"
         @select="chatStore.selectRoom(c.roomId)"
-        />
+      />
     </div>
     <NewChatModal v-if="showNewChatModal" @close="showNewChatModal = false" />
-    </div>
+  </div>
 </template>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
-.ChatListSidebar{
-display: flex;
-flex-direction: column;
-font-family:"Quicksand", sans-serif; 
-width: 100%;
-height: 100%;
-background-color: #ffffff;
-border-right: 1px solid #e6eaf2;
-box-sizing: border-box;
+.ChatListSidebar {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Quicksand', sans-serif;
+  width: 100%;
+  height: 100%;
+  background-color: #ffffff;
+  border-right: 1px solid #e6eaf2;
+  box-sizing: border-box;
 }
 .nameApp {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px 8px 24px;
+}
+section.nameApp {
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+section.nameApp:hover {
+  color: #3b82f6;
 }
 
 .logo-title {
@@ -250,76 +272,77 @@ box-sizing: border-box;
   background-clip: text;
   letter-spacing: -0.5px;
 }
-.namePage{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding:18px 24px;
-    padding-bottom:8px;
+.namePage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  padding-bottom: 8px;
 }
-.left-namePage{
-    display: flex;
-    font-size: 26px;
-    float:left;
-    color:#223451;
-    font-weight: 700;
+.left-namePage {
+  display: flex;
+  font-size: 26px;
+  float: left;
+  color: #223451;
+  font-weight: 700;
 }
-.right-namePage{
-    background-color: #e6edfd;
-    padding:9px;
-    border-radius: 0.7rem;
-    cursor:pointer;
-    color:#2563eb;
+.right-namePage {
+  background-color: #e6edfd;
+  padding: 9px;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  color: #2563eb;
 }
-.NumberOfMessages{
-    font-size: 20px;
-    font-weight: 600;
-    margin-left: 8px;
-    color:#4b7bec;
-    background-color: #e6edfd;
-    border-radius: 0.7rem;
-    width: 26px;
-    align-content: center;
-    text-align: center;
+.NumberOfMessages {
+  font-size: 20px;
+  font-weight: 600;
+  margin-left: 8px;
+  color: #4b7bec;
+  background-color: #e6edfd;
+  border-radius: 0.7rem;
+  width: 26px;
+  align-content: center;
+  text-align: center;
 }
-.filter{
-    display:flex;
-    gap:10px;
-    font-size:15px;
-    padding-right:24px;
-    padding-left: 24px;
-    padding-top:8px;
-    padding-bottom:15px;
-    border-bottom:1px solid#e6edfd ;
+.filter {
+  display: flex;
+  gap: 10px;
+  font-size: 15px;
+  padding-right: 24px;
+  padding-left: 24px;
+  padding-top: 8px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid#e6edfd;
+  font-weight: 700;
 }
-.SelectedFilter{
-    padding:7px;
-    cursor:pointer;
-    color:#4a5a78;
+.SelectedFilter {
+  padding: 7px;
+  cursor: pointer;
+  color: #4a5a78;
 }
-.SelectedFilter.active{
-    border-radius: 0.8rem;
-    background-color: #e6edfd;
-    padding:7px;
-    cursor:pointer;
-    color:#2f5fd0;
+.SelectedFilter.active {
+  border-radius: 0.8rem;
+  background-color: #e6edfd;
+  padding: 7px;
+  cursor: pointer;
+  color: #2f5fd0;
 }
-.search_bar{
-    display: flex;
-    align-self: center;
-    width: 100%;
-    padding:16px 24px;
-    padding-bottom:8px;
-    box-sizing: border-box;
-    margin-bottom: 10px;
+.search_bar {
+  display: flex;
+  align-self: center;
+  width: 100%;
+  padding: 16px 24px;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
 }
-span{
-    padding: 0 24px;
-    margin-top:8px;
-    font-size: 13px;
-    font-weight: 700;
-    color:#b4bccb;
-    margin-bottom: 8px;
+span {
+  padding: 0 24px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b4bccb;
+  margin-bottom: 8px;
 }
 .ChatList {
   flex: 1;
@@ -346,5 +369,4 @@ span{
 .ChatList::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
 }
-
 </style>

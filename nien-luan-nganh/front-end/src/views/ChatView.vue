@@ -606,7 +606,7 @@ watch(
 }
 .app-container{
   display: grid;
-  grid-template-columns: 90px 450px 1fr;
+  grid-template-columns: 80px 430px 1fr;
   width: 100%;
   height: 100vh;
   overflow: hidden;

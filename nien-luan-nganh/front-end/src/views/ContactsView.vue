@@ -1,92 +1,44 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed,onMounted  } from 'vue'
 import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ContactList from '@/components/contacts/ContactList.vue'
 import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
-
+import { getFriends, toContact } from '@/api/contacts.api'
 const router = useRouter()
 
-const contacts = ref([
-  {
-    id: 1,
-    name: 'Minh Anh',
-    role: 'Product Designer',
-    initials: 'MA',
-    avatar: '',
-    online: true,
-    statusText: 'Đang hoạt động',
-    bio: 'Những cuộc trò chuyện ý nghĩa luôn bắt đầu bằng một lời chào.',
-    bgColor: '#FFE9DC',
-    color: '#D2693B',
-  },
-  {
-    id: 2,
-    name: 'Quang Huy',
-    role: 'Frontend Developer',
-    initials: 'QH',
-    avatar: '',
-    online: true,
-    statusText: 'Đang hoạt động',
-    bio: 'Lập trình viên đam mê kiến tạo trải nghiệm người dùng hiện đại và mượt mà.',
-    bgColor: '#DDF5EA',
-    color: '#2E9A6B',
-  },
-  {
-    id: 3,
-    name: 'Linh Nguyễn',
-    role: 'Marketing Lead',
-    initials: 'LN',
-    avatar: '',
-    online: false,
-    statusText: 'Vừa mới rời đi',
-    bio: 'Kết nối mọi người và lan tỏa những câu chuyện truyền cảm hứng.',
-    bgColor: '#FFF3D6',
-    color: '#B8860B',
-  },
-  {
-    id: 4,
-    name: 'An Trần',
-    role: 'UI Designer',
-    initials: 'AT',
-    avatar: '',
-    online: false,
-    statusText: 'Hoạt động 2 giờ trước',
-    bio: 'Thiết kế không chỉ là vẻ bề ngoài mà là cách nó hoạt động.',
-    bgColor: '#E3EDFF',
-    color: '#3B6FD2',
-  },
-  {
-    id: 5,
-    name: 'Bảo Phạm',
-    role: 'Project Manager',
-    initials: 'BP',
-    avatar: '',
-    online: false,
-    statusText: 'Hoạt động 5 giờ trước',
-    bio: 'Xây dựng quy trình làm việc hiệu quả và đồng hành cùng nhóm.',
-    bgColor: '#ECE9FF',
-    color: '#6B5BD2',
-  },
-  {
-    id: 6,
-    name: 'Nguyễn Hoàng Nam',
-    role: 'Đang hoạt động',
-    initials: 'HN',
-    avatar: '',
-    online: true,
-    statusText: 'Đang hoạt động',
-    bio: 'Sẵn sàng kết nối và hỗ trợ khi có bất kỳ câu hỏi nào.',
-    bgColor: '#DCE7FE',
-    color: '#2563EB',
-  },
-])
-
-const selectedContactId = ref(1)
+const contacts = ref([])
+const selectedContactId = ref(null)
+const me = ref(null)
+const loading = ref(false)
+const errorMsg = ref('')
 
 const selectedContact = computed(() => {
   return contacts.value.find((c) => c.id === selectedContactId.value) || contacts.value[0]
 })
+
+const myInitials = computed(() => {
+  const w = (me.value?.username || '').trim().split(/\s+/).filter(Boolean)
+  if (!w.length) return '?'
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[w.length - 1][0]).toUpperCase()
+})
+
+async function loadData() {
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    const [page, profile] = await Promise.all([getFriends(), getMe()])
+    contacts.value = page.content.map(toContact)
+    me.value = profile
+    selectedContactId.value = contacts.value[0]?.id ?? null
+  } catch (e) {
+    errorMsg.value = e.response?.data?.message || 'Không tải được danh bạ'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadData)
 
 function onSelectContact(contact) {
   selectedContactId.value = contact.id
@@ -136,13 +88,16 @@ function handleMessageContact(contact) {
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </button>
-          <div class="user-avatar-badge">HN</div>
+          <div class="user-avatar-badge">{{ myInitials }}</div>
         </div>
       </div>
 
       <!-- Main Body Content -->
       <div class="contacts-body">
         <!-- Title & Introduction Section -->
+          <p v-if="loading" class="state-msg">Đang tải danh bạ...</p>
+         <p v-if="errorMsg" class="state-msg state-error">{{ errorMsg }}</p>
+
         <div class="welcome-section">
           <span class="sub-caption">KẾT NỐI CỦA BẠN</span>
           <h1 class="main-title">Gần nhau hơn, mỗi ngày.</h1>
@@ -156,6 +111,9 @@ function handleMessageContact(contact) {
             :contact="selectedContact"
             @message="handleMessageContact"
           />
+          <p v-else-if="!loading && !errorMsg" class="state-msg">
+          Bạn chưa có liên hệ nào. Bấm dấu + để thêm bạn bè.
+          </p>
         </div>
       </div>
     </div>
@@ -298,6 +256,14 @@ function handleMessageContact(contact) {
 .card-display-area {
   display: flex;
   justify-content: flex-start;
+}
+.state-msg {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 16px 0;
+}
+.state-error {
+  color: #dc2626;
 }
 </style>
 
