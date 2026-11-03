@@ -140,50 +140,54 @@ const handleItemClick = (messageId) => {
 }
 
 .AvatarRoom{
-display: flex;
-font-family:"Quicksand", sans-serif; 
-font-size: 75%;
-font-weight:500;
-width:30px;
-height: 70%;
-margin-left: 10px;
-border-radius: 6px;
-background-color:rgb(228, 237, 255);
-color: rgb(110, 148, 233);
-align-self: center;
-align-content: center;
-justify-content: center;
-align-items: center;
-}
-.chatheader{
     display: flex;
     flex-shrink: 0;
     background-color:rgb(243, 247, 255);
     padding-top:10px;
     padding-bottom:10px;
+    font-family:"Quicksand", sans-serif; 
+    font-size: 13px;
+    font-weight: 500;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background-color: rgb(228, 237, 255);
+    color: rgb(75, 123, 236);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.pinned-bar{
+    display: flex;
+    background-color: #f0f5ff;
+    padding: 8px 24px;
     width: 100%;
-    max-height: fit-content;
-    min-height: 40px;
+    box-sizing: border-box;
+    align-items: center;
     justify-content: space-between;
-    border-top: 1px solid rgba(110, 148, 233,0.1);
-    border-bottom: 1px solid rgba(110, 148, 233,0.1);
+    border-bottom: 1px solid #e1ebfd;
 }
 .left-header{
     display: flex;
     cursor: pointer;
     flex: 1;
+    align-items: center;
     min-width: 0;
 }
 .right-header{
     display: flex;
-    color:rgba(34, 52, 81,0.7);
-    gap:14px;
-    font-size: 90%;
-    font-weight: 200;
-    margin-right: 14px;
-    align-self: center;
-    justify-items: center;
-    align-content: center;
+    color: #94a3b8;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+.btn-close-pin {
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.15s;
+}
+.btn-close-pin:hover {
+    color: #1e293b;
 }
 .action-btn {
     cursor: pointer;
@@ -199,7 +203,6 @@ align-items: center;
 .info-group{
     display: flex;
     flex-direction: column;
-    font-size: 12px;
     font-family:"Quicksand", sans-serif; 
     margin-left: 10px;
     align-self: center;
@@ -211,10 +214,16 @@ align-items: center;
 .Label{
     display: flex;
     align-items: center;
+    margin-left: 12px;
+    min-width: 0;
+}
+.Label{
     font-family:"Quicksand", sans-serif; 
-    font-size: 13px;
-    font-weight: 600;
-    color:rgb(34, 52, 81);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #4b7bec;
 }
 .pin-badge {
     font-weight: 500;
@@ -323,5 +332,10 @@ align-items: center;
 .item-unpin-btn:hover {
     color: #e01d1d;
     background-color: #fff5f5;
+    font-size: 13px;
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 </style>

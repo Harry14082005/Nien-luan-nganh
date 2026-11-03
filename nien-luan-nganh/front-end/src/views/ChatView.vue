@@ -1,4 +1,5 @@
 <script setup>
+<<<<<<< HEAD
 /**
  * =========================================================================
  * View: ChatView.vue
@@ -142,9 +143,19 @@ watch(
     }
   }
 );
+=======
+import ChatHeader from '@/components/chat/ChatHeader.vue'
+import PinnedMessage from '@/components/chat/PinnedMessage.vue'
+import MessageList from '@/components/chat/MessageList.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
+import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
+import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 </script>
+
 <template>
   <div class="app-container">
+<<<<<<< HEAD
   <NavigationSidebar></NavigationSidebar>
   <div class="ChatListSidebar">
     <ChatListSidebar></ChatListSidebar>
@@ -189,12 +200,32 @@ watch(
           <span class="dot"></span>
           <span class="dot"></span>
         </span>
+=======
+    <NavigationSidebar current-page="message" />
+
+    <div class="chat-sidebar-wrapper">
+      <ChatListSidebar />
+    </div>
+
+    <div class="chat-view">
+      <ChatHeader />
+      <PinnedMessage />
+
+      <div class="chat-body">
+        <MessageList />
+        <MessageList variant="SendTo" Sender="" />
+        <MessageList />
+        <MessageList variant="SendTo" Sender="" />
+      </div>
+
+      <div class="chat-input-wrapper">
+        <ChatInput />
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
       </div>
     </div>
-    <div class="input_text"><ChatInput/></div>
-  </div> 
   </div>
 </template>
+<<<<<<< HEAD
 <style scoped>
 .chat-view {
   display: flex;
@@ -217,10 +248,21 @@ watch(
 .app-container{
   display: grid;
   grid-template-columns: 90px 450px 1fr;
+=======
+
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
+
+.app-container {
+  display: grid;
+  grid-template-columns: 80px 430px 1fr;
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
   width: 100%;
   height: 100vh;
   overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
 }
+<<<<<<< HEAD
 .input_text{
   flex-shrink: 0;
   width: 100%;
@@ -281,5 +323,34 @@ watch(
     transform: scale(1.1);
     opacity: 1;
   }
+=======
+
+.chat-sidebar-wrapper {
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #f8f9fd;
+  border-left: 1px solid #e6eaf2;
+  overflow: hidden;
+}
+
+.chat-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+
+.chat-input-wrapper {
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border-top: 1px solid #e6eaf2;
+  padding: 12px 10px;
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 }
 </style>

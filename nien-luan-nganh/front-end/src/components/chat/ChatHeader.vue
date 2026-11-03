@@ -42,7 +42,6 @@ const getInitials = (name) => {
     font-weight:600;
     width: 40px;
     height: 40px;
-    margin-left: 10px;
     border-radius: 10px;
     background-color:rgb(233, 228, 255);
     color: rgb(115, 104, 210);
@@ -56,13 +55,17 @@ const getInitials = (name) => {
     flex-shrink: 0;
     background-color:white;
     width: 100%;
-    height: 8vh;
-    max-height: fit-content;
-    min-height: 80px;
+    height: 70px;
+    min-height: 70px;
+    border-bottom: 1px solid #e6eaf2;
+    padding: 0 24px;
+    box-sizing: border-box;
+    align-items: center;
     justify-content: space-between;
 }
 .left-header{
     display: flex;
+    align-items: center;
 }
 .right-header{
     display: flex;
@@ -79,11 +82,8 @@ const getInitials = (name) => {
     display: flex;
     flex-direction: column;
     font-family:"Quicksand", sans-serif; 
-    margin-left: 10px;
-    align-self: center;
-    justify-items: center;
-    align-content: center;
-    justify-content: left; 
+    margin-left: 12px;
+    justify-content: center; 
 }
 .RoomName{
     display: flex;
@@ -94,15 +94,18 @@ const getInitials = (name) => {
 }
 .StatusRoom{
     font-size:14px;
-    color:rgb(34, 52, 81);
+    color:#64748b;
 }
 .icon{
     padding:8px;
+    cursor: pointer;
+    border-radius: 1.25rem;
+    transition: all 0.15s ease;
 }
 .icon:hover{
     color:#4b7bec;
     padding:8px;
     background-color: #e6edfd;
-    border-radius: 1.25rem;
 }
+
 </style>

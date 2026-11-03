@@ -28,7 +28,6 @@ defineEmits(['update:modelValue'])
     color:#b4bccb;
     display: flex;
     justify-content: center;
-    border-radius: 1.25rem;
     align-items: center;
     align-self: center;
     justify-self: center;
@@ -38,9 +37,13 @@ defineEmits(['update:modelValue'])
     background-color: #f8f9fd;
     justify-items: center;
     align-items: center;
+    border-radius: 12px;
+    padding: 4px 3px;
+    transition: all 0.2s ease;
 }
 .SearchBar:focus-within{
-    border:1px solid #4b7bec;;
+    border:1px solid #4b7bec;
+    box-shadow: 0 0 0 3px rgba(75, 123, 236, 0.1);
 }
 .SearchBar input{
     width: 100%;

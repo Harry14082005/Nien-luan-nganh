@@ -163,9 +163,9 @@ const displayRooms = computed(() => {
 <template>
     <div class="ChatListSidebar">
         <section class="nameApp">
-            <div>bluespace</div>
-            <font-awesome-icon icon="bars"/>
-        </section>
+        <div class="logo-title">bluespace.</div>
+       <font-awesome-icon icon="bars" class="menu-icon" />
+    </section>
         <section class="namePage">
             <section class="left-namePage">
             <div>Tin nhắn</div>
@@ -205,45 +205,41 @@ const displayRooms = computed(() => {
 display: flex;
 flex-direction: column;
 font-family:"Quicksand", sans-serif; 
-font-size: 75%;
-font-weight:500;
-width:430px;
+width: 100%;
 height: 100%;
-border-radius: 6px;
-color: rgb(110, 148, 233);
+background-color: #ffffff;
+border-right: 1px solid #e6eaf2;
+box-sizing: border-box;
 }
-.nameApp{
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 26px;
-    margin-top: 3px;
-    margin-left: 20px;
-    padding:16px;
-    color:#b4bccb;
-background: linear-gradient(
-    to right, 
-    #0a192f 0%,    /* 1. Xanh thẫm (Navy cực đậm) */
-    #1e3a8a 25%,   /* 2. Xanh than */
-    #2563eb 50%,   /* 3. Xanh dương trung tính */
-    #3b82f6 75%,   /* 4. Xanh lam sáng */
-    #60a5fa 100%   /* 5. Xanh nhạt cuối dải */
-  );  
-  /* Cắt nền theo khung chữ và làm trong suốt màu chữ gốc */
+.nameApp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 8px 24px;
+}
+
+.logo-title {
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(
+    to right,
+    #0a192f 0%,
+    #1e3a8a 25%,
+    #2563eb 50%,
+    #3b82f6 75%,
+    #60a5fa 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: -0.5px;
 }
-.nameApp:first-child{
-    font-weight: 700;
-}
-
 .namePage{
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-right: 20px;
+    padding:18px 24px;
+    padding-bottom:8px;
 }
 .left-namePage{
     display: flex;
@@ -251,14 +247,13 @@ background: linear-gradient(
     float:left;
     color:#223451;
     font-weight: 700;
-    margin-left: 20px;
-    padding:10px 20px;
 }
 .right-namePage{
     background-color: #e6edfd;
     padding:9px;
     border-radius: 0.7rem;
     cursor:pointer;
+    color:#2563eb;
 }
 .NumberOfMessages{
     font-size: 20px;
@@ -275,8 +270,8 @@ background: linear-gradient(
     display:flex;
     gap:10px;
     font-size:15px;
-    margin-left: 20px;
-    padding-left:20px;
+    padding-right:24px;
+    padding-left: 24px;
     padding-top:8px;
     padding-bottom:15px;
     border-bottom:1px solid#e6edfd ;
@@ -296,20 +291,27 @@ background: linear-gradient(
 .search_bar{
     display: flex;
     align-self: center;
-    width: 95%;
-    padding: 0 20px;
+    width: 100%;
+    padding:16px 24px;
+    padding-bottom:8px;
     box-sizing: border-box;
-    margin-left: 20px;
     margin-bottom: 10px;
 }
 span{
-    margin-left: 20px;
-    padding: 0 20px;
+    padding: 0 24px;
     margin-top:8px;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     color:#b4bccb;
     margin-bottom: 8px;
+}
+.ChatList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 </style>

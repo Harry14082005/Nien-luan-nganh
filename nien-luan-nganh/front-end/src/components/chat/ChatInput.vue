@@ -1,4 +1,5 @@
 <script setup>
+<<<<<<< HEAD
 /**
  * =========================================================================
  * Component: ChatInput.vue
@@ -66,9 +67,17 @@ const handleSend = async () => {
     await chatStore.sendChatMessage(content);
 };
 </script>
+=======
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+
+defineProps({})
+</script>
+
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 <template>
-<div class="chatInput">
+  <div class="chatInput">
     <div class="input_area">
+<<<<<<< HEAD
         <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip"/>
         <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint"/>
         <textarea 
@@ -85,89 +94,107 @@ const handleSend = async () => {
             style="cursor: pointer;"
             @click="handleSend"
         />
+=======
+      <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip" title="Đính kèm" />
+      <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint" title="Icon cảm xúc" />
+      <textarea
+        placeholder="Nhập tin nhắn..."
+        spellcheck="false"
+        rows="1"
+      ></textarea>
+      <font-awesome-icon id="paperPlane" icon="paper-plane" title="Gửi" />
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
     </div>
-</div>
-
+  </div>
 </template>
+
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
-div.input_area textarea{
-    width: 90%;
-    resize: none; 
-    border: none;
-    background-color: #f8f9fd;
-    font-family:"Quicksand", sans-serif;
-    line-height: 1.4;
-    max-height: 120px;         /* giới hạn chiều cao, quá thì cuộn */
-    overflow-y: auto;
-    padding:0;
-}
-div.input_area textarea:focus{
-    outline: none;
-}
-div.input_area textarea:focus + #paperPlane{
-    color:#4b7bec;
-}
-div.input_area:focus-within{
-    border-color: #4b7bec;
+
+.chatInput {
+  font-family: 'Quicksand', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.chatInput{
-    font-family:"Quicksand", sans-serif; 
-    font-size: 100%;
-    display: flex;
-    align-items: center;
-    background-color:white;
-    width: 100%;
-    height:100%;
-    max-height: fit-content;
-    justify-content: center;
-    flex-shrink: 0;
-    padding: 12px 2px;
-    border-top:1px solid #e6eaf2;
-    box-sizing: border-box;
+.input_area {
+  display: flex;
+  align-items: center;
+  background-color: #f8f9fd;
+  padding: 5px 12px;
+  width: 100%;
+  border-radius: 1.5rem;
+  border: 1px solid #e6eaf2;
+  gap: 6px;
+  color: #94a3b8;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
 }
-.input_area{
-    display: flex;
-    background-color: #f8f9fd;
-    padding:5px;
-    width: 95%;
-    font-size:100%;
-    font-family:"Quicksand", sans-serif; 
-    align-items: center;
-    align-self: center;
-    justify-self: center;
-    font-size: 95%;
-    border-radius: 1.25rem;
-    border:1px solid #e6eaf2;
-    gap:2px;
-    color:#b4bccb;
-    margin:0;
+
+.input_area:focus-within {
+  border-color: #4b7bec;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(75, 123, 236, 0.1);
 }
-#paperPlane{
-    margin-right: 5px;
-    padding:5px;
-    align-self: center;
-    justify-self: center;
+
+.input_area textarea {
+  flex: 1;
+  resize: none;
+  border: none;
+  background-color: transparent;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.4;
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 4px 6px;
+  outline: none;
 }
-#paperClip{
-    margin-left:3px;
+
+.input_area textarea::placeholder {
+  color: #94a3b8;
+  font-size: 14px;
 }
-#faceLaugh{
-    margin-right: 3px;
+
+.icon_input {
+  font-size: 15px;
+  color: #94a3b8;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
-#paperPlane:hover{
-    background-color: #e6edfd;
-    color:#4b7bec;
-    border-radius: 0.5rem;
+
+.icon_input:hover {
+  color: #4b7bec;
+  background-color: #e6edfd;
 }
-.icon_input{
-    padding:5px;
+
+#paperPlane {
+  font-size: 15px;
+  color: #94a3b8;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
-.icon_input:hover{
-    color:#4b7bec;
-    padding:5px;
-    background-color: #e6edfd;
-    border-radius: 1.25rem;
+
+#paperPlane:hover {
+  background-color: #e6edfd;
+  color: #4b7bec;
 }
+<<<<<<< HEAD
+=======
+
+.input_area textarea:focus + #paperPlane,
+.input_area textarea:not(:placeholder-shown) + #paperPlane {
+  color: #4b7bec;
+}
+>>>>>>> e7488d9 (Update views: PrivateSpaceView, ContactsView, SettingsView)
 </style>
