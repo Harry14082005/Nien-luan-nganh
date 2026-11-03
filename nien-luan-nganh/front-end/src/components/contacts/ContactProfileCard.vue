@@ -322,4 +322,3 @@ function onSendMessage() {
   flex-shrink: 0;
 }
 </style>
-

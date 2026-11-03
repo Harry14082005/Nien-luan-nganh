@@ -39,7 +39,6 @@ function navigateTo(page, targetPath) {
     />
 
     <div class="navigation">
-      <!-- Không gian của tôi / Home -->
       <div
         class="nav-item"
         :class="{ active: activeTab === 'home' }"
@@ -128,7 +127,7 @@ function navigateTo(page, targetPath) {
   font-size: 100%;
   font-weight: 600;
   width: 80px;
-  height: 100vh;
+  height: 100%;
   background-color: #0f2547;
   color: #e6edfd;
   align-self: center;

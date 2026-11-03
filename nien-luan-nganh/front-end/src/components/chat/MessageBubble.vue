@@ -15,7 +15,7 @@ defineProps({
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
 .message_bubble{
-     display: flex;
+    display: flex;
     font-family:"Quicksand", sans-serif; 
     font-size: 100%;
     font-weight:600;

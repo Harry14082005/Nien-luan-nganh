@@ -3,11 +3,11 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-import AuthSidebar    from '@/components/common/AuthSidebar.vue'
-import IconMail       from '@/components/icons/IconMail.vue'
-import IconLock       from '@/components/icons/IconLock.vue'
-import IconEye        from '@/components/icons/IconEye.vue'
-import IconEyeOff     from '@/components/icons/IconEyeOff.vue'
+import AuthSidebar from '@/components/common/AuthSidebar.vue'
+import IconMail from '@/components/icons/IconMail.vue'
+import IconLock from '@/components/icons/IconLock.vue'
+import IconEye from '@/components/icons/IconEye.vue'
+import IconEyeOff from '@/components/icons/IconEyeOff.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 
 const router = useRouter()
@@ -34,7 +34,9 @@ async function handleLogin() {
   } catch (err) {
     console.error('Lỗi đăng nhập:', err)
     errorMessage.value =
-      err.response?.data?.message || err.message || 'Không thể kết nối tới máy chủ, vui lòng thử lại'
+      err.response?.data?.message ||
+      err.message ||
+      'Không thể kết nối tới máy chủ, vui lòng thử lại'
   } finally {
     loading.value = false
   }
@@ -57,7 +59,6 @@ function goToRegister() {
           <button class="tab active" id="tab-login">Đăng nhập</button>
           <button class="tab" id="tab-register-from-login" @click="goToRegister">Đăng ký</button>
         </div>
-
 
         <form @submit.prevent="handleLogin" class="auth-form">
           <div class="field-group">
@@ -102,7 +103,7 @@ function goToRegister() {
 
           <button id="login-submit" type="submit" class="btn-primary" :disabled="loading">
             {{ loading ? 'Đang đăng nhập...' : 'Đăng nhập vào' }}
-          <IconArrowRight v-if="!loading" :size="16" />
+            <IconArrowRight v-if="!loading" :size="16" />
           </button>
         </form>
         <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
@@ -222,7 +223,9 @@ function goToRegister() {
   color: #111827;
   background: #fafafa;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   box-sizing: border-box;
 }
 
@@ -291,7 +294,6 @@ function goToRegister() {
   text-decoration: underline;
 }
 
-
 .btn-primary {
   display: flex;
   align-items: center;
@@ -305,7 +307,9 @@ function goToRegister() {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  transition:
+    background 0.2s,
+    transform 0.1s;
   width: 100%;
 }
 
@@ -343,6 +347,7 @@ function goToRegister() {
   color: #dc2626;
   font-size: 13px;
   font-weight: 500;
+  margin-top: 10px;
 }
 
 .btn-primary:disabled {
