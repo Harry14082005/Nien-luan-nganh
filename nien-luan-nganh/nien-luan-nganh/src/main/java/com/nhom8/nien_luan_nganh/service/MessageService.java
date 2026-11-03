@@ -304,29 +304,12 @@ public class MessageService {
         // Sidebar
         roomService.updateLastActivityContentIfMatch(message.getRoom(), messageId, "Tin nhắn đã bị thu hồi");
 
-        // // Xóa sạch toàn bộ lịch sử chỉnh sửa cũ trực tiếp từ repository
-        // messageHistoryRepository.deleteByMessage_MessageId(messageId);
-        // if (message.getMessageHistories() != null) {
-        // message.getMessageHistories().clear();
-        // }
-
-        // // Xóa toàn bộ cảm xúc trên tin nhắn bị thu hồi
-        // messageReactionRepository.deleteByMessageId(messageId);
-        // if (message.getMessageReactions() != null) { ---> ở trên bị xoá rồi nhưng ở
-        // đây gọi lại cái đã rỗng
-        // message.getMessageReactions().clear();
-        // }
-
-        // Message savedMessage = messageRepository.save(message);
-
-        // return messageMapper.toMessageResponse(savedMessage);
-
         // Xóa sạch dữ liệu trong database
         messageHistoryRepository.deleteByMessage_MessageId(messageId);
         messageReactionRepository.deleteByMessageId(messageId);
 
         // Gán mảng rỗng để không kích hoạt Lazy Loading
-        message.setMessageHistories(new ArrayList<>()); // thay vì gọi để .clear() như trên thì tạo mảng giả
+        message.setMessageHistories(new ArrayList<>());
         message.setMessageReactions(new ArrayList<>());
         Message savedMessage = messageRepository.save(message);
         MessageResponse response = messageMapper.toMessageResponse(savedMessage);
@@ -436,17 +419,38 @@ public class MessageService {
             }
         }
 
-        // 8. Đánh dấu ghim
+        // 8. Đánh dấu ghim trên tin nhắn gốc
         message.setIsPinned(true);
-        Message savedMessage = messageRepository.save(message);
+        messageRepository.save(message);
 
-        // 9. Cập nhật hoạt động ngoài Sidebar và chuyển thành 1 tin chưa đọc cho thành viên khác nếu là tin cuối
-        if (room.getLastMessageId() != null && room.getLastMessageId().equals(savedMessage.getMessageId())) {
-            roomService.updateLastActivity(room, savedMessage.getMessageId(), "đã ghim 1 tin nhắn", currentUser, LocalDateTime.now());
+        // 9. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG VÀO CSDL (Để người offline vào lại vẫn đọc được)
+        String systemContent = currentUser.getUsername() + " đã ghim một tin nhắn";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .repliedMessage(message) // Liên kết tới chính tin nhắn vừa được ghim
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
 
+        // 10. Cập nhật hoạt động mới nhất của phòng bằng tin nhắn hệ thống này
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser, savedSystemMessage.getCreatedAt());
+
+        // 11. Reset trạng thái đã đọc cho các thành viên khác
+        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : members) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
         }
+        roomMemberRepository.saveAll(members);
 
-        return messageMapper.toMessageResponse(savedMessage);
+        return messageMapper.toMessageResponse(savedSystemMessage);
     }
 
     /**
@@ -467,7 +471,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
+        Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
@@ -486,11 +490,38 @@ public class MessageService {
             throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
         }
 
-        // 6. Đánh dấu bỏ ghim
+        // 6. Gỡ cờ ghim của tin nhắn gốc
         message.setIsPinned(false);
-        Message savedMessage = messageRepository.save(message);
+        messageRepository.save(message);
 
-        return messageMapper.toMessageResponse(savedMessage);
+        // 7. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG BỎ GHIM VÀO CSDL
+        String systemContent = currentUser.getUsername() + " đã bỏ ghim một tin nhắn";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .repliedMessage(message)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        // 8. Cập nhật hoạt động mới nhất của phòng
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser, savedSystemMessage.getCreatedAt());
+
+        // 9. Reset trạng thái đã đọc cho các thành viên khác
+        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : members) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
+        }
+        roomMemberRepository.saveAll(members);
+
+        return messageMapper.toMessageResponse(savedSystemMessage);
     }
 
     /**
@@ -749,7 +780,17 @@ public class MessageService {
             messageRepository.findById(cursorId)
                     .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 
-            messagePage = messageRepository.findByRoomIdBefore(roomId, cursorId, pageable);
+            Message cursorMessage = messageRepository.findById(cursorId)
+                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+            Pageable slicePageable = PageRequest.of(0, effectiveLimit + 1);
+            List<Message> fetched = messageRepository.findOlderAround(roomId, cursorMessage.getCreatedAt(), slicePageable);
+            boolean cursorHasMore = fetched.size() > effectiveLimit;
+            List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit)) : fetched;
+            return CursorResponse.<MessageResponse>builder()
+                    .data(messageMapper.toMessageResponseList(sliceList))
+                    .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null : sliceList.get(sliceList.size() - 1).getMessageId())
+                    .hasMore(cursorHasMore)
+                    .build();
         } else {
             messagePage = messageRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId, pageable);
         }

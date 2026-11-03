@@ -345,9 +345,16 @@ export function subscribeToRoom(roomId) {
     chatStore.handleTypingEvent(typingEvent)
   })
 
+  // 3. Lắng nghe sự kiện cảm xúc trên tin nhắn (Reactions)
+  const unsubReaction = wsService.subscribe(`/topic/room.${key}.reactions`, (reactionEvent) => {
+    console.log(`❤️ [Reaction event phòng ${key}]:`, reactionEvent)
+    chatStore.handleReactionEvent(reactionEvent)
+  })
+
   // Lưu lại hàm unsubscribe để dọn dẹp khi rời phòng hoặc đổi tài khoản
   roomUnsubscribers.set(key, () => {
     unsubMsg()
     unsubTyping()
+    unsubReaction()
   })
 }

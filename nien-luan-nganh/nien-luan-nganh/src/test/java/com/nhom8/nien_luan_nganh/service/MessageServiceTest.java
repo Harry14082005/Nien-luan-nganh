@@ -372,7 +372,7 @@ class MessageServiceTest {
         assertNotNull(response);
         assertTrue(response.getIsPinned());
         assertTrue(message.getIsPinned());
-        verify(messageRepository, times(1)).save(message);
+        verify(messageRepository, times(2)).save(any(Message.class));
     }
 
     @Test
@@ -415,7 +415,7 @@ class MessageServiceTest {
         assertNotNull(response);
         assertFalse(response.getIsPinned());
         assertFalse(message.getIsPinned());
-        verify(messageRepository, times(1)).save(message);
+        verify(messageRepository, times(2)).save(any(Message.class));
     }
 
     @Test

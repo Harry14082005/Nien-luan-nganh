@@ -19,6 +19,8 @@ import com.nhom8.nien_luan_nganh.mapper.RoomMemberMapper;
 import com.nhom8.nien_luan_nganh.mapper.UserMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -310,16 +312,32 @@ public class RoomMemberService {
     public MessageReceiptResponse markAsRead(UUID roomId, UUID messageId, UUID currentUserId) {
         RoomMember member = getActiveMemberOrThrow(roomId, currentUserId);
 
-        // Nếu client không truyền messageId cụ thể, tự động lấy tin nhắn mới nhất của phòng
+        // Nếu client không truyền messageId cụ thể, thử lấy từ room.getLastMessageId()
         if (messageId == null) {
             Room room = getRoomOrThrow(roomId);
             messageId = room.getLastMessageId();
-            if (messageId == null) {
-                return null;
+        }
+
+        // Tìm tin nhắn tương ứng trong phòng
+        Message message = null;
+        if (messageId != null) {
+            message = messageRepository.findById(messageId)
+                    .filter(m -> m.getRoom() != null && m.getRoom().getRoomId().equals(roomId))
+                    .orElse(null);
+        }
+        // Nếu messageId không phải tin nhắn (ví dụ: ID phòng, ID Poll, Reminder) hoặc chưa có,
+        // tự động tìm tin nhắn mới nhất thật sự trong phòng
+        if (message == null) {
+            Page<Message> latestPage = messageRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId, PageRequest.of(0, 1));
+            if (latestPage.hasContent()) {
+                message = latestPage.getContent().get(0);
+                messageId = message.getMessageId();
             }
         }
 
-        Message message = getMessageInRoomOrThrow(roomId, messageId);
+        if (message == null) {
+            return null;
+        }
         boolean updated = false;
 
         if (isNewer(message, member.getLastReadMessageId())) {

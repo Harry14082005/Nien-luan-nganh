@@ -63,18 +63,14 @@ function saveRoomOverrides(overrides) {
 // Lưu danh sách sự kiện ghim / bỏ ghim trong khung chat theo từng phòng
 function loadRoomEvents() {
   try {
-    const raw = localStorage.getItem('bluespace_room_events')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object') return parsed
-    }
+    localStorage.removeItem('bluespace_room_events')
   } catch {}
   return {}
 }
 
-function saveRoomEvents(eventsMap) {
+function saveRoomEvents() {
   try {
-    localStorage.setItem('bluespace_room_events', JSON.stringify(eventsMap))
+    localStorage.removeItem('bluespace_room_events')
   } catch {}
 }
 
@@ -295,7 +291,7 @@ export const useChatStore = defineStore('chat', {
     // Tin nhắn đã ghim mới nhất của phòng đang mở
     latestPinnedMessage: (state) => {
       return state.pinnedMessages.length > 0
-        ? state.pinnedMessages[state.pinnedMessages.length - 1]
+        ? state.pinnedMessages[0]
         : null
     },
   },
@@ -443,6 +439,54 @@ export const useChatStore = defineStore('chat', {
         ])
       } else {
         await this.fetchPinnedMessages(roomId)
+        await this.markRoomAsRead(roomId)
+      }
+    },
+
+    // 2.1. Đánh dấu đã đọc phòng chat (Read Watermark - cập nhật xuống MySQL và Pinia)
+    async markRoomAsRead(roomId, messageId = null) {
+      if (!roomId) return
+      const rId = String(roomId)
+
+      // Cập nhật Optimistic trên state Pinia ngay lập tức
+      const index = this.rooms.findIndex((r) => String(r.roomId) === rId)
+      if (index !== -1) {
+        this.rooms[index] = {
+          ...this.rooms[index],
+          hasUnread: false,
+          unreadCount: 0,
+        }
+        if (['1', '2', '3'].includes(rId)) {
+          saveDemoRooms(this.rooms)
+        }
+      }
+
+      if (this.roomActivityOverrides[rId]) {
+        this.roomActivityOverrides[rId] = {
+          ...this.roomActivityOverrides[rId],
+          hasUnread: false,
+          unreadCount: 0,
+        }
+        saveRoomOverrides(this.roomActivityOverrides)
+      }
+
+      // Nếu là phòng demo thì không gọi API
+      if (['1', '2', '3'].includes(rId)) return
+
+      let targetId = messageId
+      if (!targetId && String(this.activeRoomId) === rId && this.messages.length > 0) {
+        const latestReal = [...this.messages].reverse().find(
+          (m) => m && !m.isEvent && m.messageId && !String(m.messageId).startsWith('event-') && !String(m.messageId).startsWith('mock-')
+        )
+        if (latestReal) {
+          targetId = latestReal.messageId
+        }
+      }
+
+      try {
+        await messageApi.markAsRead(roomId, targetId)
+      } catch (err) {
+        // Bỏ qua lỗi
       }
     },
 
@@ -471,66 +515,28 @@ export const useChatStore = defineStore('chat', {
         const list = [...rawList].reverse()
         const authStore = useAuthStore()
 
-        // Kết hợp các sự kiện ghim / bỏ ghim đã lưu của phòng này vào khung chat
-        this.roomEventsMap = { ...loadRoomEvents(), ...this.roomEventsMap }
-        const savedEvents = Array.isArray(this.roomEventsMap[key]) ? this.roomEventsMap[key] : []
-
-        if (savedEvents.length > 0) {
-          const formattedEvents = savedEvents.map((ev) => {
-            const isMe =
-              (authStore.user?.userId && ev.actorUserId && String(ev.actorUserId) === String(authStore.user.userId)) ||
-              (authStore.user?.username && ev.actorUsername === authStore.user.username) ||
-              ev.actorUsername === 'Bạn'
-            const actorLabel = isMe ? 'Bạn' : (ev.actorUsername || 'Thành viên')
-            const actionLabel = ev.actionType === 'unpin' ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'
-            return {
-              ...ev,
-              content: `${actorLabel} ${actionLabel}`,
-              isEvent: true,
-            }
-          })
-          const combined = [...list, ...formattedEvents]
-          combined.sort((a, b) => {
-            const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-            const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-            return tA - tB
-          })
-          this.messages = combined
-        } else {
-          this.messages = list
-          // Fallback nếu hoạt động mới nhất của phòng là ghim hoặc bỏ ghim tin nhắn
-          if (this.activeRoom?.lastMessageContent && (this.activeRoom.lastMessageContent.includes('ghim') || this.activeRoom.lastMessageContent.includes('gỡ'))) {
-            const isMyAction =
-              (authStore.user?.username && this.activeRoom?.lastMessageSenderName === authStore.user.username) ||
-              this.activeRoom?.lastMessageSenderName === 'Bạn'
-            const pinner = isMyAction ? 'Bạn' : (this.activeRoom?.lastMessageSenderName || 'Thành viên')
-            const actionText = (this.activeRoom.lastMessageContent.includes('bỏ') || this.activeRoom.lastMessageContent.includes('gỡ'))
-              ? 'đã bỏ ghim 1 tin nhắn'
-              : 'đã ghim 1 tin nhắn'
-            this.messages.push({
-              messageId: `event-pin-initial-${Date.now()}`,
-              roomId: String(roomId),
-              content: `${pinner} ${actionText}`,
-              isEvent: true,
-              createdAt: this.activeRoom?.lastMessageAt || new Date().toISOString(),
-            })
-          }
-        }
+        // Danh sách tin nhắn trực tiếp từ CSDL (đã bao gồm các tin nhắn SYSTEM)
+        this.messages = list
 
         const cursorInfo = extractCursorInfo(res)
-        this.nextCursor = cursorInfo.nextCursor || (rawList.length > 0 ? rawList[rawList.length - 1]?.messageId : null)
-        this.hasMoreOlder = cursorInfo.hasMore
+        const oldestRealMessage = rawList.length > 0 ? rawList[rawList.length - 1] : null
+        this.nextCursor = cursorInfo.nextCursor || oldestRealMessage?.messageId || null
+        
+        // Nếu backend có trả về trường hasMore cụ thể thì dùng, còn không thì dựa trên số lượng tin (>= 20 nghĩa là còn tin cũ)
+        const hasMoreCalculated = cursorInfo.hasMore !== undefined && cursorInfo.hasMore !== false
+          ? Boolean(cursorInfo.hasMore)
+          : (rawList.length >= 20)
+        this.hasMoreOlder = hasMoreCalculated
         this.hasMoreNewer = false
-        this.hasMoreMessages = cursorInfo.hasMore
+        this.hasMoreMessages = hasMoreCalculated
         this.isDetachedFromBottom = false
         this.isViewingOlderSegment = false
 
-        // Đánh dấu đã đọc trên backend
-        try {
-          await messageApi.markAsRead(roomId)
-        } catch {
-          // Bỏ qua lỗi đánh dấu đọc nếu có
-        }
+        // Đánh dấu đã đọc trên backend với mốc tin nhắn mới nhất
+        const latestRealMessage = [...this.messages].reverse().find(
+          (m) => m && !m.isEvent && m.messageId && !String(m.messageId).startsWith('event-') && !String(m.messageId).startsWith('mock-')
+        )
+        await this.markRoomAsRead(roomId, latestRealMessage?.messageId || null)
       } catch (err) {
         console.error('Lỗi tải danh sách tin nhắn:', err)
         this.messages = []
@@ -553,10 +559,16 @@ export const useChatStore = defineStore('chat', {
 
       this.isLoadingOlder = true
       this.loadingMoreMessages = true
-      const topCursor = this.messages[0]?.messageId
+
+      // Tìm tin nhắn thật (không phải sự kiện ghim/hệ thống) cũ nhất hiện tại trong mảng messages
+      const firstRealMessage = this.messages.find(
+        (m) => m && !m.isEvent && m.messageId && !String(m.messageId).startsWith('event-') && !String(m.messageId).startsWith('mock-')
+      )
+      const topCursor = this.nextCursor || firstRealMessage?.messageId
       if (!topCursor) {
         this.isLoadingOlder = false
         this.loadingMoreMessages = false
+        this.hasMoreOlder = false
         return false
       }
 
@@ -565,17 +577,24 @@ export const useChatStore = defineStore('chat', {
         const rawList = extractMessageList(res)
         const olderBatch = [...rawList].reverse()
 
-        if (!rawList || rawList.length < 20) {
-          this.hasMoreOlder = false
-          this.hasMoreMessages = false
-        }
+        const cursorInfo = extractCursorInfo(res)
+        const hasMoreCalculated = cursorInfo.hasMore !== undefined && cursorInfo.hasMore !== false
+          ? Boolean(cursorInfo.hasMore)
+          : (rawList.length >= 20)
+        this.hasMoreOlder = hasMoreCalculated
+        this.hasMoreMessages = hasMoreCalculated
 
         if (olderBatch.length > 0) {
           const existingIds = new Set(this.messages.map((m) => String(m.messageId)))
           const uniqueOlder = olderBatch.filter((m) => !existingIds.has(String(m.messageId)))
           this.messages = [...uniqueOlder, ...this.messages]
         }
-        this.nextCursor = this.messages[0]?.messageId || null
+
+        // Cập nhật nextCursor cho lần cuộn tiếp theo
+        const newFirstReal = this.messages.find(
+          (m) => m && !m.isEvent && m.messageId && !String(m.messageId).startsWith('event-')
+        )
+        this.nextCursor = cursorInfo.nextCursor || newFirstReal?.messageId || null
         return true
       } catch (err) {
         console.error('Lỗi tải thêm tin nhắn cũ:', err)
@@ -790,19 +809,24 @@ export const useChatStore = defineStore('chat', {
       const msgAgeMs = message.createdAt ? Math.abs(Date.now() - new Date(message.createdAt).getTime()) : 0
 
       // Xác định xem message broadcast này là hành động Ghim hay Bỏ ghim
+      const isSystemPin = message.messageType === 'SYSTEM' && Boolean(message.content && message.content.includes('đã ghim') && !message.content.includes('đã bỏ ghim'))
+      const isSystemUnpin = message.messageType === 'SYSTEM' && Boolean(message.content && message.content.includes('đã bỏ ghim'))
+
       const isPinAction = Boolean(
-        message.isPinned &&
+        isSystemPin ||
+        (message.isPinned &&
         !message.isRevoked &&
-        (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin'),
+        (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin')),
       )
       const isUnpinAction = Boolean(
-        message.isPinned === false &&
+        isSystemUnpin ||
+        (message.isPinned === false &&
         !message.isRevoked &&
         (wasPinned ||
           existingMsg?.isPinned ||
           (hasValidMyPinRecord && myPinRecord.type === 'unpin') ||
           sharedPinActor?.type === 'unpin' ||
-          (message.pinnedBy && msgAgeMs > 1500)),
+          (message.pinnedBy && msgAgeMs > 1500))),
       )
       const isPinOrUnpin = isPinAction || isUnpinAction
 
@@ -811,7 +835,11 @@ export const useChatStore = defineStore('chat', {
       let actorUsername = 'Thành viên'
       let actorUserId = null
 
-      if (hasValidMyPinRecord) {
+      if (message.messageType === 'SYSTEM') {
+        isMyPinAction = isMyMsg
+        actorUsername = isMyMsg ? (authStore.user?.username || 'Bạn') : (message.sender?.username || 'Thành viên')
+        actorUserId = message.sender?.userId || null
+      } else if (hasValidMyPinRecord) {
         isMyPinAction = true
         actorUsername = myPinRecord.actorUsername || authStore.user?.username || 'Bạn'
         actorUserId = myPinRecord.actorUserId || authStore.user?.userId || 'me'
@@ -827,7 +855,7 @@ export const useChatStore = defineStore('chat', {
         isMyPinAction =
           (authStore.user?.userId && actorUserId && String(actorUserId) === String(authStore.user.userId)) ||
           (authStore.user?.username && actorUsername === authStore.user.username)
-      } else if (isPinOrUnpin) {
+      } else if (isPinOrUnpin && !isSystemPin && !isSystemUnpin) {
         // Tab này không bấm ghim -> người bấm ghim là thành viên khác trong phòng
         isMyPinAction = false
         if (targetRoom?.roomType === 'DIRECT') {
@@ -852,103 +880,49 @@ export const useChatStore = defineStore('chat', {
           this.messages.push(message)
         }
 
-        if (message.isPinned && !message.isRevoked) {
-          const pinIdx = this.pinnedMessages.findIndex((p) => String(p.messageId) === msgId)
-          if (pinIdx !== -1) {
-            this.pinnedMessages[pinIdx] = message
-          } else {
-            this.pinnedMessages.push(message)
-          }
+        // Xử lý tin nhắn hệ thống (SYSTEM) cho sự kiện Ghim / Bỏ ghim
+        if (message.messageType === 'SYSTEM') {
+          const targetMsgId = message.repliedMessage?.messageId
+          const isPin = message.content && message.content.includes('đã ghim') && !message.content.includes('đã bỏ ghim')
+          const isUnpin = message.content && message.content.includes('đã bỏ ghim')
 
-          if (isPinAction) {
-            const eventPrefix = `event-pin-${msgId}-`
-            const alreadyAddedRecently = this.messages.some(
+          if (targetMsgId) {
+            // Xóa sự kiện tạm thời do chính tab này bấm ghim/bỏ ghim trước đó
+            this.messages = this.messages.filter(
               (m) =>
-                m.isEvent &&
-                String(m.messageId).startsWith(eventPrefix) &&
-                m.createdAt &&
-                Math.abs(Date.now() - new Date(m.createdAt).getTime()) < 5000,
+                !m.isEvent ||
+                (!String(m.messageId).includes(`event-pin-${targetMsgId}`) &&
+                  !String(m.messageId).includes(`event-unpin-${targetMsgId}`)),
             )
-            if (!alreadyAddedRecently) {
-              const nowIso = new Date().toISOString()
-              const newEv = {
-                messageId: `${eventPrefix}${Date.now()}`,
-                targetMessageId: msgId,
-                actionType: 'pin',
-                actorUsername,
-                actorUserId,
-                roomId: msgRoomId,
-                sender: { userId: actorUserId, username: actorUsername },
-                content: `${pinnerName} đã ghim 1 tin nhắn`,
-                isEvent: true,
-                createdAt: nowIso,
+
+            const targetIdx = this.messages.findIndex((m) => String(m.messageId) === String(targetMsgId))
+            if (targetIdx !== -1) {
+              this.messages[targetIdx] = {
+                ...this.messages[targetIdx],
+                isPinned: isPin && !isUnpin,
               }
-              this.messages.push(newEv)
-              if (!this.roomEventsMap[msgRoomId]) this.roomEventsMap[msgRoomId] = []
-              this.roomEventsMap[msgRoomId].push(newEv)
-              saveRoomEvents(this.roomEventsMap)
             }
           }
-        } else if (message.isPinned === false && !message.isRevoked) {
-          this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
 
-          if (isUnpinAction) {
-            const eventPrefix = `event-unpin-${msgId}-`
-            const alreadyAddedRecently = this.messages.some(
-              (m) =>
-                m.isEvent &&
-                String(m.messageId).startsWith(eventPrefix) &&
-                m.createdAt &&
-                Math.abs(Date.now() - new Date(m.createdAt).getTime()) < 5000,
-            )
-            if (!alreadyAddedRecently) {
-              const nowIso = new Date().toISOString()
-              const newEv = {
-                messageId: `${eventPrefix}${Date.now()}`,
-                targetMessageId: msgId,
-                actionType: 'unpin',
-                actorUsername,
-                actorUserId,
-                roomId: msgRoomId,
-                sender: { userId: actorUserId, username: actorUsername },
-                content: `${pinnerName} đã bỏ ghim 1 tin nhắn`,
-                isEvent: true,
-                createdAt: nowIso,
-              }
-              this.messages.push(newEv)
-              if (!this.roomEventsMap[msgRoomId]) this.roomEventsMap[msgRoomId] = []
-              this.roomEventsMap[msgRoomId].push(newEv)
-              saveRoomEvents(this.roomEventsMap)
-            }
+          if (isPin) {
+            this.fetchPinnedMessages(msgRoomId)
+          } else if (isUnpin && targetMsgId) {
+            this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== String(targetMsgId))
           }
-        } else if (message.isRevoked) {
-          this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
         }
-      } else if (isPinOrUnpin) {
-        // Nếu đang ở phòng khác mà phòng này có sự kiện ghim / bỏ ghim -> vẫn lưu event vào roomEventsMap để khi mở phòng thấy ngay
-        const actionType = isPinAction ? 'pin' : 'unpin'
-        const eventPrefix = `event-${actionType}-${msgId}-`
-        if (!this.roomEventsMap[msgRoomId]) this.roomEventsMap[msgRoomId] = []
-        const alreadySavedRecently = this.roomEventsMap[msgRoomId].some(
-          (m) =>
-            String(m.messageId).startsWith(eventPrefix) &&
-            m.createdAt &&
-            Math.abs(Date.now() - new Date(m.createdAt).getTime()) < 5000,
-        )
-        if (!alreadySavedRecently) {
-          this.roomEventsMap[msgRoomId].push({
-            messageId: `${eventPrefix}${Date.now()}`,
-            targetMessageId: msgId,
-            actionType,
-            actorUsername,
-            actorUserId,
-            roomId: msgRoomId,
-            sender: { userId: actorUserId, username: actorUsername },
-            content: `${pinnerName} ${isPinAction ? 'đã ghim 1 tin nhắn' : 'đã bỏ ghim 1 tin nhắn'}`,
-            isEvent: true,
-            createdAt: new Date().toISOString(),
-          })
-          saveRoomEvents(this.roomEventsMap)
+
+        // Đồng bộ danh sách pinnedMessages nếu nhận được cập nhật tin nhắn thông thường
+        if (message.messageType !== 'SYSTEM') {
+          if (message.isPinned && !message.isRevoked) {
+            const pinIdx = this.pinnedMessages.findIndex((p) => String(p.messageId) === msgId)
+            if (pinIdx !== -1) {
+              this.pinnedMessages[pinIdx] = message
+            } else {
+              this.pinnedMessages.push(message)
+            }
+          } else if (message.isPinned === false || message.isRevoked) {
+            this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
+          }
         }
       }
 
@@ -1019,6 +993,11 @@ export const useChatStore = defineStore('chat', {
         if (['1', '2', '3'].includes(msgRoomId)) {
           saveDemoRooms(this.rooms)
         }
+
+        // Nếu người dùng đang mở xem chính phòng này thì tự động đánh dấu đã đọc ngay lập tức
+        if (isCurrentRoom && !message.isRevoked && message.messageId && !String(message.messageId).startsWith('mock-')) {
+          this.markRoomAsRead(msgRoomId, message.messageId)
+        }
       } else {
         // Nếu là phòng mới chưa có trong danh sách -> tải lại danh sách phòng
         this.fetchRooms()
@@ -1088,6 +1067,101 @@ export const useChatStore = defineStore('chat', {
       this.typingMap = { ...this.typingMap }
     },
 
+    // 8.1. Nhận sự kiện thả/gỡ cảm xúc trên tin nhắn từ WebSocket
+    handleReactionEvent(event) {
+      if (!event || !event.messageId) return
+      const msgId = String(event.messageId)
+      const targetMessage = this.messages.find((m) => String(m.messageId) === msgId)
+      if (!targetMessage) return
+
+      if (!Array.isArray(targetMessage.reactions)) {
+        targetMessage.reactions = []
+      }
+
+      const userIdStr = String(event.userId)
+      const existingIdx = targetMessage.reactions.findIndex((r) => String(r.userId) === userIdStr)
+      const isRemoved = !event.reactionType || event.isRemoved
+
+      if (isRemoved) {
+        if (existingIdx !== -1) {
+          targetMessage.reactions.splice(existingIdx, 1)
+        }
+      } else {
+        if (existingIdx !== -1) {
+          targetMessage.reactions[existingIdx] = {
+            ...targetMessage.reactions[existingIdx],
+            reactionType: event.reactionType,
+            username: event.username || targetMessage.reactions[existingIdx].username,
+          }
+        } else {
+          targetMessage.reactions.push({
+            userId: event.userId,
+            reactionType: event.reactionType,
+            username: event.username,
+            avatarUrl: event.avatarUrl,
+          })
+        }
+      }
+
+      // Kích hoạt tính phản ứng của Vue
+      this.messages = [...this.messages]
+    },
+
+    // 8.2. Thả hoặc gỡ cảm xúc với Optimistic UI (Phản hồi 0ms)
+    async toggleReaction(messageId, targetType) {
+      if (!this.activeRoomId || !messageId || !targetType) return
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.userId
+      const currentUsername = authStore.user?.username || 'Bạn'
+      const roomKey = String(this.activeRoomId)
+
+      const targetMessage = this.messages.find((m) => String(m.messageId) === String(messageId))
+      if (!targetMessage) return
+
+      if (!Array.isArray(targetMessage.reactions)) {
+        targetMessage.reactions = []
+      }
+
+      const previousReactions = JSON.parse(JSON.stringify(targetMessage.reactions))
+      const existingIdx = targetMessage.reactions.findIndex((r) => String(r.userId) === String(currentUserId))
+      const isSameType = existingIdx !== -1 && targetMessage.reactions[existingIdx].reactionType === targetType
+
+      // 1. CẬP NHẬT GIAO DIỆN LẠC QUAN (OPTIMISTIC UI - 0ms)
+      if (isSameType) {
+        // Gỡ cảm xúc khi click lại đúng icon đã thả
+        targetMessage.reactions.splice(existingIdx, 1)
+      } else if (existingIdx !== -1) {
+        // Đổi loại cảm xúc
+        targetMessage.reactions[existingIdx].reactionType = targetType
+      } else {
+        // Thả mới cảm xúc
+        targetMessage.reactions.push({
+          userId: currentUserId,
+          reactionType: targetType,
+          username: currentUsername,
+        })
+      }
+      this.messages = [...this.messages]
+
+      if (['1', '2', '3'].includes(roomKey)) {
+        return
+      }
+
+      // 2. GỌI API BACKEND ĐỒNG BỘ
+      try {
+        if (isSameType) {
+          await messageApi.removeReaction(this.activeRoomId, messageId)
+        } else {
+          await messageApi.reactMessage(this.activeRoomId, messageId, { reactionType: targetType })
+        }
+      } catch (error) {
+        console.error('Lỗi cập nhật cảm xúc:', error)
+        // Hoàn tác lại trạng thái cũ nếu API báo lỗi
+        targetMessage.reactions = previousReactions
+        this.messages = [...this.messages]
+      }
+    },
+
     // 9. Lấy danh sách tin nhắn đã ghim trong phòng
     async fetchPinnedMessages(roomId) {
       if (!roomId) {
@@ -1141,27 +1215,14 @@ export const useChatStore = defineStore('chat', {
       }
       recordRecentPinActor(msgId, senderName, senderId, 'pin')
 
-      const pinEvent = {
-        messageId: `event-pin-${msgId}-${Date.now()}`,
-        targetMessageId: msgId,
-        actionType: 'pin',
-        actorUsername: senderName,
-        actorUserId: senderId,
-        roomId: rId,
-        sender: {
-          userId: senderId,
-          username: senderName,
-        },
-        content: 'Bạn đã ghim 1 tin nhắn',
-        isEvent: true,
-        createdAt: nowIso,
+      // Đánh dấu ghim ngay lập tức trên giao diện
+      const target = this.messages.find((m) => String(m.messageId) === msgId)
+      if (target) {
+        target.isPinned = true
+        if (!this.pinnedMessages.some((p) => String(p.messageId) === msgId)) {
+          this.pinnedMessages.push(target)
+        }
       }
-
-      // Thêm sự kiện vào khung chat và lưu vào roomEventsMap ngay lập tức
-      this.messages.push(pinEvent)
-      if (!this.roomEventsMap[rId]) this.roomEventsMap[rId] = []
-      this.roomEventsMap[rId].push(pinEvent)
-      saveRoomEvents(this.roomEventsMap)
 
       // Đưa phòng lên đầu Sidebar và lưu vào roomActivityOverrides để giữ nguyên ở đầu
       const roomIdx = this.rooms.findIndex((r) => String(r.roomId) === rId)
@@ -1192,24 +1253,14 @@ export const useChatStore = defineStore('chat', {
       }
 
       if (['1', '2', '3'].includes(rId)) {
-        const target = this.messages.find((m) => String(m.messageId) === msgId)
-        if (target) {
-          target.isPinned = true
-          if (!this.pinnedMessages.some((p) => String(p.messageId) === msgId)) {
-            this.pinnedMessages.push(target)
-          }
-        }
         return
       }
 
       try {
-        const updatedMsg = await messageApi.pinMessage(this.activeRoomId, messageId)
-        const idx = this.messages.findIndex((m) => String(m.messageId) === msgId)
-        if (idx !== -1) {
-          this.messages[idx] = { ...this.messages[idx], isPinned: true }
-        }
-        if (updatedMsg && !this.pinnedMessages.some((p) => String(p.messageId) === msgId)) {
-          this.pinnedMessages.push(updatedMsg)
+        const systemMsg = await messageApi.pinMessage(this.activeRoomId, messageId)
+        await this.fetchPinnedMessages(this.activeRoomId)
+        if (systemMsg && !this.messages.some((m) => String(m.messageId) === String(systemMsg.messageId))) {
+          this.messages.push(systemMsg)
         }
       } catch (err) {
         console.error('Lỗi khi ghim tin nhắn:', err)
@@ -1235,32 +1286,15 @@ export const useChatStore = defineStore('chat', {
       }
       recordRecentPinActor(msgId, senderName, senderId, 'unpin')
 
-      const unpinEvent = {
-        messageId: `event-unpin-${msgId}-${Date.now()}`,
-        targetMessageId: msgId,
-        actionType: 'unpin',
-        actorUsername: senderName,
-        actorUserId: senderId,
-        roomId: rId,
-        sender: {
-          userId: senderId,
-          username: senderName,
-        },
-        content: 'Bạn đã bỏ ghim 1 tin nhắn',
-        isEvent: true,
-        createdAt: nowIso,
-      }
-
       if (this.pinNotices[rId]) {
         delete this.pinNotices[rId]
         this.pinNotices = { ...this.pinNotices }
       }
 
-      // Thêm sự kiện bỏ ghim vào khung chat và lưu vào roomEventsMap ngay lập tức
-      this.messages.push(unpinEvent)
-      if (!this.roomEventsMap[rId]) this.roomEventsMap[rId] = []
-      this.roomEventsMap[rId].push(unpinEvent)
-      saveRoomEvents(this.roomEventsMap)
+      // Đánh dấu gỡ ghim ngay lập tức trên giao diện
+      this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
+      const target = this.messages.find((m) => String(m.messageId) === msgId)
+      if (target) target.isPinned = false
 
       // Đưa phòng lên đầu Sidebar và lưu vào roomActivityOverrides để giữ nguyên ở đầu
       const roomIdx = this.rooms.findIndex((r) => String(r.roomId) === rId)
@@ -1291,18 +1325,13 @@ export const useChatStore = defineStore('chat', {
       }
 
       if (['1', '2', '3'].includes(rId)) {
-        this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
-        const target = this.messages.find((m) => String(m.messageId) === msgId)
-        if (target) target.isPinned = false
         return
       }
 
       try {
-        await messageApi.unpinMessage(this.activeRoomId, messageId)
-        this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
-        const idx = this.messages.findIndex((m) => String(m.messageId) === msgId)
-        if (idx !== -1) {
-          this.messages[idx] = { ...this.messages[idx], isPinned: false }
+        const systemMsg = await messageApi.unpinMessage(this.activeRoomId, messageId)
+        if (systemMsg && !this.messages.some((m) => String(m.messageId) === String(systemMsg.messageId))) {
+          this.messages.push(systemMsg)
         }
       } catch (err) {
         console.error('Lỗi khi bỏ ghim tin nhắn:', err)

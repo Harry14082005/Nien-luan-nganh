@@ -47,6 +47,11 @@ const showNewChatModal = ref(false); // Trạng thái hiển thị popup tạo c
 let syncTimer = null; // Timer chạy ngầm đồng bộ phòng định kỳ mỗi 4 giây
 
 onMounted(async () => {
+    // 0. Đảm bảo thông tin user đã sẵn sàng để đối chiếu chính xác "Bạn" vs "Tên đối phương"
+    if (!authStore.user) {
+        await authStore.initUser();
+    }
+
     // 1. Tải danh sách phòng từ Backend
     await chatStore.fetchRooms();
 
@@ -129,13 +134,23 @@ function getLastMessageText(room) {
 
     if (!room.lastMessageContent) return 'Chưa có tin nhắn';
 
-    // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim
-    if (room.lastMessageContent && (room.lastMessageContent.includes('ghim') || room.lastMessageContent.includes('gỡ'))) {
-        const isMyAction = (authStore.user?.username && room.lastMessageSenderName === authStore.user.username) || room.lastMessageSenderName === 'Bạn';
-        const sender = isMyAction ? 'Bạn' : (room.lastMessageSenderName || 'Thành viên');
-        const actionText = (room.lastMessageContent.includes('bỏ') || room.lastMessageContent.includes('gỡ'))
-            ? 'đã bỏ ghim 1 tin nhắn'
-            : 'đã ghim 1 tin nhắn';
+    // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim (SYSTEM Message hoặc Preview)
+    const content = room.lastMessageContent || '';
+    if (content.includes('ghim') || content.includes('gỡ')) {
+        const myUsername = authStore.user?.username;
+        const senderName = room.lastMessageSenderName;
+        const isMyAction = senderName === 'Bạn' ||
+            (myUsername && (senderName === myUsername || content.startsWith(myUsername)));
+        
+        let sender = isMyAction ? 'Bạn' : senderName;
+        if (!sender || sender === 'Thành viên') {
+            // Nếu senderName chưa có, trích xuất từ nội dung "Username đã ghim..."
+            const firstWord = content.split(' ')[0];
+            sender = (firstWord && !firstWord.includes('đã') && !firstWord.includes('ghim')) ? firstWord : 'Thành viên';
+        }
+
+        const isUnpin = content.includes('bỏ') || content.includes('gỡ');
+        const actionText = isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn';
         return `${sender}: ${actionText}`;
     }
 

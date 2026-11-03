@@ -129,3 +129,37 @@ export const getMessageHistory = (roomId, messageId) => {
     .get(`/rooms/${roomId}/messages/${messageId}/history`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+/**
+ * Thả hoặc đổi cảm xúc trên tin nhắn (LIKE, LOVE, HAHA, WOW, SAD, ANGRY).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn
+ * @param {object} data { reactionType: 'LIKE' | 'LOVE' | 'HAHA' | 'WOW' | 'SAD' | 'ANGRY' }
+ */
+export const reactMessage = (roomId, messageId, data) => {
+  return http
+    .post(`/rooms/${roomId}/messages/${messageId}/reactions`, data)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Gỡ cảm xúc đã thả trên tin nhắn.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn
+ */
+export const removeReaction = (roomId, messageId) => {
+  return http
+    .delete(`/rooms/${roomId}/messages/${messageId}/reactions`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Xem danh sách cảm xúc đã thả trên tin nhắn.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn
+ */
+export const getMessageReactions = (roomId, messageId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/${messageId}/reactions`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}

@@ -6,5 +6,6 @@ public enum MessageType {
     FILE,
     LINK,
     POLL,
-    REMINDER
+    REMINDER,
+    SYSTEM // Tin nhắn thông báo hệ thống (ghim, bỏ ghim, thêm thành viên,...)
 }

@@ -8,7 +8,9 @@
  * - Giao diện chỉnh sửa inline đẹp mắt, giữ nguyên hình dạng và màu sắc của bong bóng tin nhắn bình thường.
  * - Hỗ trợ xem lịch sử các lần chỉnh sửa tin nhắn.
  */
-import { ref, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+import { useChatStore } from '@/stores/chat';
 import MessageBubble from './MessageBubble.vue';
 
 const props = defineProps({
@@ -48,6 +50,11 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
+    // Danh sách cảm xúc đã thả trên tin nhắn
+    reactions: {
+        type: Array,
+        default: () => []
+    },
     // Tin nhắn liên tiếp từ cùng 1 người gửi (ẩn avatar, ẩn tên, thu hẹp khoảng cách)
     isConsecutive: {
         type: Boolean,
@@ -73,10 +80,77 @@ const props = defineProps({
 
 const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory']);
 
+const authStore = useAuthStore();
+const chatStore = useChatStore();
+
 const showMenu = ref(false); // Trạng thái mở menu 3 chấm
+const showReactionPicker = ref(false); // Trạng thái hiển thị thanh chọn nhanh 6 icon
+let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
 const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
 const editContent = ref(''); // Nội dung văn bản đang sửa
 const editTextareaRef = ref(null); // Ref tới ô textarea sửa
+
+// Quản lý đóng/mở thanh cảm xúc có độ trễ 250ms
+const handleMouseEnterReaction = () => {
+    if (closeReactionTimer) {
+        clearTimeout(closeReactionTimer);
+        closeReactionTimer = null;
+    }
+    showReactionPicker.value = true;
+};
+
+const handleMouseLeaveReaction = () => {
+    if (closeReactionTimer) {
+        clearTimeout(closeReactionTimer);
+    }
+    closeReactionTimer = setTimeout(() => {
+        showReactionPicker.value = false;
+    }, 200);
+};
+
+// 6 biểu cảm chuẩn: LIKE, LOVE, HAHA, WOW, SAD, ANGRY
+const AVAILABLE_REACTIONS = [
+    { type: 'LIKE', emoji: '👍', label: 'Thích' },
+    { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
+    { type: 'HAHA', emoji: '😂', label: 'Haha' },
+    { type: 'WOW', emoji: '😮', label: 'Wow' },
+    { type: 'SAD', emoji: '😢', label: 'Buồn' },
+    { type: 'ANGRY', emoji: '😡', label: 'Phẫn nộ' }
+];
+
+const getEmojiChar = (type) => {
+    const found = AVAILABLE_REACTIONS.find((r) => r.type === type);
+    return found ? found.emoji : '👍';
+};
+
+// Gom nhóm reactions để render badge: { LOVE: { count: 1, reactedByMe: true, users: ['Harry'] } }
+const groupedReactions = computed(() => {
+    const groups = {};
+    const myId = authStore.user?.userId;
+    for (const r of (props.reactions || [])) {
+        if (!groups[r.reactionType]) {
+            groups[r.reactionType] = { count: 0, reactedByMe: false, users: [] };
+        }
+        groups[r.reactionType].count++;
+        groups[r.reactionType].users.push(r.username || 'Thành viên');
+        if (myId && String(r.userId) === String(myId)) {
+            groups[r.reactionType].reactedByMe = true;
+        }
+    }
+    return groups;
+});
+
+// Thả hoặc gỡ cảm xúc với Optimistic UI
+const handleSelectReaction = async (type) => {
+    if (closeReactionTimer) {
+        clearTimeout(closeReactionTimer);
+        closeReactionTimer = null;
+    }
+    showReactionPicker.value = false;
+    if (props.messageId) {
+        await chatStore.toggleReaction(props.messageId, type);
+    }
+};
 
 // Tự động điều chỉnh chiều cao textarea theo nội dung gõ
 const autoResize = () => {
@@ -132,9 +206,10 @@ const handleViewHistory = () => {
     });
 };
 
-// Đóng menu 3 chấm khi click bên ngoài
+// Đóng menu 3 chấm và thanh chọn cảm xúc khi click bên ngoài
 const handleDocumentClick = () => {
     showMenu.value = false;
+    showReactionPicker.value = false;
 };
 
 onMounted(() => {
@@ -197,9 +272,49 @@ onUnmounted(() => {
                 {{ Content_Message }}
             </div>
 
-            <!-- Nút ... và nút Ghim để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
-            <div v-if="!isRevoked" class="message-actions" :class="`message-actions--${variant}`">
-                <!-- Nút Ghim -->
+            <!-- Nút Thả cảm xúc, Ghim, ... để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
+            <div 
+                v-if="!isRevoked" 
+                class="message-actions" 
+                :class="[`message-actions--${variant}`, { 'has-active-picker': showReactionPicker }]"
+            >
+                <!-- 1. Nút Thả cảm xúc -->
+                <div 
+                    class="reaction-trigger-container"
+                    @mouseenter="handleMouseEnterReaction"
+                    @mouseleave="handleMouseLeaveReaction"
+                >
+                    <span 
+                        class="action-btn react-btn" 
+                        title="Thả cảm xúc" 
+                        @click.stop="showReactionPicker = !showReactionPicker"
+                    >
+                        <font-awesome-icon :icon="['far', 'face-smile']" />
+                    </span>
+
+                    <!-- Thanh chọn nhanh 6 icon: LIKE, LOVE, HAHA, WOW, SAD, ANGRY -->
+                    <transition name="reaction-pop">
+                        <div 
+                            v-if="showReactionPicker" 
+                            class="quick-reaction-bar"
+                            :class="`quick-reaction-bar--${variant}`"
+                            @click.stop
+                        >
+                            <button 
+                                v-for="item in AVAILABLE_REACTIONS" 
+                                :key="item.type"
+                                type="button"
+                                class="quick-reaction-btn"
+                                :title="item.label"
+                                @click="handleSelectReaction(item.type)"
+                            >
+                                {{ item.emoji }}
+                            </button>
+                        </div>
+                    </transition>
+                </div>
+
+                <!-- 2. Nút Ghim -->
                 <span 
                     class="action-btn pin-btn" 
                     :class="{ 'is-pinned': isPinned }" 
@@ -209,7 +324,7 @@ onUnmounted(() => {
                     <font-awesome-icon icon="thumbtack"/>
                 </span>
 
-                <!-- Nút 3 chấm (...) -->
+                <!-- 3. Nút 3 chấm (...) -->
                 <div class="menu-container">
                     <span 
                         class="action-btn more-btn" 
@@ -236,6 +351,25 @@ onUnmounted(() => {
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Reaction Badges gắn dưới chân tin nhắn -->
+        <div 
+            v-if="props.reactions && props.reactions.length > 0 && !isRevoked" 
+            class="reaction-badges" 
+            :class="`reaction-badges--${variant}`"
+        >
+            <button 
+                v-for="(data, type) in groupedReactions" 
+                :key="type"
+                type="button"
+                :class="['reaction-badge-item', { 'reaction-badge-item--active': data.reactedByMe }]"
+                :title="data.users.join(', ')"
+                @click.stop="handleSelectReaction(type)"
+            >
+                <span class="badge-emoji">{{ getEmojiChar(type) }}</span>
+                <span class="badge-count">{{ data.count }}</span>
+            </button>
         </div>
 
         <!-- Dòng thời gian phía dưới (kèm nhãn 'đã chỉnh sửa') -->
@@ -389,6 +523,7 @@ onUnmounted(() => {
     max-width: 100% !important;
     padding: 10px 14px;
     box-shadow: 0 0 0 2px rgba(75, 123, 236, 0.4);
+    overflow: hidden;
 }
 
 .inline-edit-textarea {
@@ -403,6 +538,15 @@ onUnmounted(() => {
     resize: none;
     box-sizing: border-box;
     display: block;
+    overflow: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.inline-edit-textarea::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .edit-toolbar {
@@ -491,8 +635,135 @@ onUnmounted(() => {
     flex-shrink: 0;
 }
 
-.bubble-row:hover .message-actions {
+.bubble-row:hover .message-actions,
+.message-actions.has-active-picker {
     opacity: 1;
+}
+
+/* Container kích hoạt thanh chọn cảm xúc */
+.reaction-trigger-container {
+    position: relative;
+    display: inline-flex;
+}
+
+.react-btn:hover {
+    color: #f59e0b;
+}
+
+/* Thanh chọn nhanh 6 icon cảm xúc nổi lên trên */
+.quick-reaction-bar {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #ffffff;
+    padding: 3px 6px;
+    border-radius: 24px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    z-index: 60;
+    white-space: nowrap;
+}
+
+.quick-reaction-bar--SendTo {
+    right: 0;
+}
+
+.quick-reaction-bar--default {
+    left: 0;
+}
+
+.quick-reaction-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 19px;
+    line-height: 1;
+    padding: 3px 4px;
+    border-radius: 50%;
+    transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    user-select: none;
+}
+
+.quick-reaction-btn:hover {
+    transform: scale(1.35) translateY(-2px);
+}
+
+.reaction-pop-enter-active,
+.reaction-pop-leave-active {
+    transition: all 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.reaction-pop-enter-from,
+.reaction-pop-leave-to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.85);
+}
+
+/* Huy hiệu gom nhóm cảm xúc (Reaction Badges) */
+.reaction-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.reaction-badges--SendTo {
+    justify-content: flex-end;
+}
+
+.reaction-badges--default {
+    justify-content: flex-start;
+}
+
+.reaction-badge-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 11.5px;
+    font-family: 'Quicksand', sans-serif;
+    color: #475569;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.reaction-badge-item:hover {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    transform: scale(1.05);
+}
+
+.reaction-badge-item--active {
+    background-color: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+.badge-emoji {
+    font-size: 13px;
+    line-height: 1;
+}
+
+.badge-count {
+    font-size: 11px;
+    font-weight: 600;
+}
+.quick-reaction-bar::after {
+    content: '';
+    position: absolute;
+    top: 100%;             /* Nằm ngay mép dưới của thanh icon */
+    left: 0;
+    width: 100%;
+    height: 10px;           /* Phủ kín khoảng hở 6px và chờ chờm nhẹ xuống nút dưới */
+    background: transparent;
 }
 
 .action-btn {

@@ -148,45 +148,60 @@ const isCloseInTime = (msg1, msg2) => {
 };
 
 /**
+ * Danh sách các loại tin nhắn thông thường cho phép gộp bubble bo góc (Whitelist)
+ * Các loại Card tương tác độc lập (POLL, REMINDER, CALL_LOG...) và SYSTEM sẽ không nằm trong nhóm này.
+ */
+const MERGEABLE_TYPES = new Set(['TEXT', 'IMAGE', 'FILE', 'LINK']);
+
+/**
+ * Kiểm tra xem một tin nhắn có thuộc nhóm cho phép gộp bubble bo góc hay không
+ */
+const isMergeable = (msg) => {
+  if (!msg || msg.isEvent) return false;
+  const type = msg.messageType || 'TEXT';
+  return MERGEABLE_TYPES.has(type);
+};
+
+/**
  * Tin nhắn thứ idx có phải là tin nhắn liên tiếp (consecutive) tiếp nối tin trước đó không?
  */
 const isConsecutiveMessage = (idx) => {
   if (idx <= 0) return false;
   const current = chatStore.messages[idx];
   const prev = chatStore.messages[idx - 1];
-  if (current?.isEvent || prev?.isEvent) return false;
+  if (!isMergeable(current) || !isMergeable(prev)) return false;
   return isSameSender(current, prev) && isCloseInTime(current, prev);
 };
 
 /**
  * Có hiển thị mốc thời gian ở tin nhắn thứ idx không?
- * Chỉ hiển thị ở tin nhắn cuối cùng của chuỗi tin nhắn liên tiếp (hoặc khi tin sau khác người gửi / cách > 2 phút / là sự kiện)
+ * Chỉ hiển thị ở tin nhắn cuối cùng của chuỗi tin nhắn liên tiếp (hoặc khi tin sau khác người gửi / cách > 2 phút / là thẻ Card hoặc SYSTEM)
  */
 const shouldShowTime = (idx) => {
-  if (idx >= chatStore.messages.length - 1) return true;
   const current = chatStore.messages[idx];
+  if (!isMergeable(current)) return true;
+  if (idx >= chatStore.messages.length - 1) return true;
   const next = chatStore.messages[idx + 1];
-  if (current?.isEvent) return false;
-  if (next?.isEvent) return true;
+  if (!isMergeable(next)) return true;
   return !isSameSender(current, next) || !isCloseInTime(current, next);
 };
 
 /**
  * Xác định vị trí của tin nhắn trong cụm tin nhắn liên tiếp (Messenger style bo góc):
- * - 'single': Tin nhắn đơn lẻ
+ * - 'single': Tin nhắn đơn lẻ (hoặc tin nhắn dạng Card / SYSTEM không merge)
  * - 'first': Tin nhắn đầu tiên của cụm
  * - 'middle': Tin nhắn ở giữa cụm
- * - 'last': Tin nhắn cuối cùng của cụm
+ * - 'last': Tin nhắn cuối cùng của cụm (bao gồm khi tin kế tiếp là SYSTEM hoặc Card)
  */
 const getGroupPosition = (idx) => {
   const current = chatStore.messages[idx];
-  if (!current || current.isEvent) return 'single';
+  if (!isMergeable(current)) return 'single';
 
   const prev = idx > 0 ? chatStore.messages[idx - 1] : null;
   const next = idx < chatStore.messages.length - 1 ? chatStore.messages[idx + 1] : null;
 
-  const hasPrev = prev && !prev.isEvent && isSameSender(current, prev) && isCloseInTime(current, prev);
-  const hasNext = next && !next.isEvent && isSameSender(current, next) && isCloseInTime(current, next);
+  const hasPrev = isMergeable(prev) && isSameSender(current, prev) && isCloseInTime(current, prev);
+  const hasNext = isMergeable(next) && isSameSender(current, next) && isCloseInTime(current, next);
 
   if (hasPrev && hasNext) return 'middle';
   if (hasPrev && !hasNext) return 'last';
@@ -210,6 +225,7 @@ onMounted(async () => {
       await chatStore.fetchMessages(chatStore.activeRoomId);
     }
     await chatStore.fetchPinnedMessages(chatStore.activeRoomId);
+    await chatStore.markRoomAsRead(chatStore.activeRoomId);
   }
   scrollToBottom();
 
@@ -235,6 +251,34 @@ const handleTogglePin = async (messageId) => {
   } else {
     await chatStore.pinMessage(messageId);
   }
+};
+
+/**
+ * Định dạng nội dung tin nhắn hệ thống (SYSTEM):
+ * Nếu là do chính mình thực hiện -> hiển thị "Bạn đã ghim/bỏ ghim một tin nhắn"
+ * Nếu là thành viên khác -> hiển thị đúng tên thành viên đó
+ */
+const formatSystemMessageContent = (msg) => {
+  if (!msg) return '';
+  const myUsername = authStore.user?.username;
+  const myUserId = authStore.user?.userId;
+  const content = msg.content || '';
+
+  const isMe =
+    (myUserId && msg.sender?.userId && String(msg.sender.userId) === String(myUserId)) ||
+    (myUsername && msg.sender?.username === myUsername) ||
+    msg.actorUsername === 'Bạn' ||
+    (myUsername && typeof content === 'string' && content.startsWith(myUsername));
+
+  if (isMe) {
+    if (content.includes('bỏ') || content.includes('gỡ')) {
+      return 'Bạn đã bỏ ghim một tin nhắn';
+    }
+    if (content.includes('ghim')) {
+      return 'Bạn đã ghim một tin nhắn';
+    }
+  }
+  return content;
 };
 
 /**
@@ -329,9 +373,9 @@ const handleChatBodyScroll = async () => {
     chatStore.hasMoreNewer || chatStore.isDetachedFromBottom || distanceFromBottom > 150
   );
 
-  // 1. Cuộn sát đỉnh (còn cách mép trên <= 60px) -> Tải tin cũ hơn
+  // 1. Cuộn sát đỉnh (còn cách mép trên <= 120px) -> Tải tin cũ hơn
   if (
-    scrollTop <= 60 &&
+    scrollTop <= 120 &&
     chatStore.hasMoreOlder &&
     !chatStore.isLoadingOlder &&
     !chatStore.loadingMessages &&
@@ -421,11 +465,14 @@ watch(
   }
 );
 
-// Tự động cuộn xuống đáy khi chuyển đổi phòng chat
+// Tự động tải tin ghim và cuộn xuống đáy khi chuyển đổi phòng chat
 watch(
   () => chatStore.activeRoomId,
-  () => {
+  async (newRoomId) => {
     showScrollBottomBtn.value = false;
+    if (newRoomId) {
+      await chatStore.fetchPinnedMessages(newRoomId);
+    }
     scrollToBottom();
   }
 );
@@ -486,10 +533,10 @@ watch(
       </div>
       <template v-for="(msg, idx) in chatStore.messages" :key="msg.messageId">
         <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat -->
-        <div v-if="msg.isEvent" class="chat-event-row">
-          <div class="chat-event-pill">
+        <div v-if="msg.isEvent || msg.messageType === 'SYSTEM'" class="system-message-row chat-event-row">
+          <div class="system-message-badge chat-event-pill">
             <font-awesome-icon icon="thumbtack" class="event-pin-icon" />
-            <span>{{ msg.content }}</span>
+            <span>{{ formatSystemMessageContent(msg) }}</span>
           </div>
         </div>
 
@@ -500,6 +547,7 @@ watch(
           :isPinned="!!msg.isPinned"
           :isRevoked="!!msg.isRevoked"
           :isEdited="!!msg.isEdited"
+          :reactions="msg.reactions || []"
           :isConsecutive="isConsecutiveMessage(idx)"
           :groupPosition="getGroupPosition(idx)"
           :showTime="shouldShowTime(idx)"
