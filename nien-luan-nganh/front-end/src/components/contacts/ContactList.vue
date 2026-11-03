@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
-import Modal_AddFriend from './Modal_AddFriend.vue';
+import Modal_AddFriend from './Modal_AddFriend.vue'
 
 const showNewAddFriendModal = ref(false)
 
@@ -95,9 +95,7 @@ const filteredContacts = computed(() => {
   if (!searchQuery.value.trim()) return props.contacts
   const q = searchQuery.value.toLowerCase().trim()
   return props.contacts.filter(
-    (c) =>
-      c.name.toLowerCase().includes(q) ||
-      (c.role && c.role.toLowerCase().includes(q))
+    (c) => c.name.toLowerCase().includes(q) || (c.role && c.role.toLowerCase().includes(q)),
   )
 })
 
@@ -146,8 +144,12 @@ function getInitials(contact) {
             <h1 class="page-title">Danh bạ</h1>
             <span class="contact-count">{{ filteredContacts.length }}</span>
           </div>
-          <button class="add-button" title="Thêm liên hệ"
-          style="cursor: pointer;"  @click="showNewAddFriendModal = true">
+          <button
+            class="add-button"
+            title="Thêm liên hệ"
+            style="cursor: pointer"
+            @click="showNewAddFriendModal = true"
+          >
             <font-awesome-icon icon="plus" />
           </button>
         </div>
@@ -215,8 +217,8 @@ function getInitials(contact) {
         <span>Không tìm thấy liên hệ phù hợp</span>
       </div>
     </div>
-     <NewAddModal v-if="showNewChatModal" @close="showNewChatModal = false" />
-     <Modal_AddFriend v-if="showNewAddFriendModal" @close="showNewAddFriendModal = false"/>
+    <NewAddModal v-if="showNewChatModal" @close="showNewChatModal = false" />
+    <Modal_AddFriend v-if="showNewAddFriendModal" @close="showNewAddFriendModal = false" />
   </div>
 </template>
 
@@ -511,4 +513,3 @@ function getInitials(contact) {
   font-size: 14px;
 }
 </style>
-
