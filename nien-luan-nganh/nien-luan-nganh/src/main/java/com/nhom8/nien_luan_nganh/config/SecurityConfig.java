@@ -70,8 +70,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Cho phép các domain nguồn từ application.properties
-        configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        // Cho phép mọi domain nguồn (bao gồm localhost, IP máy khác trong mạng LAN,...)
+        configuration.setAllowedOriginPatterns(List.of("*"));
         // Cho phép các phương thức HTTP
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // Cho phép mọi header (bao gồm Authorization, Content-Type,...)

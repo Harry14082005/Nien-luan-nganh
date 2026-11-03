@@ -10,6 +10,23 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true, // Cho phép mọi domain tunnel (Cloudflare, Ngrok...) truy cập mà không bị Vite chặn
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws-raw': {
+        target: 'ws://127.0.0.1:8080',
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

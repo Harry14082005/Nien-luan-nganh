@@ -1,9 +1,22 @@
 <script setup>
+defineProps({
+  modelValue: {
+    type: String,
+    default: ''
+  }
+})
+defineEmits(['update:modelValue'])
 </script>
 <template>
     <div class="SearchBar">
         <font-awesome-icon id="search" icon="magnifying-glass"></font-awesome-icon>
-        <input type="text" spellcheck="false">
+        <input 
+          type="text" 
+          spellcheck="false"
+          placeholder="Tìm kiếm..."
+          :value="modelValue"
+          @input="$emit('update:modelValue', $event.target.value)"
+        >
     </div>
 </template>
 <style scoped>

@@ -1,5 +1,5 @@
 <script setup>
-defineProps({
+const props = defineProps({
     RoomName:{
         type:String,
         default:'Tên nhóm'
@@ -8,11 +8,19 @@ defineProps({
         type:String,
         default:'6 thành viên - 3 đang hoạt động'
     }
-})</script>
+})
+
+const getInitials = (name) => {
+    if (!name) return 'CS';
+    const words = name.trim().split(/\s+/);
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+</script>
 <template>
-<div :class="['chatheader',`chatheader-${type}`]">
+<div class="chatheader">
     <div class="left-header">
-    <div class="AvatarRoom">TK</div>
+    <div class="AvatarRoom">{{ getInitials(RoomName) }}</div>
     <div class="info-group">
         <div class="RoomName">{{ RoomName }}</div>
         <div class="StatusRoom">{{ StatusRoom }}</div>
@@ -45,6 +53,7 @@ defineProps({
 }
 .chatheader{
     display: flex;
+    flex-shrink: 0;
     background-color:white;
     width: 100%;
     height: 8vh;
@@ -96,5 +105,4 @@ defineProps({
     background-color: #e6edfd;
     border-radius: 1.25rem;
 }
-
 </style>

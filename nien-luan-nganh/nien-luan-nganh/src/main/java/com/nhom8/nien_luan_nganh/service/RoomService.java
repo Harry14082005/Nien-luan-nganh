@@ -42,6 +42,7 @@ public class RoomService {
     private final MessageRepository messageRepository;
     private final PollRepository pollRepository;
     private final ReminderRepository reminderRepository;
+    private final UserPresenceService userPresenceService;
 
     // tạo group
     @Transactional
@@ -166,6 +167,9 @@ public class RoomService {
             if (room.getRoomType() == RoomType.DIRECT) {
                 User peer = peerUserByRoomId.get(roomId);
                 if (peer != null) {
+                    //Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan online hong
+                    item.setPeerId(peer.getUserId());
+                    item.setIsOnline(userPresenceService.isUserOnline(peer.getUserId()));
                     if (item.getRoomName() == null || item.getRoomName().isBlank()) {
                         item.setRoomName(peer.getUsername());
                     }

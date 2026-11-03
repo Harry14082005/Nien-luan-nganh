@@ -18,6 +18,10 @@ public class RoomListResponse {
     private String roomName;
     private String roomAvatarURL;
 
+    // Thông tin đối phương (cho phòng DIRECT) và trạng thái Online
+    private UUID peerId; // Friend dang chat trong phong
+    private Boolean isOnline; 
+
     // private String theme;
     // private UUID createdBy;
     // private boolean requireApproval;

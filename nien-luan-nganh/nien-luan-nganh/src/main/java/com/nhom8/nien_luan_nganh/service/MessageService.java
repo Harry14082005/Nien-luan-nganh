@@ -175,7 +175,7 @@ public class MessageService {
     public MessageResponse updateMessage(UUID currentUserId, UUID roomId, UUID messageId,
             UpdateMessageRequest request) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -261,7 +261,7 @@ public class MessageService {
     @Transactional
     public MessageResponse revokeMessage(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -351,7 +351,7 @@ public class MessageService {
     @Transactional(readOnly = true)
     public List<MessageHistoryResponse> getMessageHistory(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -400,11 +400,11 @@ public class MessageService {
     @Transactional
     public MessageResponse pinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
+        Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
@@ -428,9 +428,20 @@ public class MessageService {
             throw new AppException(ErrorCode.MESSAGE_REVOKED);
         }
 
-        // 7. Đánh dấu ghim
+        // 7. Giới hạn tối đa 5 tin nhắn ghim mỗi phòng
+        if (!Boolean.TRUE.equals(message.getIsPinned())) {
+            long pinnedCount = messageRepository.countPinnedMessagesByRoomId(roomId);
+            if (pinnedCount >= 5) {
+                throw new AppException(ErrorCode.PIN_LIMIT_EXCEEDED);
+            }
+        }
+
+        // 8. Đánh dấu ghim
         message.setIsPinned(true);
         Message savedMessage = messageRepository.save(message);
+
+        // 9. Cập nhật hoạt động mới nhất cho phòng để hiển thị ngoài Sidebar
+        roomService.updateLastActivity(room, savedMessage.getMessageId(), "đã ghim 1 tin nhắn", currentUser, LocalDateTime.now());
 
         return messageMapper.toMessageResponse(savedMessage);
     }
@@ -449,7 +460,7 @@ public class MessageService {
     @Transactional
     public MessageResponse unpinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -494,7 +505,7 @@ public class MessageService {
     @Transactional(readOnly = true)
     public List<MessageResponse> getPinnedMessages(UUID currentUserId, UUID roomId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -603,7 +614,7 @@ public class MessageService {
     @Transactional
     public void removeReaction(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -656,7 +667,7 @@ public class MessageService {
     public List<ReactionResponse> getMessageReactions(
             UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -711,7 +722,7 @@ public class MessageService {
     @Transactional(readOnly = true)
     public CursorResponse<MessageResponse> getMessages(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
         // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
+        User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không

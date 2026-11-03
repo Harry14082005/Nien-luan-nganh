@@ -62,6 +62,12 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "ORDER BY m.createdAt DESC")
         List<Message> findPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
 
+        @Query("SELECT COUNT(m) FROM Message m " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND m.isPinned = true " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL)")
+        long countPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
+
         // Admin
         // 1. Thống kê số tin nhắn theo khoảng thời gian
         @Query("SELECT COUNT(m) FROM Message m WHERE m.createdAt >= :start AND m.createdAt < :end")
