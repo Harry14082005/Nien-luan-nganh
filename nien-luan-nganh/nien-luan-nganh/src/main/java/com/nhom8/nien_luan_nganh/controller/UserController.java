@@ -15,9 +15,11 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -194,5 +196,23 @@ public class UserController {
             @Valid @RequestBody BatchPresenceRequest request) {
         List<UserPresenceResponse> response = userPresenceService.getUsersPresence(request.getUserIds());
         return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách trạng thái người dùng thành công"));
+    }
+
+    /**
+     * API 10: Cập nhật avatar
+     */
+    @PostMapping(
+            value = "/me/avatar",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<ApiResponse<UserResponse>> updateAvatar(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file) {
+
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        UserResponse response = userService.updateAvatar(currentUserId, file);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật avatar thành công"));
     }
 }

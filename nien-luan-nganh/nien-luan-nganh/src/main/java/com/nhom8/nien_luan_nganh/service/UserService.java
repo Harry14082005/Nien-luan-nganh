@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +45,9 @@ public class UserService {
 
     @Autowired
     private UserPresenceService userPresenceService;
+
+    @Autowired
+    private FileStorageService fileStorageService;
 
     /**
      * Nghiệp vụ 1: Lấy thông tin hồ sơ của chính người dùng đang đăng nhập.
@@ -225,5 +229,50 @@ public class UserService {
         UserResponse response = userMapper.toUserResponse(user);
         response.setIsOnline(userPresenceService.isUserOnline(user.getUserId()));
         return response;
+    }
+
+    /**
+     * Nhiệp vụ 8: Đổi avatar
+     * */
+    @Transactional
+    public UserResponse updateAvatar(
+            UUID currentUserId,
+            MultipartFile file){
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        User user = userRepository.findById(currentUserId).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        String oldAvatarKey = user.getAvatarUrl();
+        String newAvatarKey = null;
+
+        try {
+            // Lưu avatar mới trước để không mất avatar cũ nếu upload thất bại.
+            newAvatarKey = fileStorageService.saveAvatar(file);
+
+            user.setAvatarUrl(newAvatarKey);
+            User savedUser = userRepository.save(user);
+
+            // Chỉ xóa avatar cũ sau khi đã cập nhật avatar mới.
+            if (oldAvatarKey != null
+                    && !oldAvatarKey.isBlank()
+                    && !oldAvatarKey.equals(newAvatarKey)) {
+
+                fileStorageService.deleteFile(oldAvatarKey);
+            }
+
+            return userMapper.toUserResponse(savedUser);
+
+        } catch (RuntimeException exception) {
+            // Nếu lưu avatar mới thành công nhưng cập nhật DB thất bại,
+            // xóa avatar mới để tránh file mồ côi.
+            if (newAvatarKey != null) {
+                fileStorageService.deleteFile(newAvatarKey);
+            }
+
+            throw exception;
+        }
     }
 }

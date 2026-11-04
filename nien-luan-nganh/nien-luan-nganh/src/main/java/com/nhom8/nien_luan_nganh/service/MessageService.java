@@ -18,12 +18,15 @@ import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.text.ParsePosition;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +42,7 @@ import java.util.Collections;
  * Boot.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class MessageService {
 
@@ -51,6 +55,7 @@ public class MessageService {
     private final MessageReactionRepository messageReactionRepository;
     private final MessageMapper messageMapper;
     private final RoomService roomService;
+    private final FileStorageService fileStorageService;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
@@ -76,34 +81,38 @@ public class MessageService {
      */
     @Transactional
     public MessageResponse sendMessage(UUID currentUserId, UUID roomId, SendMessageRequest request) {
-        // 1. Kiểm tra người gửi có tồn tại không
-        User sender = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+//        // 1. Kiểm tra người gửi có tồn tại không
+//        User sender = userRepository.findById(currentUserId)
+//                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+//
+//        // 2. Kiểm tra phòng chat có tồn tại không
+//        Room room = roomRepository.findById(roomId)
+//                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+//
+//        // 3. Kiểm tra bảo mật: Người gửi BẮT BUỘC phải là thành viên trong phòng chat
+//        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+//                roomId);
+//        if (!isMember) {
+//            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+//        }
+//
+//        // 4. Nếu là phòng chat 1-1 (DIRECT): Kiểm tra trạng thái Chặn (Block)
+//        if (room.getRoomType() == RoomType.DIRECT) {
+//            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+//            for (RoomMember member : members) {
+//                UUID otherUserId = member.getRoomMemberId().getUserId();
+//                if (!otherUserId.equals(currentUserId)) {
+//                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
+//                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
+//                        throw new AppException(ErrorCode.USER_BLOCKED);
+//                    }
+//                }
+//            }
+//        }
+        MessageContext context = getMessageContext(currentUserId, roomId);
 
-        // 2. Kiểm tra phòng chat có tồn tại không
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra bảo mật: Người gửi BẮT BUỘC phải là thành viên trong phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Nếu là phòng chat 1-1 (DIRECT): Kiểm tra trạng thái Chặn (Block)
-        if (room.getRoomType() == RoomType.DIRECT) {
-            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
-            for (RoomMember member : members) {
-                UUID otherUserId = member.getRoomMemberId().getUserId();
-                if (!otherUserId.equals(currentUserId)) {
-                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
-                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
-                        throw new AppException(ErrorCode.USER_BLOCKED);
-                    }
-                }
-            }
-        }
+        User sender = context.sender();
+        Room room = context.room();
 
         // 5. Xác định loại tin nhắn và validate nội dung
         MessageType messageType = (request.getMessageType() != null) ? request.getMessageType() : MessageType.TEXT;
@@ -918,5 +927,165 @@ public class MessageService {
                 .avatarUrl(avatarUrl)
                 .typing(payload.isTyping())
                 .build();
+    }
+
+    private MessageResponse sendAttachment(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            MessageType messageType,
+            UUID repliedMessageId){
+
+        if(file == null || file.isEmpty()){
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        log.info("1. Bắt đầu sendAttachment");
+        MessageContext context = getMessageContext(currentUserId, roomId);
+        log.info("2. Đã lấy được MessageContext");
+
+        User sender = context.sender();
+        Room room = context.room();
+
+        Message repliedMessage = null;
+
+        if (repliedMessageId != null) {
+            repliedMessage = messageRepository.findById(repliedMessageId).orElseThrow(
+                    () -> new AppException(ErrorCode.REPLIED_MESSAGE_NOT_FOUND));
+
+            if (!repliedMessage.getRoom().getRoomId().equals(roomId)) {
+                throw new AppException(ErrorCode.REPLIED_MESSAGE_NOT_IN_SAME_ROOM);
+            }
+
+            if (Boolean.TRUE.equals(repliedMessage.getIsRevoked())) {
+                throw new AppException(ErrorCode.MESSAGE_REVOKED);
+            }
+        }
+
+        // Lưu message trước để Hibernate sinh messageId.
+        Message message = Message.builder()
+                .room(room)
+                .sender(sender)
+                .messageType(messageType)
+                .content(null)
+                .repliedMessage(repliedMessage)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .build();
+
+        Message savedMessage = messageRepository.save(message);
+        log.info("3. Đã lưu message lần đầu, id={}", message.getMessageId());
+
+        String storageKey = null;
+
+        try {
+            if (messageType == MessageType.IMAGE) {
+                storageKey = fileStorageService.saveMessageImage(
+                        file,
+                        roomId,
+                        savedMessage.getMessageId());
+            } else if (messageType == MessageType.FILE) {
+                storageKey = fileStorageService.saveMessageFile(
+                        file,
+                        roomId,
+                        savedMessage.getMessageId());
+                log.info("4. Đã lưu file, key={}", storageKey);
+            } else {
+                throw new AppException(ErrorCode.INVALID_INPUT);
+            }
+
+            //content lưu thành đường dẫn
+            savedMessage.setContent(storageKey);
+            savedMessage = messageRepository.save(savedMessage);
+            log.info("5. Đã lưu content");
+
+            String preview;
+            if (messageType == MessageType.IMAGE) {
+                preview = "[Hình ảnh]";
+            } else {
+                preview = "[Tệp đính kèm]";
+            }
+
+            roomService.updateLastActivity(
+                    room,
+                    savedMessage.getMessageId(),
+                    preview,
+                    sender,
+                    savedMessage.getCreatedAt());
+            log.info("6. Đã cập nhật room");
+
+            return messageMapper.toMessageResponse(savedMessage);
+        }catch (RuntimeException e){
+            //nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
+            log.error("Lỗi khi gửi attachment", e);
+            if(storageKey != null){
+                fileStorageService.deleteFile(storageKey);
+            }
+
+            throw e;
+        }
+    }
+
+    @Transactional
+    public MessageResponse sendImage(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            UUID repliedMessageId
+    ){
+        return sendAttachment(
+                currentUserId,
+                roomId,
+                file,
+                MessageType.IMAGE,
+                repliedMessageId);
+    }
+
+    @Transactional
+    public MessageResponse sendFile(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            UUID repliedMessageId) {
+
+        return sendAttachment(
+                currentUserId,
+                roomId,
+                file,
+                MessageType.FILE,
+                repliedMessageId);
+    }
+
+
+    private record MessageContext(User sender, Room room){}
+    private MessageContext getMessageContext(UUID currentUserId, UUID roomId){
+        User sender = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId);
+
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        if (room.getRoomType() == RoomType.DIRECT) {
+            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+
+            for (RoomMember member : members) {
+                UUID otherUserId = member.getRoomMemberId().getUserId();
+
+                if (!otherUserId.equals(currentUserId)) {
+                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
+
+                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
+                        throw new AppException(ErrorCode.USER_BLOCKED);
+                    }
+                }
+            }
+        }
+
+        return new MessageContext(sender, room);
     }
 }

@@ -10,12 +10,15 @@ import com.nhom8.nien_luan_nganh.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import com.nhom8.nien_luan_nganh.dto.request.ReactionRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -318,5 +321,57 @@ public class MessageController {
 
         List<ReactionResponse> response = messageService.getMessageReactions(currentUserId, roomId, messageId);
         return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách cảm xúc thành công"));
+    }
+
+    /*
+    * API 11: Gửi tin nhắn hình ảnh
+    *
+    * */
+    @PostMapping(
+            value = "/images",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<MessageResponse>> sendImage(
+            Authentication authentication,
+            @PathVariable UUID roomId,
+            @RequestParam("file")MultipartFile file,
+            @RequestParam(required = false) UUID repliedMessageId
+            ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        MessageResponse response = messageService.sendImage(
+                currentUserId,
+                roomId,
+                file,
+                repliedMessageId);
+
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Gửi ảnh thành công"));
+    }
+
+    /*
+    * API 12; Gửi tin nhắn file
+    * */
+    @PostMapping(
+            value = "/files",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<MessageResponse>> sendFile(
+            Authentication authentication,
+            @PathVariable UUID roomId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) UUID repliedMessageId) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        MessageResponse response = messageService.sendFile(
+                currentUserId,
+                roomId,
+                file,
+                repliedMessageId);
+
+        messagingTemplate.convertAndSend("/topic/room." + roomId, response);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Gửi tệp thành công"));
     }
 }
