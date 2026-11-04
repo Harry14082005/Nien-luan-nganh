@@ -1,10 +1,12 @@
+Claude Contactsview · VUE
 <script setup>
-import { ref, computed,onMounted  } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ContactList from '@/components/contacts/ContactList.vue'
 import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
 import { getFriends, toContact } from '@/api/contacts.api'
+import { getMe } from '@/api/auth.api'
 const router = useRouter()
 
 const contacts = ref([])
@@ -23,15 +25,23 @@ const myInitials = computed(() => {
   return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[w.length - 1][0]).toUpperCase()
 })
 
+// Tải danh bạ (bạn bè đã ACCEPTED) + thông tin cá nhân
 async function loadData() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const [page, profile] = await Promise.all([getFriends(), getMe()])
-    contacts.value = page.content.map(toContact)
+    const [res, profile] = await Promise.all([getFriends(), getMe()])
+
+    // API trả data là mảng (hoặc { content: [...] } tuỳ phiên bản) -> xử lý cả hai
+    const list = Array.isArray(res) ? res : res?.content || []
+    contacts.value = list.map(toContact)
     me.value = profile
-    selectedContactId.value = contacts.value[0]?.id ?? null
+
+    // Giữ nguyên người đang chọn khi tải lại (ví dụ sau khi chấp nhận kết bạn)
+    const stillExists = contacts.value.some((c) => c.id === selectedContactId.value)
+    if (!stillExists) selectedContactId.value = contacts.value[0]?.id ?? null
   } catch (e) {
+    console.error('Lỗi tải danh bạ:', e)
     errorMsg.value = e.response?.data?.message || 'Không tải được danh bạ'
   } finally {
     loading.value = false
@@ -44,7 +54,7 @@ function onSelectContact(contact) {
   selectedContactId.value = contact.id
 }
 
-function handleMessageContact(contact) {
+function handleMessageContact() {
   router.push('/chat')
 }
 </script>
@@ -60,6 +70,7 @@ function handleMessageContact(contact) {
         :contacts="contacts"
         :selected-id="selectedContactId"
         @select="onSelectContact"
+        @refresh="loadData"
       />
     </div>
 
@@ -95,8 +106,8 @@ function handleMessageContact(contact) {
       <!-- Main Body Content -->
       <div class="contacts-body">
         <!-- Title & Introduction Section -->
-          <p v-if="loading" class="state-msg">Đang tải danh bạ...</p>
-         <p v-if="errorMsg" class="state-msg state-error">{{ errorMsg }}</p>
+        <p v-if="loading" class="state-msg">Đang tải danh bạ...</p>
+        <p v-if="errorMsg" class="state-msg state-error">{{ errorMsg }}</p>
 
         <div class="welcome-section">
           <span class="sub-caption">KẾT NỐI CỦA BẠN</span>
@@ -112,7 +123,7 @@ function handleMessageContact(contact) {
             @message="handleMessageContact"
           />
           <p v-else-if="!loading && !errorMsg" class="state-msg">
-          Bạn chưa có liên hệ nào. Bấm dấu + để thêm bạn bè.
+            Bạn chưa có liên hệ nào. Bấm dấu + để thêm bạn bè.
           </p>
         </div>
       </div>
@@ -257,13 +268,16 @@ function handleMessageContact(contact) {
   display: flex;
   justify-content: flex-start;
 }
+
 .state-msg {
   font-size: 14px;
   color: #64748b;
   margin: 0 0 16px 0;
 }
+
 .state-error {
   color: #dc2626;
 }
 </style>
 
+Claude đang trả lời Beta AI có thể mắc lỗi, hãy kiểm tra lại. 0 / 10 lượt đã dùng 1

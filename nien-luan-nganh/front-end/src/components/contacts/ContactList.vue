@@ -2,9 +2,10 @@
 import { ref, computed } from 'vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
 import Modal_AddFriend from './Modal_AddFriend.vue'
-
+import Modal_FriendRequests from './Modal_FriendRequests.vue'
 const showNewAddFriendModal = ref(false)
-
+const showNewFriendRequestsModal = ref(false)
+const emit = defineEmits(['select', 'refresh'])
 const props = defineProps({
   contacts: {
     type: Array,
@@ -132,7 +133,11 @@ function getInitials(contact) {
     <!-- App Header -->
     <section class="nameApp">
       <div class="logo-title">bluespace.</div>
-      <font-awesome-icon icon="bars" class="menu-icon" />
+      <font-awesome-icon
+        icon="user-plus"
+        class="menu-icon"
+        @click="showNewFriendRequestsModal = true"
+      />
     </section>
 
     <!-- Page Header -->
@@ -217,8 +222,12 @@ function getInitials(contact) {
         <span>Không tìm thấy liên hệ phù hợp</span>
       </div>
     </div>
-    <NewAddModal v-if="showNewChatModal" @close="showNewChatModal = false" />
     <Modal_AddFriend v-if="showNewAddFriendModal" @close="showNewAddFriendModal = false" />
+    <Modal_FriendRequests
+      v-if="showNewFriendRequestsModal"
+      @close="showNewFriendRequestsModal = false"
+      @accepted="emit('refresh')"
+    />
   </div>
 </template>
 

@@ -6,7 +6,7 @@ import './assets/main.css'
 import App from './App.vue'
 import router from './router'
 import { library } from '@fortawesome/fontawesome-svg-core' //lay cai loi library tu FA
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome' 
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faMagnifyingGlass, faUser } from '@fortawesome/free-solid-svg-icons'
 import { faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { faList } from '@fortawesome/free-solid-svg-icons'
@@ -23,29 +23,42 @@ import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
-import { faChevronDown, faChevronUp, faEllipsisVertical, faPen, faTrash, faClockRotateLeft, faCheck } from '@fortawesome/free-solid-svg-icons'
-library.add(faMagnifyingGlass,
-            faCircleInfo,
-            faList,faThumbTack,
-            faX,faPaperclip,
-            faFaceLaughSquint,
-            faFaceSmile,
-            faPaperPlane,
-            faHouse,
-            faMessage,
-            faUser,
-            faUserGroup,
-            faGear,
-            faComment,
-            faBars,
-            faPlus,
-            faChevronDown,
-            faChevronUp,
-            faEllipsisVertical,
-            faPen,
-            faTrash,
-            faClockRotateLeft,
-            faCheck)
+import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faChevronUp,
+  faEllipsisVertical,
+  faPen,
+  faTrash,
+  faClockRotateLeft,
+  faCheck,
+} from '@fortawesome/free-solid-svg-icons'
+library.add(
+  faMagnifyingGlass,
+  faCircleInfo,
+  faList,
+  faThumbTack,
+  faX,
+  faPaperclip,
+  faFaceLaughSquint,
+  faPaperPlane,
+  faHouse,
+  faMessage,
+  faUser,
+  faUserGroup,
+  faGear,
+  faComment,
+  faBars,
+  faPlus,
+  faChevronDown,
+  faChevronUp,
+  faEllipsisVertical,
+  faPen,
+  faTrash,
+  faClockRotateLeft,
+  faCheck,
+  faUserPlus,
+)
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return
   const { worker } = await import('./mocks/browser')
