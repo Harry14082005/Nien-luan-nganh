@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useAuthStore } from '@/stores/auth'
+import { getImageUrl } from '@/api/user.api'
 
 const props = defineProps({
   currentPage: {
@@ -19,6 +20,8 @@ const myInitials = computed(() => {
   if (!w.length) return '  '
   return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[w.length - 1][0]).toUpperCase()
 })
+
+const myAvatarSrc = computed(() => getImageUrl(me.value?.avatarUrl || ''))
 
 onMounted(() => auth.initUser())
 
@@ -124,7 +127,8 @@ function navigateTo(page, targetPath) {
       @click="navigateTo('setting', '/settings')"
       @keydown.enter="navigateTo('setting', '/settings')"
     >
-      {{ myInitials }}
+      <img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="myInitials" class="account-avatar-img" />
+      <span v-else>{{ myInitials }}</span>
     </div>
   </div>
 </template>
@@ -243,9 +247,11 @@ function navigateTo(page, targetPath) {
 }
 
 .account {
-  margin-bottom: 20px;
-  background-color: #6ba3f5;
-  padding: 10px;
+  width: 65%;
+  margin-bottom: 10px;
+  /* background-color: #6ba3f5; */
+  background-color: #e6edfd;
+  padding: 2px;
   border-radius: 0.9rem;
   cursor: pointer;
   transition:
@@ -256,6 +262,14 @@ function navigateTo(page, targetPath) {
 
 .account:hover {
   background-color: #5392ee;
-  transform: scale(1.05);
+  transform: scale(1.01);
+}
+
+.account-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.9rem;
+  object-fit: cover;
+  display: block;
 }
 </style>

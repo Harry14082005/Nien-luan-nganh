@@ -21,6 +21,7 @@ import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue';
 import { initGlobalWebSocket } from '@/services/websocket';
+import { getImageUrl } from '@/api/user.api';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -554,6 +555,7 @@ watch(
           :Content_Message="msg.content"
           :Time="formatTime(msg.createdAt)"
           :Sender="isMyMessage(msg) ? '' : (msg.sender?.username || 'Thành viên')"
+          :Avatar="isMyMessage(msg) ? '' : getImageUrl(msg.sender?.avatar || msg.sender?.avatarUrl)"
           :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
           @togglePin="handleTogglePin"
           @editMessage="handleEditMessage"

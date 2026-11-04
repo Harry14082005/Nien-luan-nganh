@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -108,13 +109,14 @@ public class SecurityConfig {
                         // Authentication
                         .requestMatchers("/api/v1/auth/**", "/auth/**").permitAll()
 
-                        // Cho phép truy cập công khai endpoint kết nối WebSocket Handshake (SockJS /ws và Native WS /ws-raw)
+                        // Cho phép truy cập công khai endpoint kết nối WebSocket Handshake (SockJS /ws
+                        // và Native WS /ws-raw)
                         .requestMatchers("/ws/**", "/ws-raw/**").permitAll()
 
                         // Cho phép truy cập công khai các file upload tĩnh (ảnh đại diện, ảnh chat,
                         // file đính kèm)
-                        .requestMatchers("/uploads/**").permitAll()
-
+                        // .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/files/*").permitAll()
                         // Tất cả các API còn lại đều bắt buộc phải đăng nhập (gửi kèm Bearer JWT hợp
                         // lệ)
                         .anyRequest().authenticated())

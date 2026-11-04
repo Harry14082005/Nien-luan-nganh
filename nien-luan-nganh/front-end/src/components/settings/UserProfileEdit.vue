@@ -1,5 +1,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
+import AvatarUploadModal from '@/components/common/AvatarUploadModal.vue'
+import { uploadAvatar, getImageUrl } from '@/api/user.api'
 
 const props = defineProps({
   user: {
@@ -18,6 +20,76 @@ const props = defineProps({
 
 const emit = defineEmits(['save'])
 
+// --- Avatar menu ---
+const showAvatarMenu = ref(false)
+const showLightbox = ref(false)
+const showUploadModal = ref(false)
+const fileInputRef = ref(null) // Ref cho input file ẩn
+const selectedImageFile = ref(null) // Lưu file tạm thời để truyền vào modal crop
+
+function openAvatarMenu() {
+  showAvatarMenu.value = !showAvatarMenu.value
+}
+function closeAvatarMenu() {
+  showAvatarMenu.value = false
+}
+function viewAvatar() {
+  if (avatarSrc.value) showLightbox.value = true
+  closeAvatarMenu()
+}
+
+// Bấm "Chọn ảnh mới" -> Mở hộp thoại chọn file của máy tính
+function pickAvatar() {
+  closeAvatarMenu()
+  selectedImageFile.value = null // Reset file cũ nếu có
+  showUploadModal.value = true
+}
+
+// Khi chọn file trực tiếp từ menu
+function handleMenuFileSelected(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  selectedImageFile.value = file // Lưu file
+  showUploadModal.value = true   // Mở modal crop lên (lúc này modal nhận được file luôn)
+  closeAvatarMenu()              // Đóng menu lại
+  
+  e.target.value = '' // Reset input
+}
+
+// // Khi người dùng đã chọn xong file từ máy tính
+// function handleFileSelected(event) {
+//   const file = event.target.files?.[0]
+//   if (!file) return
+
+//   // Lưu file vào biến và bật modal crop/upload lên
+//   selectedImageFile.value = file
+//   showUploadModal.value = true
+
+//   // Reset lại input để có thể chọn lại chính file đó nếu muốn
+//   event.target.value = ''
+// }
+
+// URL ảnh đại diện hiện tại (storageKey → URL)
+const localAvatar = ref(props.user.avatar || '')
+const avatarSrc = ref(getImageUrl(props.user.avatar))
+const uploadError = ref('')
+
+async function handleAvatarSave(file) {
+  uploadError.value = ''
+  try {
+    const updatedUser = await uploadAvatar(file)
+    localAvatar.value = updatedUser.avatarUrl || ''
+    avatarSrc.value = getImageUrl(updatedUser.avatarUrl)
+    emit('save', { ...props.user, avatar: updatedUser.avatarUrl })
+  } catch (err) {
+    uploadError.value = err.response?.data?.message || 'Không thể cập nhật ảnh đại diện.'
+  } finally {
+    showUploadModal.value = false
+  }
+}
+
+// --- Profile edit modal ---
 const isEditing = ref(false)
 
 const editForm = reactive({
@@ -47,6 +119,12 @@ function handleSave() {
   emit('save', updated)
   isEditing.value = false
 }
+
+// Đồng bộ lại avatarSrc mỗi khi props.user.avatar thay đổi từ bên ngoài
+watch(() => props.user.avatar, (newAvatar) => {
+  avatarSrc.value = getImageUrl(newAvatar)
+}, { deep: true })
+
 </script>
 
 <template>
@@ -76,17 +154,54 @@ function handleSave() {
       <div class="card-body">
         <!-- Top Row: Avatar & Edit Button -->
         <div class="avatar-action-row">
-          <div class="avatar-wrapper">
-            <img
-              v-if="user.avatar"
-              :src="user.avatar"
-              :alt="user.displayName"
-              class="avatar-image"
-            />
-            <div v-else class="avatar-text">
-              {{ user.initials || 'HN' }}
+          <!-- Avatar clickable với menu -->
+          <div class="avatar-wrapper" style="position:relative">
+            <!-- Overlay đóng menu khi click ngoài -->
+            <div v-if="showAvatarMenu" class="menu-dimmer" @click="closeAvatarMenu" />
+
+            <div class="avatar-click-zone" @click.stop="openAvatarMenu" title="Thay đổi ảnh đại diện">
+              <img
+                v-if="avatarSrc"
+                :src="avatarSrc"
+                :alt="user.displayName"
+                class="avatar-image"
+              />
+              <div v-else class="avatar-text">
+                {{ user.initials || 'HN' }}
+              </div>
+              <div class="avatar-overlay">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
             </div>
             <span v-if="user.online" class="status-dot"></span>
+
+            <!-- Avatar menu -->
+            <div v-if="showAvatarMenu" class="avatar-menu" @click.stop>
+              <button class="menu-item" @click="viewAvatar" :disabled="!avatarSrc">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+                Xem ảnh
+              </button>
+              
+              <!-- Đổi nút thành label bọc input file để trình duyệt cho phép mở hộp thoại ngay lập tức -->
+              <label class="menu-item" style="cursor: pointer;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Chọn ảnh mới
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  style="display: none;" 
+                  @change="handleMenuFileSelected" 
+                />
+              </label>
+            </div>
           </div>
 
           <button class="btn-edit" @click="openEditModal">
@@ -229,7 +344,38 @@ function handleSave() {
         </div>
       </div>
     </div>
+
+    <!-- Lightbox xem ảnh -->
+    <div v-if="showLightbox" class="modal-backdrop" @click.self="showLightbox = false">
+      <div class="lightbox-box">
+        <button class="lightbox-close" @click="showLightbox = false">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+        <img :src="avatarSrc" :alt="user.displayName" class="lightbox-img" />
+      </div>
+    </div>
+
+    <!-- Modal upload & crop avatar -->
+    <AvatarUploadModal
+      v-if="showUploadModal"
+      :file="selectedImageFile"
+      @save="handleAvatarSave"
+      @cancel="showUploadModal = false"
+    />
+
+    <!-- Error upload -->
+    <div v-if="uploadError" class="upload-error-toast">{{ uploadError }}</div>
   </div>
+  <!-- Input chọn file ẩn -->
+  <!-- <input 
+    ref="fileInputRef" 
+    type="file" 
+    accept="image/*" 
+    style="display: none" 
+    @change="handleFileSelected" 
+  /> -->
 </template>
 
 <style scoped>
@@ -618,6 +764,137 @@ function handleSave() {
 
 .btn-primary:hover {
   background-color: #254eb2;
+}
+
+/* ===== Avatar clickable zone ===== */
+.avatar-click-zone {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.avatar-click-zone:hover .avatar-overlay {
+  opacity: 1;
+}
+
+/* ===== Avatar dropdown menu ===== */
+.avatar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 160px;
+  z-index: 200;
+  animation: menuFade 0.15s ease-out;
+}
+
+@keyframes menuFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.avatar-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.avatar-menu .menu-item:hover:not(:disabled) { background: #f1f5f9; }
+.avatar-menu .menu-item:disabled { opacity: 0.4; cursor: default; }
+
+.menu-dimmer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150; /* Nằm dưới .avatar-menu (z-index: 200) nhưng phủ toàn màn hình */
+  background: transparent; /* Hoặc để trống nếu chỉ dùng để nhận diện cú click */
+}
+
+/* ===== Lightbox ===== */
+.lightbox-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-img {
+  max-width: 80vw;
+  max-height: 80vh;
+  border-radius: 16px;
+  object-fit: contain;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #334155;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: background 0.15s;
+}
+.lightbox-close:hover { background: #f1f5f9; }
+
+/* ===== Upload error toast ===== */
+.upload-error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 18px;
+  z-index: 1200;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
 }
 </style>
 

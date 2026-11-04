@@ -75,7 +75,12 @@ const props = defineProps({
     isEdited: {
         type: Boolean,
         default: false
-    }
+    },
+    // Hiển thị Avatar
+    Avatar: {
+    type: String,
+    default: ''
+  }
 });
 
 const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory'])
@@ -225,19 +230,24 @@ onUnmounted(() => {
   <div
     :id="messageId ? 'msg-' + messageId : null"
     :class="['container', `container--${variant}`, { 'container--consecutive': isConsecutive }]"
-  >
-    <MessageBubble v-if="!isConsecutive" :type="variant"></MessageBubble>
-    <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
-    <div
-      :class="[
-        'wrapper',
-        `wrapper--${variant}`,
-        { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
-      ]"
-    >
-      <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
+  > 
+        <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
+          <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
+          <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
+        </div>
+        
+        <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
 
-        <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
+        <div
+          :class="[
+            'wrapper',
+            `wrapper--${variant}`,
+            { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
+          ]"
+        >
+          <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
+            
+      <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
             <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
             <div v-if="isRevoked" :class="['message', 'message--revoked']">
@@ -922,5 +932,88 @@ onUnmounted(() => {
     filter: brightness(1.25);
     box-shadow: 0 0 12px rgba(75, 123, 236, 0.5);
   }
+}
+
+/* Khung chứa và bo vuông avatar (16px) đồng bộ giao diện profile */
+/* Đồng bộ chuẩn khung hình vuông bo góc 16px giống hệt profile và khung TK cũ */
+.msg-avatar-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background-color: #ede9fe; /* Màu nền tím nhạt giống chữ TK cũ */
+  color: #7c3aed;            /* Màu chữ giống chữ TK cũ */
+}
+
+.msg-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.msg-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background-color: #3b82f6;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.msg-avatar-spacer {
+  width: 36px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.custom-avatar-box {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background-color: #ede9fe; /* Màu nền dự phòng nếu chưa có ảnh */
+  color: #7c3aed;
+}
+
+.message-bubble-avatar-box {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background-color: #ede9fe; 
+  color: #7c3aed;          
+  flex-shrink: 0;
+  margin-right: 8px;
+  margin-top: 20px;
+}
+
+.custom-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
 }
 </style>

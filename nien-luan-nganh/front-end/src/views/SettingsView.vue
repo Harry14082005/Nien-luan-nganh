@@ -1,10 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import UserProfileEdit from '@/components/settings/UserProfileEdit.vue'
+import { getImageUrl } from '@/api/user.api'
+import { http } from '@/api/http'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -12,28 +14,62 @@ const authStore = useAuthStore()
 // Tab hiện tại: 'profile' (Hồ sơ cá nhân) hoặc 'general' (Tùy chọn chung)
 const activeTab = ref('profile')
 
-// Thông tin người dùng
+// Thông tin người dùng — load từ API
 const userProfile = ref({
-  displayName: 'Nguyễn Hoàng Nam',
-  username: 'hoangnam',
-  initials: 'HN',
+  displayName: '',
+  username: '',
+  initials: '',
   statusText: 'Đang hoạt động',
-  bio: 'Thiết kế những trải nghiệm thật ý nghĩa.',
+  bio: '',
   avatar: '',
   online: true,
 })
 
+const avatarSrc = computed(() => getImageUrl(userProfile.value.avatar))
+
+function buildInitials(name = '') {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return '??'
+  return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[words.length - 1][0]).toUpperCase()
+}
+
+async function loadProfile() {
+  try {
+    const me = authStore.user || await authStore.initUser()
+    if (me) {
+      userProfile.value = {
+        displayName: me.username || me.displayName || '',
+        username: me.username || '',
+        initials: buildInitials(me.username),
+        statusText: 'Đang hoạt động',
+        bio: me.description || '',
+        avatar: me.avatarUrl || '',
+        online: me.isOnline ?? true,
+      }
+    }
+  } catch (e) {
+    console.warn('Không tải được hồ sơ:', e)
+  }
+}
+
+onMounted(loadProfile)
+
+async function handleProfileSave(updatedUser) {
+  userProfile.value = updatedUser
+  // Nếu avatar thay đổi, cập nhật auth store
+  if (authStore.user) {
+    authStore.user = { ...authStore.user, avatarUrl: updatedUser.avatar }
+    localStorage.setItem('currentUser', JSON.stringify(authStore.user))
+  }
+}
+
 // Cài đặt tùy chọn chung
 const settings = ref({
   messageNotifications: true,
-  soundNotifications: false, // Giữ nhưng ẩn theo yêu cầu
+  soundNotifications: false,
   readReceipts: true,
   darkMode: false,
 })
-
-function handleProfileSave(updatedUser) {
-  userProfile.value = updatedUser
-}
 
 async function handleLogout() {
   await authStore.logout()
@@ -179,7 +215,8 @@ async function handleLogout() {
       <!-- Bottom Mini Profile -->
       <div class="sidebar-user-footer">
         <div class="footer-avatar">
-          {{ userProfile.initials || 'HN' }}
+          <img v-if="avatarSrc" :src="avatarSrc" :alt="userProfile.displayName" class="footer-avatar-img" />
+          <span v-else>{{ userProfile.initials || 'HN' }}</span>
         </div>
         <div class="footer-info">
           <div class="footer-name">{{ userProfile.displayName }}</div>
@@ -196,7 +233,7 @@ async function handleLogout() {
         <!-- Header -->
         <div class="content-header">
           <span class="tag-label">HỒ SƠ CÁ NHÂN</span>
-          <h1 class="heading-title">Xin chào, Nam.</h1>
+          <h1 class="heading-title">Xin chào, {{ userProfile.displayName || 'bạn' }}.</h1>
           <p class="heading-desc">Một chút về bạn, để mọi người hiểu nhau hơn.</p>
         </div>
 
@@ -607,6 +644,14 @@ async function handleLogout() {
   background-color: #10b981;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.footer-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
 }
 
 /* Cột 3: Main Settings View */
