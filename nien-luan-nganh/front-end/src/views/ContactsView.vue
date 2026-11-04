@@ -1,13 +1,14 @@
-Claude Contactsview · VUE
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
-import ContactList from '@/components/contacts/ContactList.vue'
-import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
+
 import { getFriends, toContact } from '@/api/contacts.api'
 import { getMe } from '@/api/auth.api'
 const router = useRouter()
+
+import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
+import ContactList from '@/components/contacts/ContactList.vue'
+import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
 
 const contacts = ref([])
 const selectedContactId = ref(null)
@@ -32,7 +33,6 @@ async function loadData() {
   try {
     const [res, profile] = await Promise.all([getFriends(), getMe()])
 
-    // API trả data là mảng (hoặc { content: [...] } tuỳ phiên bản) -> xử lý cả hai
     const list = Array.isArray(res) ? res : res?.content || []
     contacts.value = list.map(toContact)
     me.value = profile
@@ -78,11 +78,6 @@ function handleMessageContact() {
     <div class="contacts-view">
       <!-- Header / Topbar -->
       <div class="contacts-topbar">
-        <div class="breadcrumb-area">
-          <span class="live-dot"></span>
-          <span class="breadcrumb-title">Danh bạ của bạn</span>
-        </div>
-
         <div class="topbar-actions">
           <button class="topbar-btn" title="Thông báo">
             <svg
@@ -108,12 +103,6 @@ function handleMessageContact() {
         <!-- Title & Introduction Section -->
         <p v-if="loading" class="state-msg">Đang tải danh bạ...</p>
         <p v-if="errorMsg" class="state-msg state-error">{{ errorMsg }}</p>
-
-        <div class="welcome-section">
-          <span class="sub-caption">KẾT NỐI CỦA BẠN</span>
-          <h1 class="main-title">Gần nhau hơn, mỗi ngày.</h1>
-          <p class="description">Giữ liên lạc với những người tạo nên câu chuyện của bạn.</p>
-        </div>
 
         <!-- Contact Profile Card -->
         <div class="card-display-area">
@@ -161,31 +150,12 @@ function handleMessageContact() {
 .contacts-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 40px;
   height: 70px;
   background-color: #ffffff;
   border-bottom: 1px solid #e6eaf2;
   flex-shrink: 0;
-}
-
-.breadcrumb-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.live-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #10b981;
-  border-radius: 50%;
-}
-
-.breadcrumb-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #475569;
 }
 
 .topbar-actions {
@@ -209,7 +179,7 @@ function handleMessageContact() {
 
 .topbar-btn:hover {
   background-color: #f1f5f9;
-  color: #1e293b;
+  color: #4b88f6;
 }
 
 .user-avatar-badge {
@@ -237,31 +207,6 @@ function handleMessageContact() {
   padding: 36px 48px;
   display: flex;
   flex-direction: column;
-}
-
-.welcome-section {
-  margin-bottom: 32px;
-}
-
-.sub-caption {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #64748b;
-  text-transform: uppercase;
-}
-
-.main-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 6px 0 8px 0;
-}
-
-.description {
-  font-size: 15px;
-  color: #64748b;
-  margin: 0;
 }
 
 .card-display-area {

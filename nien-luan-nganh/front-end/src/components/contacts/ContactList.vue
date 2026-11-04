@@ -1,92 +1,45 @@
 <script setup>
 import { ref, computed } from 'vue'
-import IconChevronRight from '@/components/icons/IconChevronRight.vue'
 import Modal_AddFriend from './Modal_AddFriend.vue'
 import Modal_FriendRequests from './Modal_FriendRequests.vue'
+import ContactMenu from './ContactMenu.vue'
+import { removeFriendship } from '@/api/contacts.api.js'
+import { blockFriendship } from '@/api/contacts.api.js'
+
+const emit = defineEmits(['select', 'refresh'])
+
+async function handleRemove(contact) {
+  if (!confirm(`Xóa ${contact.name} khỏi danh sách bạn bè?`)) return
+  try {
+    await removeFriendship(contact.friendshipId)
+    emit('refresh')
+  } catch (e) {
+    console.error('Lỗi xóa bạn:', e)
+    alert(e.response?.data?.message || 'Không xóa được bạn')
+  }
+}
+
+async function handleBlock(contact) {
+  if (!confirm(`Chặn ${contact.name}?`)) return
+  try {
+    await blockFriendship(contact.friendshipId)
+    emit('refresh')
+  } catch (e) {
+    console.error('Lỗi chặn người dùng:', e)
+    alert(e.response?.data?.message || 'Không chặn được người này')
+  }
+}
+
 const showNewAddFriendModal = ref(false)
 const showNewFriendRequestsModal = ref(false)
-const emit = defineEmits(['select', 'refresh'])
 const props = defineProps({
   contacts: {
     type: Array,
-    default: () => [
-      {
-        id: 1,
-        name: 'Minh Anh',
-        role: 'Product Designer',
-        initials: 'MA',
-        avatar: '',
-        online: true,
-        statusText: 'Đang hoạt động',
-        bio: 'Những cuộc trò chuyện ý nghĩa luôn bắt đầu bằng một lời chào.',
-        bgColor: '#FFE9DC',
-        color: '#D2693B',
-      },
-      {
-        id: 2,
-        name: 'Quang Huy',
-        role: 'Frontend Developer',
-        initials: 'QH',
-        avatar: '',
-        online: true,
-        statusText: 'Đang hoạt động',
-        bio: 'Lập trình viên đam mê kiến tạo trải nghiệm người dùng hiện đại và mượt mà.',
-        bgColor: '#DDF5EA',
-        color: '#2E9A6B',
-      },
-      {
-        id: 3,
-        name: 'Linh Nguyễn',
-        role: 'Marketing Lead',
-        initials: 'LN',
-        avatar: '',
-        online: false,
-        statusText: 'Vừa mới rời đi',
-        bio: 'Kết nối mọi người và lan tỏa những câu chuyện truyền cảm hứng.',
-        bgColor: '#FFF3D6',
-        color: '#B8860B',
-      },
-      {
-        id: 4,
-        name: 'An Trần',
-        role: 'UI Designer',
-        initials: 'AT',
-        avatar: '',
-        online: false,
-        statusText: 'Hoạt động 2 giờ trước',
-        bio: 'Thiết kế không chỉ là vẻ bề ngoài mà là cách nó hoạt động.',
-        bgColor: '#E3EDFF',
-        color: '#3B6FD2',
-      },
-      {
-        id: 5,
-        name: 'Bảo Phạm',
-        role: 'Project Manager',
-        initials: 'BP',
-        avatar: '',
-        online: false,
-        statusText: 'Hoạt động 5 giờ trước',
-        bio: 'Xây dựng quy trình làm việc hiệu quả và đồng hành cùng nhóm.',
-        bgColor: '#ECE9FF',
-        color: '#6B5BD2',
-      },
-      {
-        id: 6,
-        name: 'Nguyễn Hoàng Nam',
-        role: 'Đang hoạt động',
-        initials: 'HN',
-        avatar: '',
-        online: true,
-        statusText: 'Đang hoạt động',
-        bio: 'Sẵn sàng kết nối và hỗ trợ khi có bất kỳ câu hỏi nào.',
-        bgColor: '#DCE7FE',
-        color: '#2563EB',
-      },
-    ],
+    default: () => [],
   },
   selectedId: {
     type: [Number, String],
-    default: 1,
+    default: 0,
   },
 })
 
@@ -143,7 +96,6 @@ function getInitials(contact) {
     <!-- Page Header -->
     <section class="header-section">
       <div class="header-content">
-        <span class="sub-label">KẾT NỐI</span>
         <div class="title-row">
           <div class="left-title">
             <h1 class="page-title">Danh bạ</h1>
@@ -212,8 +164,8 @@ function getInitials(contact) {
         </div>
 
         <!-- Right Arrow Icon -->
-        <div class="arrow-wrap">
-          <IconChevronRight class="chevron-icon" :size="16" />
+        <div class="right-icon-wrap">
+          <ContactMenu @block="handleBlock(contact)" @remove="handleRemove(contact)" />
         </div>
       </div>
 
@@ -289,15 +241,6 @@ function getInitials(contact) {
 .header-content {
   display: flex;
   flex-direction: column;
-}
-
-.sub-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #94a3b8;
-  text-transform: uppercase;
-  margin-bottom: 2px;
 }
 
 .title-row {
@@ -501,13 +444,16 @@ function getInitials(contact) {
 }
 
 /* Arrow Right */
-.arrow-wrap {
+.right-icon-wrap {
   color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: 8px;
   transition: transform 0.15s ease;
+}
+.right-icon-wrap:hover {
+  color: #2563eb;
 }
 
 .contact-item:hover .arrow-wrap {

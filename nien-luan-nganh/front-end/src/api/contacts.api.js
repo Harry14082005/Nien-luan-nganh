@@ -11,10 +11,15 @@ export const sendFriendRequest = (friendId) =>
 
 export const acceptedFriendship = (friendshipId) =>
   http.put(`/friendships/${friendshipId}/accept`).then((r) => r.data.data)
+
 export const declineFriendship = (friendshipId) =>
   http.put(`/friendships/${friendshipId}/decline`).then((r) => r.data.data)
+
 export const removeFriendship = (friendshipId) =>
   http.delete(`/friendships/${friendshipId}`).then((r) => r.data)
+
+export const blockFriendship = (friendshipId) =>
+  http.post(`/friendships/block`, { friendshipId }).then((r) => r.data)
 // Coi là online nếu lastSeenAt trong vòng 5 phút gần nhất
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
 

@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   currentPage: {
@@ -9,6 +11,16 @@ const props = defineProps({
     default: '',
   },
 })
+const auth = useAuthStore()
+const { user: me } = storeToRefs(auth)
+
+const myInitials = computed(() => {
+  const w = (me.value?.username || '').trim().split(/\s+/).filter(Boolean)
+  if (!w.length) return '  '
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[w.length - 1][0]).toUpperCase()
+})
+
+onMounted(() => auth.initUser())
 
 const router = useRouter()
 const route = useRoute()
@@ -112,7 +124,7 @@ function navigateTo(page, targetPath) {
       @click="navigateTo('setting', '/settings')"
       @keydown.enter="navigateTo('setting', '/settings')"
     >
-      HN
+      {{ myInitials }}
     </div>
   </div>
 </template>
@@ -123,7 +135,7 @@ function navigateTo(page, targetPath) {
 .sidebar {
   display: flex;
   flex-direction: column;
-  font-family: "Quicksand", sans-serif;
+  font-family: 'Quicksand', sans-serif;
   font-size: 100%;
   font-weight: 600;
   width: 80px;
@@ -144,7 +156,9 @@ function navigateTo(page, targetPath) {
   background-color: #2f5fd0;
   border-radius: 1rem;
   cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .logo:hover {
@@ -199,7 +213,7 @@ function navigateTo(page, targetPath) {
 
 /* === DẤU GẠCH TRẠNG THÁI ACTIVE === */
 .nav-item.active .icon-box::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -13.5px; /* Đẩy vạch ra sát mép trái của thanh sidebar */
   top: 50%;
@@ -234,7 +248,9 @@ function navigateTo(page, targetPath) {
   padding: 10px;
   border-radius: 0.9rem;
   cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
   user-select: none;
 }
 
