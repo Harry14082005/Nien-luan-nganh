@@ -23,12 +23,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.text.ParsePosition;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +60,15 @@ public class MessageService {
     private final MessageMapper messageMapper;
     private final RoomService roomService;
     private final FileStorageService fileStorageService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
     private static final long MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private static final long DURATION_MINUTE = 5;
+    // khoảng cách tối thiểu để chèn mốc thời gian
+    private static final Duration SYSTEM_TIME_GAP = Duration.ofMinutes(DURATION_MINUTE);
+    private static final DateTimeFormatter TIME_LOG_FORMAT = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
     private final Map<String, Long> roomMembershipCache = new ConcurrentHashMap<>();
 
     /**
@@ -111,6 +119,8 @@ public class MessageService {
             }
         }
 
+        sendTimeLogIfNeeded(room);
+
         // 7. Khởi tạo và lưu tin nhắn mới vào cơ sở dữ liệu
         Message message = Message.builder()
                 .room(room)
@@ -134,6 +144,36 @@ public class MessageService {
 
         // 9. Chuyển đổi sang MessageResponse và trả về cho Controller
         return messageMapper.toMessageResponse(savedMessage);
+    }
+
+    /** Nếu cách tin trước >= 5 phút thì tạo log thời gian và phát WebSocket. */
+    private void sendTimeLogIfNeeded(Room room) {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (room.getLastMessageId() != null) {
+            Message last = messageRepository.findById(room.getLastMessageId()).orElse(null);
+            if (last != null && Duration.between(last.getCreatedAt(), now).compareTo(SYSTEM_TIME_GAP) < 0) {
+                return; // còn gần tin trước, không cần log
+            }
+        }
+
+        MessageResponse timeLog = createSystemMessage(room, now);
+        messagingTemplate.convertAndSend("/topic/room." + room.getRoomId(), timeLog);
+    }
+
+    private MessageResponse createSystemMessage(Room room, LocalDateTime time) {
+        Message message = Message.builder()
+                .room(room)
+                .sender(null)
+                .messageType(MessageType.SYSTEM)
+                .content(time.format(TIME_LOG_FORMAT)) // vd: "14:35 05/11"
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(time)
+                .build();
+
+        return messageMapper.toMessageResponse(messageRepository.save(message));
     }
 
     /**

@@ -116,7 +116,7 @@ public class SecurityConfig {
                         // Cho phép truy cập công khai các file upload tĩnh (ảnh đại diện, ảnh chat,
                         // file đính kèm)
                         // .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/files/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
                         // Tất cả các API còn lại đều bắt buộc phải đăng nhập (gửi kèm Bearer JWT hợp
                         // lệ)
                         .anyRequest().authenticated())

@@ -1,3 +1,4 @@
+
 <template>
   <aside class="chat-info-sidebar">
     <div class="chat-info-sidebar-inner">
@@ -16,7 +17,7 @@
         <div class="room-profile-section">
           <UserAvatar
             :name="displayRoomName"
-            :src="displayRoomAvatar"
+            :src="resolveFileUrl(displayRoomAvatar)"
             :size="72"
           />
           <h4 class="room-title">{{ displayRoomName }}</h4>
@@ -76,7 +77,7 @@
               >
                 <UserAvatar
                   :name="member.username || 'Thành viên'"
-                  :src="member.avatarUrl"
+                  :src="resolveFileUrl(member.avatarUrl)"
                   :size="34"
                 />
                 <div class="member-info">
@@ -156,9 +157,9 @@
                     class="media-thumbnail-card"
                     @click="openMediaPreview(item)"
                   >
-                    <img v-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'" :src="item.url" alt="media" />
+                    <img v-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'" :src="resolveFileUrl(item.url)" alt="media" />
                     <div v-else class="video-preview-wrapper">
-                      <video :src="item.url" muted></video>
+                      <video :src="resolveFileUrl(item.url)" muted></video>
                       <span class="play-overlay-icon">
                         <font-awesome-icon icon="play" />
                       </span>
@@ -179,7 +180,7 @@
                   <a
                     v-for="file in displayedMediaItems"
                     :key="file.id || file.url"
-                    :href="file.url"
+                    :href="resolveFileUrl(file.url)"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="file-item-card"
@@ -219,6 +220,7 @@
 </template>
 
 <script setup>
+import { resolveFileUrl } from '@/api/storage.api';
 import { ref, computed } from 'vue';
 import UserAvatar from '@/components/common/UserAvatar.vue';
 
