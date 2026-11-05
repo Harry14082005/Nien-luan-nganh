@@ -231,12 +231,9 @@ onUnmounted(() => {
     :id="messageId ? 'msg-' + messageId : null"
     :class="['container', `container--${variant}`, { 'container--consecutive': isConsecutive }]"
   > 
-        <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
-          <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
-          <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
-        </div>
         
-        <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
+        
+        <!-- <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div> -->
 
         <div
           :class="[
@@ -245,6 +242,11 @@ onUnmounted(() => {
             { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
           ]"
         >
+          <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
+            <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
+            <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
+          </div>
+
           <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
             
       <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
@@ -445,13 +447,20 @@ onUnmounted(() => {
   flex-direction: column;
   margin-top: 10px;
   max-width: 75%;
+  position: relative;
+  padding-left: 44px
 }
 
+/* Tin nhắn của mình thì không chừa lề trái */
 .wrapper--SendTo {
+  padding-left: 0;
+}
+
+/* .wrapper--SendTo {
   display: flex;
   align-items: flex-end;
   max-width: 75%;
-}
+} */
 
 .wrapper--consecutive {
   margin-top: 0 !important;
@@ -993,6 +1002,25 @@ onUnmounted(() => {
 }
 
 .message-bubble-avatar-box {
+  position: absolute;    /* 🟢 Đặt vị trí tuyệt đối */
+  left: 0;
+  top: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background-color: #ede9fe;
+  color: #7c3aed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* .message-bubble-avatar-box {
   width: 36px;
   height: 36px;
   display: flex;
@@ -1008,7 +1036,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   margin-right: 8px;
   margin-top: 20px;
-}
+} */
 
 .custom-avatar-img {
   width: 100%;
