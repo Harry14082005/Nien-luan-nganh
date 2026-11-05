@@ -349,47 +349,69 @@ onUnmounted(() => {
 
         <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
-            <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
-            <div v-if="isRevoked" :class="['message', 'message--revoked']">
-                <i>Tin nhắn đã được thu hồi</i>
-            </div>
+            <!-- Khối chứa bong bóng chat và huy hiệu cảm xúc đính kèm sát mép dưới -->
+            <div class="message-bubble-group" :class="`message-bubble-group--${variant}`">
+                <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
+                <div v-if="isRevoked" :class="['message', 'message--revoked']">
+                    <i>Tin nhắn đã được thu hồi</i>
+                </div>
 
-            <!-- 2. Trạng thái đang chỉnh sửa: giữ nguyên màu sắc & phong cách bong bóng bình thường -->
-            <div 
-                v-else-if="isEditing" 
-                :class="['message', `message--${variant}`, 'message--editing']"
-            >
-                <textarea 
-                    ref="editTextareaRef"
-                    v-model="editContent" 
-                    class="inline-edit-textarea" 
-                    rows="1" 
-                    @input="autoResize"
-                    @keydown.enter.exact.prevent="handleSaveEdit" 
-                    @keydown.esc="handleCancelEdit"
-                ></textarea>
-                <div class="edit-toolbar">
-                    <span class="edit-hint"></span>
-                    <div class="edit-btn-group">
-                        <button class="edit-mini-btn btn-save" title="Lưu" @click="handleSaveEdit">
-                            <font-awesome-icon icon="check" />
-                        </button>
-                        <button class="edit-mini-btn btn-cancel" title="Hủy" @click="handleCancelEdit">
-                            <font-awesome-icon icon="x" />
-                        </button>
+                <!-- 2. Trạng thái đang chỉnh sửa: giữ nguyên màu sắc & phong cách bong bóng bình thường -->
+                <div 
+                    v-else-if="isEditing" 
+                    :class="['message', `message--${variant}`, 'message--editing']"
+                >
+                    <textarea 
+                        ref="editTextareaRef"
+                        v-model="editContent" 
+                        class="inline-edit-textarea" 
+                        rows="1" 
+                        @input="autoResize"
+                        @keydown.enter.exact.prevent="handleSaveEdit" 
+                        @keydown.esc="handleCancelEdit"
+                    ></textarea>
+                    <div class="edit-toolbar">
+                        <span class="edit-hint"></span>
+                        <div class="edit-btn-group">
+                            <button class="edit-mini-btn btn-save" title="Lưu" @click="handleSaveEdit">
+                                <font-awesome-icon icon="check" />
+                            </button>
+                            <button class="edit-mini-btn btn-cancel" title="Hủy" @click="handleCancelEdit">
+                                <font-awesome-icon icon="x" />
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 3. Tin nhắn bình thường -->
-            <div 
-                v-else 
-                :class="['message', `message--${variant}`, `message--pos-${groupPosition}`]"
-                @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
-                :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
-            >
-                <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
-                <template v-else>{{ Content_Message }}</template>
+                <!-- 3. Tin nhắn bình thường -->
+                <div 
+                    v-else 
+                    :class="['message', `message--${variant}`, `message--pos-${groupPosition}`]"
+                    @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
+                    :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
+                >
+                    <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
+                    <template v-else>{{ Content_Message }}</template>
+                </div>
+
+                <!-- Reaction Badges gắn trực tiếp ngay mép dưới bong bóng tin nhắn -->
+                <div 
+                    v-if="props.reactions && props.reactions.length > 0 && !isRevoked" 
+                    class="reaction-badges" 
+                    :class="`reaction-badges--${variant}`"
+                >
+                    <button 
+                        v-for="(data, type) in groupedReactions" 
+                        :key="type"
+                        type="button"
+                        :class="['reaction-badge-item', { 'reaction-badge-item--active': data.reactedByMe }]"
+                        :title="data.users.join(', ')"
+                        @click.stop="handleSelectReaction(type)"
+                    >
+                        <span class="badge-emoji">{{ getEmojiChar(type) }}</span>
+                        <span class="badge-count">{{ data.count }}</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Nút Thả cảm xúc, Trả lời, Ghim, ... để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
@@ -486,25 +508,6 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- Reaction Badges gắn dưới chân tin nhắn -->
-        <div 
-            v-if="props.reactions && props.reactions.length > 0 && !isRevoked" 
-            class="reaction-badges" 
-            :class="`reaction-badges--${variant}`"
-        >
-            <button 
-                v-for="(data, type) in groupedReactions" 
-                :key="type"
-                type="button"
-                :class="['reaction-badge-item', { 'reaction-badge-item--active': data.reactedByMe }]"
-                :title="data.users.join(', ')"
-                @click.stop="handleSelectReaction(type)"
-            >
-                <span class="badge-emoji">{{ getEmojiChar(type) }}</span>
-                <span class="badge-count">{{ data.count }}</span>
-            </button>
-        </div>
-
         <!-- Dòng thời gian phía dưới (kèm nhãn 'đã chỉnh sửa') -->
         <div
           v-if="showTime || (isEdited && !isRevoked)"
@@ -574,16 +577,11 @@ onUnmounted(() => {
   padding-left: 44px
 }
 
-/* Tin nhắn của mình thì không chừa lề trái */
+/* Tin nhắn của mình: không chừa lề trái và căn toàn bộ nội dung về bên phải */
 .wrapper--SendTo {
   padding-left: 0;
-}
-
-/* .wrapper--SendTo {
-  display: flex;
   align-items: flex-end;
-  max-width: 75%;
-} */
+}
 
 .wrapper--consecutive {
   margin-top: 0 !important;
@@ -617,6 +615,22 @@ onUnmounted(() => {
 
 .bubble-row--SendTo {
   flex-direction: row-reverse;
+}
+
+/* Khối bọc bong bóng chat và huy hiệu cảm xúc đính kèm */
+.message-bubble-group {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  max-width: 100%;
+}
+
+.message-bubble-group--SendTo {
+  align-items: flex-end;
+}
+
+.message-bubble-group--default {
+  align-items: flex-start;
 }
 
 .message {
@@ -994,36 +1008,40 @@ onUnmounted(() => {
     transform: translateY(6px) scale(0.85);
 }
 
-/* Huy hiệu gom nhóm cảm xúc (Reaction Badges) */
+/* Huy hiệu gom nhóm cảm xúc (Reaction Badges) đính sát mép dưới bong bóng */
 .reaction-badges {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
-    margin-top: 4px;
+    gap: 3px;
+    margin-top: -8px; /* Đính ôm sát nhẹ vào góc dưới bong bóng tin nhắn chuẩn Messenger/Zalo */
+    z-index: 2;
+    position: relative;
 }
 
 .reaction-badges--SendTo {
     justify-content: flex-end;
+    margin-right: 6px; /* Căn góc phải bong bóng tin nhắn mình */
 }
 
 .reaction-badges--default {
     justify-content: flex-start;
+    margin-left: 6px; /* Căn góc trái bong bóng tin nhắn đối phương */
 }
 
 .reaction-badge-item {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
+    gap: 3px;
+    padding: 1.5px 6px;
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     cursor: pointer;
-    font-size: 11.5px;
+    font-size: 11px;
     font-family: 'Quicksand', sans-serif;
     color: #475569;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: all 0.15s ease;
     user-select: none;
 }
