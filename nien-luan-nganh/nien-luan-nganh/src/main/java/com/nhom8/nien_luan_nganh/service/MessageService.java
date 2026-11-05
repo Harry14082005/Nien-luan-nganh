@@ -7,6 +7,8 @@ import com.nhom8.nien_luan_nganh.dto.request.UpdateMessageRequest;
 import com.nhom8.nien_luan_nganh.dto.response.CursorResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageHistoryResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
+import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResponse;
+import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResultDTO;
 import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
 import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
@@ -432,7 +434,8 @@ public class MessageService {
         message.setIsPinned(true);
         messageRepository.save(message);
 
-        // 9. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG VÀO CSDL (Để người offline vào lại vẫn đọc được)
+        // 9. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG VÀO CSDL (Để người offline vào lại vẫn đọc
+        // được)
         String systemContent = currentUser.getUsername() + " đã ghim một tin nhắn";
         Message systemMessage = Message.builder()
                 .room(room)
@@ -448,7 +451,8 @@ public class MessageService {
         Message savedSystemMessage = messageRepository.save(systemMessage);
 
         // 10. Cập nhật hoạt động mới nhất của phòng bằng tin nhắn hệ thống này
-        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser, savedSystemMessage.getCreatedAt());
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
 
         // 11. Reset trạng thái đã đọc cho các thành viên khác
         List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
@@ -519,7 +523,8 @@ public class MessageService {
         Message savedSystemMessage = messageRepository.save(systemMessage);
 
         // 8. Cập nhật hoạt động mới nhất của phòng
-        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser, savedSystemMessage.getCreatedAt());
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
 
         // 9. Reset trạng thái đã đọc cho các thành viên khác
         List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
@@ -792,12 +797,15 @@ public class MessageService {
             Message cursorMessage = messageRepository.findById(cursorId)
                     .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
             Pageable slicePageable = PageRequest.of(0, effectiveLimit + 1);
-            List<Message> fetched = messageRepository.findOlderAround(roomId, cursorMessage.getCreatedAt(), slicePageable);
+            List<Message> fetched = messageRepository.findOlderAround(roomId, cursorMessage.getCreatedAt(),
+                    slicePageable);
             boolean cursorHasMore = fetched.size() > effectiveLimit;
-            List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit)) : fetched;
+            List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit))
+                    : fetched;
             return CursorResponse.<MessageResponse>builder()
                     .data(messageMapper.toMessageResponseList(sliceList))
-                    .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null : sliceList.get(sliceList.size() - 1).getMessageId())
+                    .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null
+                            : sliceList.get(sliceList.size() - 1).getMessageId())
                     .hasMore(cursorHasMore)
                     .build();
         } else {
@@ -821,7 +829,8 @@ public class MessageService {
     }
 
     /**
-     * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh tin ghim (10 tin trước + tin ghim + 10 tin sau)
+     * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh tin ghim (10 tin trước + tin ghim +
+     * 10 tin sau)
      * Trả về danh sách MessageResponse theo thứ tự thời gian tăng dần [cũ -> mới]
      */
     @Transactional(readOnly = true)
@@ -862,8 +871,10 @@ public class MessageService {
     }
 
     /**
-     * Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời gian)
-     * Hỗ trợ phân trang hai chiều khi người dùng cuộn kịch xuống dưới sau khi nhảy vào đoạn tin ghim.
+     * Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời
+     * gian)
+     * Hỗ trợ phân trang hai chiều khi người dùng cuộn kịch xuống dưới sau khi nhảy
+     * vào đoạn tin ghim.
      */
     @Transactional(readOnly = true)
     public List<MessageResponse> getMessagesAfter(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
@@ -929,6 +940,7 @@ public class MessageService {
                 .build();
     }
 
+<<<<<<< Updated upstream
     private MessageResponse sendAttachment(
             UUID currentUserId,
             UUID roomId,
@@ -1087,5 +1099,97 @@ public class MessageService {
         }
 
         return new MessageContext(sender, room);
+=======
+    /**
+     * Tìm kiếm tin nhắn trong phòng chat theo từ khóa (Metadata siêu nhẹ:
+     * totalMatches + matchIds).
+     * Phục vụ cơ chế điều hướng 1/N và tải ngữ cảnh (Context Windowing) theo nhu
+     * cầu.
+     *
+     * @param currentUserId UUID của người dùng hiện tại
+     * @param roomId        UUID của phòng chat
+     * @param q             Từ khóa tìm kiếm
+     * @return MessageSearchResponse chứa tổng số kết quả và danh sách ID các tin
+     *         nhắn khớp
+     */
+    @Transactional(readOnly = true)
+    public MessageSearchResponse searchMessagesInRoom(UUID currentUserId, UUID roomId, String q) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        if (q == null || q.trim().isEmpty()) {
+            return MessageSearchResponse.builder()
+                    .totalMatches(0)
+                    .matchIds(Collections.emptyList())
+                    .build();
+        }
+
+        String pattern = "%" + q.trim().toLowerCase() + "%";
+        List<Message> matchedMessages = messageRepository.searchMessagesInRoom(
+                roomId,
+                pattern,
+                PageRequest.of(0, 200));
+
+        List<UUID> matchIds = matchedMessages.stream()
+                .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
+                .map(Message::getMessageId)
+                .toList();
+
+        return MessageSearchResponse.builder()
+                .totalMatches(matchIds.size())
+                .matchIds(matchIds)
+                .build();
+    }
+
+    /**
+     * Tìm kiếm tin nhắn kèm chi tiết người gửi phục vụ hiển thị trên Search Sidebar Drawer bên phải.
+     *
+     * @param currentUserId UUID của người dùng hiện tại
+     * @param roomId        UUID của phòng chat
+     * @param q             Từ khóa tìm kiếm
+     * @return Danh sách MessageSearchResultDTO tóm tắt (tối đa 100 tin gần nhất)
+     */
+    @Transactional(readOnly = true)
+    public List<MessageSearchResultDTO> searchMessagesForSidebar(UUID currentUserId, UUID roomId, String q) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        if (q == null || q.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String pattern = "%" + q.trim().toLowerCase() + "%";
+        List<Message> messages = messageRepository.searchMessagesWithDetails(
+                roomId,
+                pattern,
+                PageRequest.of(0, 100)
+        );
+
+        return messages.stream()
+                .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
+                .map(m -> MessageSearchResultDTO.builder()
+                        .messageId(m.getMessageId())
+                        .content(m.getContent())
+                        .createdAt(m.getCreatedAt())
+                        .senderUsername(m.getSender() != null ? m.getSender().getUsername() : "Thành viên")
+                        .senderAvatarUrl(m.getSender() != null ? m.getSender().getAvatarUrl() : null)
+                        .build()
+                )
+                .toList();
+>>>>>>> Stashed changes
     }
 }

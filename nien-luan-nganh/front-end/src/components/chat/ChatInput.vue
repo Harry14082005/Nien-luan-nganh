@@ -10,25 +10,60 @@
  *   + Nếu ngừng gõ sau 2.5 giây -> tự động gửi tín hiệu isTyping = false.
  *   + Khi bấm gửi tin nhắn -> hủy trạng thái gõ ngay lập tức để ẩn dấu nhấp nháy bên người nhận.
  */
-import { ref, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { useChatStore } from '@/stores/chat';
+import { useChatStore, getReplySnippet } from '@/stores/chat';
+import { useAuthStore } from '@/stores/auth';
 
 const chatStore = useChatStore();
+const authStore = useAuthStore();
+const emit = defineEmits(['messageSent']);
 const text = ref(''); // Nội dung văn bản đang soạn trong ô textarea
 const drafts = ref({}); // Lưu trữ nội dung nháp riêng cho từng phòng chat: { [roomId]: string }
+const textareaRef = ref(null); // Ref tới ô textarea để tự động focus
 
 let typingTimer = null; // Bộ đếm thời gian debounce phát hiện người dùng dừng gõ
 let isCurrentlyTyping = false; // Cờ ghi nhận trạng thái đang gõ phím hiện tại
 
 /**
+ * Kiểm tra xem tin nhắn đang được phản hồi có phải của chính mình hay không
+ */
+const isReplyingToMe = computed(() => {
+    if (!chatStore.replyingMessage) return false;
+    const currentUserId = authStore.user?.userId;
+    const currentUsername = authStore.user?.username;
+    const senderId = chatStore.replyingMessage.sender?.userId;
+    const senderUsername = chatStore.replyingMessage.sender?.username;
+    return (currentUserId && String(senderId) === String(currentUserId)) ||
+           (currentUsername && senderUsername && currentUsername === senderUsername);
+});
+
+/**
+ * Tự động focus vào ô textarea khi người dùng bấm Trả lời
+ */
+watch(
+    () => chatStore.replyingMessage,
+    (newVal) => {
+        if (newVal) {
+            nextTick(() => {
+                textareaRef.value?.focus();
+            });
+        }
+    }
+);
+
+/**
  * Theo dõi sự thay đổi phòng chat:
+ * - Khi chuyển phòng -> hủy trạng thái Reply để tránh gửi nhầm repliedMessageId sang phòng khác
  * - Khi chuyển khỏi phòng A -> lưu nội dung đang gõ vào drafts của phòng A, tắt typing indicator
  * - Khi mở phòng B -> khôi phục nội dung nháp của phòng B (nếu có) hoặc để trống
  */
 watch(
     () => chatStore.activeRoomId,
     (newRoomId, oldRoomId) => {
+        // Hủy trạng thái reply khi chuyển phòng
+        chatStore.clearReplyingMessage();
+
         // 1. Tắt trạng thái typing của phòng cũ nếu đang gõ dở
         if (isCurrentlyTyping) {
             clearTimeout(typingTimer);
@@ -102,22 +137,50 @@ const handleSend = async () => {
         chatStore.sendTypingStatus(false);
     }
 
+    // Báo ngay lập tức cho ChatView để cuộn xuống đáy và thoát khỏi khúc giữa lịch sử cũ nếu có
+    emit('messageSent');
+
     // Gọi action gửi tin nhắn trong Pinia Store (ưu tiên WebSocket STOMP, fallback REST API)
     await chatStore.sendChatMessage(content);
 };
 </script>
 <template>
   <div class="chatInput">
+    <!-- Thanh xem trước phản hồi tin nhắn (Reply Banner) -->
+    <div v-if="chatStore.replyingMessage" class="reply-banner">
+      <div class="reply-banner-left">
+        <font-awesome-icon icon="reply" class="reply-banner-icon" />
+        <div class="reply-banner-info">
+          <div class="reply-banner-title">
+            {{ isReplyingToMe ? 'Đang trả lời chính bạn' : `Đang trả lời @${chatStore.replyingMessage.sender?.username || 'Thành viên'}` }}
+          </div>
+          <div class="reply-banner-snippet">
+            {{ getReplySnippet(chatStore.replyingMessage) }}
+          </div>
+        </div>
+      </div>
+      <button 
+        type="button" 
+        class="reply-banner-close-btn" 
+        title="Hủy trả lời (Esc)" 
+        @click="chatStore.clearReplyingMessage"
+      >
+        <font-awesome-icon icon="x" />
+      </button>
+    </div>
+
     <div class="input_area">
         <font-awesome-icon class="icon_input" id="paperClip" icon="paperclip"/>
         <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint"/>
         <textarea 
+            ref="textareaRef"
             v-model="text" 
             placeholder="Nhập tin nhắn..." 
             spellcheck="false" 
             rows="1"
             @input="handleInput"
             @keydown.enter.exact.prevent="handleSend"
+            @keydown.esc="chatStore.clearReplyingMessage"
         ></textarea>
         <font-awesome-icon 
             id="paperPlane" 
@@ -135,13 +198,95 @@ const handleSend = async () => {
 .chatInput {
   font-family: 'Quicksand', sans-serif;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
-  padding: 20px;
+  padding: 12px 20px 16px 20px;
   background-color: white;
   border-top: 1px solid #e6edfd;
+  gap: 8px;
+}
+
+.reply-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f1f5f9;
+  border-left: 3.5px solid #4b7bec;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  animation: slideDown 0.18s ease-out;
+}
+
+.reply-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.reply-banner-icon {
+  color: #4b7bec;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.reply-banner-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.reply-banner-title {
+  font-weight: 700;
+  color: #334155;
+  font-size: 12px;
+}
+
+.reply-banner-snippet {
+  color: #64748b;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reply-banner-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.reply-banner-close-btn:hover {
+  color: #e02424;
+  background-color: #fee2e2;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .input_area {

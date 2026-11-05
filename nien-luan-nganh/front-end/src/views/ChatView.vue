@@ -10,18 +10,24 @@
  * - Lắng nghe sự kiện ghim/bỏ ghim tin nhắn bất kỳ (handleTogglePin).
  * - Hiển thị trạng thái đang gõ phím của đối phương với hiệu ứng chấm nhảy (Typing indicator).
  */
-import { ref, nextTick, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
 import ChatHeader from '@/components/chat/ChatHeader.vue';
 import PinnedMessage from '@/components/chat/PinnedMessage.vue';
 import MessageList from '@/components/chat/MessageList.vue';
+import MessageSearchSidebar from '@/components/chat/MessageSearchSidebar.vue';
+import ChatInfoSidebar from '@/components/chat/ChatInfoSidebar.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue';
 import { initGlobalWebSocket } from '@/services/websocket';
+<<<<<<< Updated upstream
 import { getImageUrl } from '@/api/user.api';
+=======
+import { getRoomMembers } from '@/api/room.api';
+>>>>>>> Stashed changes
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -36,6 +42,107 @@ const showHistoryModal = ref(false);
 const selectedHistoryList = ref([]);
 const historyCurrentContent = ref('');
 const historySenderName = ref('');
+
+// Quản lý tìm kiếm tin nhắn trong phòng (In-Room Message Search)
+const showSearchBar = ref(false);
+const currentSearchKeyword = ref('');
+
+// Quản lý thanh thông tin phòng chat bên phải (Chat Info Sidebar)
+const isInfoSidebarOpen = ref(false);
+const currentRoomMembers = ref([]);
+const isNotificationMuted = ref(false);
+
+const fetchCurrentRoomMembers = async () => {
+  if (!chatStore.activeRoomId) {
+    currentRoomMembers.value = [];
+    return;
+  }
+  try {
+    const list = await getRoomMembers(chatStore.activeRoomId);
+    currentRoomMembers.value = Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error('Lỗi lấy danh sách thành viên phòng:', err);
+    currentRoomMembers.value = [];
+  }
+};
+
+const handleToggleSearch = () => {
+  showSearchBar.value = !showSearchBar.value;
+  if (showSearchBar.value) {
+    isInfoSidebarOpen.value = false;
+  } else {
+    currentSearchKeyword.value = '';
+  }
+};
+
+const handleCloseSearch = () => {
+  showSearchBar.value = false;
+  currentSearchKeyword.value = '';
+};
+
+const handleToggleInfo = () => {
+  isInfoSidebarOpen.value = !isInfoSidebarOpen.value;
+  if (isInfoSidebarOpen.value) {
+    showSearchBar.value = false;
+    currentSearchKeyword.value = '';
+    fetchCurrentRoomMembers();
+  }
+};
+
+const handleMuteNotification = (isMuted) => {
+  isNotificationMuted.value = isMuted;
+};
+
+// Tổng hợp danh sách File phương tiện (Ảnh, Video, Tài liệu) từ tin nhắn trong phòng
+const roomMediaData = computed(() => {
+  const images = [];
+  const videos = [];
+  const files = [];
+
+  (chatStore.messages || []).forEach((m) => {
+    if (m.isRevoked) return;
+    if (m.messageType === 'IMAGE') {
+      images.push({
+        id: m.messageId,
+        url: m.content,
+        name: 'Hình ảnh',
+        type: 'IMAGE',
+        createdAt: m.createdAt,
+      });
+    } else if (m.messageType === 'VIDEO') {
+      videos.push({
+        id: m.messageId,
+        url: m.content,
+        name: 'Video',
+        type: 'VIDEO',
+        createdAt: m.createdAt,
+      });
+    } else if (m.messageType === 'FILE' || m.messageType === 'DOCUMENT') {
+      files.push({
+        id: m.messageId,
+        url: m.content,
+        name: m.content?.split('/').pop() || 'Tài liệu',
+        size: 'Đính kèm',
+        type: 'FILE',
+        createdAt: m.createdAt,
+      });
+    }
+  });
+
+  return { images, videos, files };
+});
+
+const handleUpdateSearchKeyword = (keyword) => {
+  currentSearchKeyword.value = keyword;
+};
+
+const handleGlobalKeyDown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    isInfoSidebarOpen.value = false;
+    showSearchBar.value = true;
+  }
+};
 
 /**
  * Định dạng trạng thái hiện diện (Online / Offline / Thời gian offline)
@@ -234,11 +341,26 @@ onMounted(async () => {
   tickerTimer = setInterval(() => {
     ticker.value = Date.now();
   }, 30000);
+
+  // 5. Lắng nghe phím tắt Ctrl+F / Cmd+F mở thanh tìm kiếm
+  window.addEventListener('keydown', handleGlobalKeyDown);
 });
 
 onUnmounted(() => {
   if (tickerTimer) clearInterval(tickerTimer);
+  window.removeEventListener('keydown', handleGlobalKeyDown);
 });
+
+// Đóng và xóa từ khóa tìm kiếm khi chuyển phòng chat, tải lại thành viên nếu đang mở Info
+watch(
+  () => chatStore.activeRoomId,
+  (newId) => {
+    handleCloseSearch();
+    if (isInfoSidebarOpen.value && newId) {
+      fetchCurrentRoomMembers();
+    }
+  }
+);
 
 /**
  * Xử lý sự kiện Ghim hoặc Bỏ ghim tin nhắn bất kỳ từ danh sách tin nhắn
@@ -312,6 +434,14 @@ const handleViewHistory = async ({ messageId, content, sender }) => {
   historySenderName.value = sender || 'Thành viên';
   selectedHistoryList.value = await chatStore.fetchMessageHistory(messageId);
   showHistoryModal.value = true;
+};
+
+/**
+ * Xử lý khi người dùng chọn Trả lời một tin nhắn
+ * @param {object} message Đối tượng tin nhắn cần trả lời
+ */
+const handleReplyMessage = (message) => {
+  chatStore.setReplyingMessage(message);
 };
 
 const highlightedMessageId = ref(null); // ID tin nhắn đang được nhấp nháy sáng (2s)
@@ -449,10 +579,42 @@ const scrollToLatestMessages = async () => {
   showScrollBottomBtn.value = false;
 };
 
+/**
+ * Khi người dùng nhấn Enter hoặc click nút gửi tin nhắn:
+ * - Nếu đang ở khúc giữa lịch sử (do lướt lên, tìm kiếm, bấm tin ghim) -> nạp lại đoạn tin nhắn mới nhất.
+ * - Cuộn ngay lập tức xuống đáy cùng của khung chat.
+ */
+const handleMessageSent = async () => {
+  if (chatStore.isDetachedFromBottom || chatStore.hasMoreNewer) {
+    chatStore.isDetachedFromBottom = false;
+    chatStore.hasMoreNewer = false;
+    await chatStore.fetchMessages(chatStore.activeRoomId);
+  }
+  await nextTick();
+  scrollToBottom();
+  showScrollBottomBtn.value = false;
+
+  // Dự phòng khi tin nhắn được gắn vào DOM hoặc có độ trễ kết xuất
+  setTimeout(() => {
+    scrollToBottom();
+  }, 80);
+  setTimeout(() => {
+    scrollToBottom();
+  }, 250);
+};
+
 // Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
   () => chatStore.messages.length,
   () => {
+    // Nếu tin nhắn mới nhất là do chính mình gửi đi -> LUÔN LUÔN cuộn xuống sát đáy
+    const lastMsg = chatStore.messages[chatStore.messages.length - 1];
+    if (lastMsg && isMyMessage(lastMsg)) {
+      scrollToBottom();
+      showScrollBottomBtn.value = false;
+      return;
+    }
+
     if (
       !isLoadingOlder.value &&
       !isLoadingNewer.value &&
@@ -496,11 +658,16 @@ watch(
     <ChatListSidebar></ChatListSidebar>
   </div>
   <div class="chat-view">
-    <ChatHeader 
-      :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
-      :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
-    />
-    <PinnedMessage @scrollToMessage="handleScrollToMessage" />
+    <div class="chat-main-area">
+      <ChatHeader 
+        :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
+        :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
+        :isSearching="showSearchBar"
+        :isInfoOpen="isInfoSidebarOpen"
+        @toggleSearch="handleToggleSearch"
+        @toggleInfo="handleToggleInfo"
+      />
+      <PinnedMessage @scrollToMessage="handleScrollToMessage" />
 
     <div class="chat-body" ref="chatBodyRef" @scroll="handleChatBodyScroll">
       <!-- 0. Thanh tải thêm tin nhắn cũ (Cursor-based Pagination limit: 20) -->
@@ -548,11 +715,14 @@ watch(
           :isPinned="!!msg.isPinned"
           :isRevoked="!!msg.isRevoked"
           :isEdited="!!msg.isEdited"
+          :repliedMessage="msg.repliedMessage"
+          :rawMessage="msg"
           :reactions="msg.reactions || []"
           :isConsecutive="isConsecutiveMessage(idx)"
           :groupPosition="getGroupPosition(idx)"
           :showTime="shouldShowTime(idx)"
           :Content_Message="msg.content"
+          :searchKeyword="currentSearchKeyword"
           :Time="formatTime(msg.createdAt)"
           :Sender="isMyMessage(msg) ? '' : (msg.sender?.username || 'Thành viên')"
           :Avatar="isMyMessage(msg) ? '' : getImageUrl(msg.sender?.avatar || msg.sender?.avatarUrl)"
@@ -561,6 +731,8 @@ watch(
           @editMessage="handleEditMessage"
           @revokeMessage="handleRevokeMessage"
           @viewHistory="handleViewHistory"
+          @replyMessage="handleReplyMessage"
+          @scrollToMessage="handleScrollToMessage"
         />
       </template>
 
@@ -594,7 +766,31 @@ watch(
       </button>
     </transition>
 
-    <ChatInput></ChatInput>
+    <ChatInput @messageSent="handleMessageSent"></ChatInput>
+    </div>
+
+    <!-- Sidebar tìm kiếm tin nhắn bên phải (Search Drawer phong cách Telegram / Discord / Zalo) -->
+    <Transition name="search-drawer">
+      <MessageSearchSidebar 
+        v-if="showSearchBar"
+        :room-id="chatStore.activeRoomId"
+        @close="handleCloseSearch"
+        @jump-to-message="handleScrollToMessage"
+        @update-keyword="handleUpdateSearchKeyword"
+      />
+    </Transition>
+
+    <!-- Sidebar Thông tin phòng chat bên phải (Chat Info Sidebar phong cách Zalo PC / Telegram) -->
+    <Transition name="search-drawer">
+      <ChatInfoSidebar
+        v-if="isInfoSidebarOpen"
+        :room="chatStore.activeRoom || {}"
+        :members="currentRoomMembers"
+        :media-data="roomMediaData"
+        @close="isInfoSidebarOpen = false"
+        @toggle-notification="handleMuteNotification"
+      />
+    </Transition>
   </div>
   </div>
 
@@ -620,7 +816,7 @@ watch(
 .chat-view {
   position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
   max-height: 100vh;
   min-height: 0;
@@ -628,6 +824,16 @@ watch(
   background-color: #f8f9fd;
   border-right: 1px solid #e6eaf2;   
   border-left: 1px solid #e6eaf2;
+}
+
+.chat-main-area {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .chat-body {
@@ -757,13 +963,32 @@ watch(
   overflow: hidden;
 }
 
-.chat-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: #f8f9fd;
-  border-left: 1px solid #e6eaf2;
-  overflow: hidden;
+/* Animation mở/đóng mượt mà chuẩn Drawer Telegram / Slack Desktop */
+.search-drawer-enter-active {
+  transition: width 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  will-change: width, opacity;
+  overflow: hidden !important;
+}
+
+.search-drawer-leave-active {
+  transition: width 0.24s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
+  will-change: width, opacity;
+  overflow: hidden !important;
+}
+
+.search-drawer-enter-from,
+.search-drawer-leave-to {
+  width: 0 !important;
+  opacity: 0;
+  border-left-color: transparent !important;
+}
+
+.search-drawer-enter-from :deep(.search-sidebar-inner),
+.search-drawer-leave-to :deep(.search-sidebar-inner),
+.search-drawer-enter-from :deep(.chat-info-sidebar-inner),
+.search-drawer-leave-to :deep(.chat-info-sidebar-inner) {
+  transform: translateX(40px);
+  opacity: 0;
 }
 
 .chat-body {

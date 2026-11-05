@@ -45,7 +45,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "WHERE m.room.roomId = :roomId " +
                         "AND m.createdAt < :createdAt " +
                         "ORDER BY m.createdAt DESC")
-        List<Message> findOlderAround(@Param("roomId") UUID roomId, @Param("createdAt") LocalDateTime createdAt, Pageable pageable);
+        List<Message> findOlderAround(@Param("roomId") UUID roomId, @Param("createdAt") LocalDateTime createdAt,
+                        Pageable pageable);
 
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
@@ -54,7 +55,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "WHERE m.room.roomId = :roomId " +
                         "AND m.createdAt > :createdAt " +
                         "ORDER BY m.createdAt ASC")
-        List<Message> findNewerAround(@Param("roomId") UUID roomId, @Param("createdAt") LocalDateTime createdAt, Pageable pageable);
+        List<Message> findNewerAround(@Param("roomId") UUID roomId, @Param("createdAt") LocalDateTime createdAt,
+                        Pageable pageable);
 
         @Query("SELECT COUNT(m) > 0 FROM Message m WHERE m.room.roomId = :roomId AND m.createdAt < :createdAt")
         boolean existsOlderThan(@Param("roomId") UUID roomId, @Param("createdAt") LocalDateTime createdAt);
@@ -66,7 +68,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "WHERE m.room.roomId = :roomId " +
                         "AND m.createdAt <= :targetTime " +
                         "ORDER BY m.createdAt DESC")
-        List<Message> findOlderContext(@Param("roomId") UUID roomId, @Param("targetTime") LocalDateTime targetTime, Pageable pageable);
+        List<Message> findOlderContext(@Param("roomId") UUID roomId, @Param("targetTime") LocalDateTime targetTime,
+                        Pageable pageable);
 
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
@@ -75,9 +78,11 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "WHERE m.room.roomId = :roomId " +
                         "AND m.createdAt > :targetTime " +
                         "ORDER BY m.createdAt ASC")
-        List<Message> findNewerContext(@Param("roomId") UUID roomId, @Param("targetTime") LocalDateTime targetTime, Pageable pageable);
+        List<Message> findNewerContext(@Param("roomId") UUID roomId, @Param("targetTime") LocalDateTime targetTime,
+                        Pageable pageable);
 
-        // Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời gian)
+        // Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời
+        // gian)
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
                         "LEFT JOIN FETCH m.repliedMessage rm " +
@@ -86,9 +91,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "AND m.createdAt > (SELECT c.createdAt FROM Message c WHERE c.messageId = :cursorId) " +
                         "ORDER BY m.createdAt ASC")
         List<Message> findMessagesAfterCursor(@Param("roomId") UUID roomId,
-                                              @Param("cursorId") UUID cursorId,
-                                              Pageable pageable);
-
+                        @Param("cursorId") UUID cursorId,
+                        Pageable pageable);
 
         // Tim tin nhan trong room (tin nhan thu hoi roi thi khong thay)
         @Query("SELECT m FROM Message m " +
@@ -101,6 +105,27 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "ORDER BY m.createdAt DESC")
         List<Message> searchInRoom(@Param("roomId") UUID roomId,
                         @Param("q") String q,
+                        Pageable pageable);
+
+        // Tim danh sach tin nhan khop tu khoa (phuc vu tim kiem trong phong)
+        @Query("SELECT m FROM Message m " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND LOWER(m.content) LIKE :pattern " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> searchMessagesInRoom(@Param("roomId") UUID roomId,
+                        @Param("pattern") String pattern,
+                        Pageable pageable);
+
+        // Tim danh sach tin nhan kem thong tin nguoi gui (phuc vu Search Sidebar bên phải)
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND LOWER(m.content) LIKE :pattern " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> searchMessagesWithDetails(@Param("roomId") UUID roomId,
+                        @Param("pattern") String pattern,
                         Pageable pageable);
 
         // Lay danh sach tin nhan da ghim trong phong chat

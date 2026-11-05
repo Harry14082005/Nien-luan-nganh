@@ -10,6 +10,8 @@ public interface RoomMemberMapper {
 
     @Mapping(target = "roomId", source = "room.roomId")
     @Mapping(target = "userId", source = "user.userId")
+    @Mapping(target = "username", source = "user.username")
+    @Mapping(target = "avatarUrl", source = "user.avatarUrl")
 
     RoomMemberResponse toRoomMemberResponse(RoomMember roomMember);
 }

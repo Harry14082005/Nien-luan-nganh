@@ -45,6 +45,28 @@ export const getMessageContext = (roomId, messageId) => {
 }
 
 /**
+ * Tìm kiếm tin nhắn trong phòng chat theo từ khóa (Lightweight Metadata).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} q Từ khóa tìm kiếm
+ */
+export const searchMessages = (roomId, q) => {
+  return http
+    .get(`/rooms/${roomId}/messages/search`, { params: { q } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Tìm kiếm tin nhắn chi tiết cho Sidebar Drawer bên phải (Search Preview).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} q Từ khóa tìm kiếm
+ */
+export const searchMessagesSidebar = (roomId, q) => {
+  return http
+    .get(`/rooms/${roomId}/messages/search/sidebar`, { params: { q } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
  * Gửi tin nhắn vào phòng chat qua REST API (dự phòng khi WebSocket chưa sẵn sàng).
  * @param {string} roomId UUID của phòng chat
  * @param {object} data { content, messageType, repliedMessageId }

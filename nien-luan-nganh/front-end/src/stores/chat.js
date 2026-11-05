@@ -162,6 +162,15 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
   return merged
 }
 
+// Hàm chuẩn hóa nội dung hiển thị trích dẫn (Snippet Helper) dùng chung
+export const getReplySnippet = (msg) => {
+  if (!msg) return ''
+  if (msg.isRevoked) return 'Tin nhắn đã bị thu hồi'
+  if (msg.messageType === 'IMAGE') return '[Hình ảnh]'
+  if (msg.messageType === 'FILE') return '[Tệp đính kèm]'
+  return msg.content || ''
+}
+
 // Trích xuất danh sách tin nhắn an toàn từ các cấu trúc phản hồi khác nhau của Backend/Axios
 function extractMessageList(res) {
   if (!res) return []
@@ -244,6 +253,9 @@ export const useChatStore = defineStore('chat', {
 
     // Ghi nhận hành động ghim/bỏ ghim do chính tab hiện tại vừa thực hiện: { [messageId]: { type, actorUsername, actorUserId, timestamp } }
     myRecentPinActions: {},
+
+    // Thông tin tin nhắn đang được chọn để Trả lời (Reply)
+    replyingMessage: null,
   }),
 
   getters: {
@@ -401,6 +413,9 @@ export const useChatStore = defineStore('chat', {
     async selectRoom(roomId) {
       if (!roomId) return
       const isSameRoom = String(this.activeRoomId) === String(roomId)
+      if (!isSameRoom) {
+        this.clearReplyingMessage()
+      }
       this.activeRoomId = roomId
       this.isViewingOlderSegment = false
       this.isDetachedFromBottom = false
@@ -716,12 +731,41 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // 3.5. Quản lý trạng thái Trả lời (Reply) tin nhắn
+    setReplyingMessage(message) {
+      if (!message || message.isRevoked || message.messageType === 'SYSTEM') return
+      this.replyingMessage = {
+        messageId: message.messageId,
+        sender: message.sender,
+        content: message.content,
+        messageType: message.messageType || 'TEXT',
+        isRevoked: Boolean(message.isRevoked),
+      }
+    },
+
+    clearReplyingMessage() {
+      this.replyingMessage = null
+    },
+
     // 4. Gửi tin nhắn mới
     async sendChatMessage(content) {
       if (!this.activeRoomId || !content || !content.trim()) return
       const text = content.trim()
       const authStore = useAuthStore()
       const roomKey = String(this.activeRoomId)
+
+      const repliedMessageId = this.replyingMessage?.messageId || null
+      const replyingSnapshot = this.replyingMessage
+        ? {
+            messageId: this.replyingMessage.messageId,
+            senderId: this.replyingMessage.sender?.userId || null,
+            senderUsername: this.replyingMessage.sender?.username || 'Bạn',
+            content: this.replyingMessage.content,
+          }
+        : null
+
+      // Hủy trạng thái reply ngay khi gửi
+      this.clearReplyingMessage()
 
       // Trường hợp 1: Phòng mẫu dự phòng ('1', '2', '3')
       if (['1', '2', '3'].includes(roomKey)) {
@@ -734,6 +778,7 @@ export const useChatStore = defineStore('chat', {
             username: authStore.user?.username || 'Bạn',
           },
           createdAt: new Date().toISOString(),
+          repliedMessage: replyingSnapshot,
         }
 
         // Lưu vào kho tin nhắn mẫu & localStorage để không bị mất khi chuyển phòng hoặc F5
@@ -752,10 +797,14 @@ export const useChatStore = defineStore('chat', {
       // Gọi POST /api/v1/rooms/{roomId}/messages:
       // Backend vừa lưu DB, vừa tự động broadcast qua WebSocket (/topic/room.{roomId}), vừa trả về MessageResponse
       try {
-        const sentMsg = await messageApi.sendMessage(this.activeRoomId, {
+        const payload = {
           content: text,
           messageType: 'TEXT',
-        })
+        }
+        if (repliedMessageId) {
+          payload.repliedMessageId = repliedMessageId
+        }
+        const sentMsg = await messageApi.sendMessage(this.activeRoomId, payload)
         if (sentMsg) {
           this.handleNewMessage(sentMsg)
         }
@@ -878,6 +927,19 @@ export const useChatStore = defineStore('chat', {
           this.messages[existsIndex] = { ...this.messages[existsIndex], ...message }
         } else {
           this.messages.push(message)
+        }
+
+        // Nếu là tin nhắn của chính mình gửi đi -> đưa trạng thái xem về sát đáy mới nhất
+        if (isMyMsg) {
+          this.isDetachedFromBottom = false
+          this.hasMoreNewer = false
+        }
+
+        // Cập nhật nội dung trích dẫn của các tin nhắn đang reply tin này nếu vừa được sửa hoặc thu hồi
+        if (message.isRevoked) {
+          this.handleMessageRevoked(msgId)
+        } else if (message.isEdited) {
+          this.handleMessageEdited(message)
         }
 
         // Xử lý tin nhắn hệ thống (SYSTEM) cho sự kiện Ghim / Bỏ ghim
@@ -1359,6 +1421,7 @@ export const useChatStore = defineStore('chat', {
             saveDemoMessages(this.demoMessagesMap)
           }
         }
+        this.handleMessageEdited({ messageId, content: text, isEdited: true })
         const room = this.rooms.find((r) => String(r.roomId) === rId)
         if (room && String(room.lastMessageId) === String(messageId)) {
           room.lastMessageContent = text
@@ -1373,6 +1436,7 @@ export const useChatStore = defineStore('chat', {
           if (idx !== -1) {
             this.messages[idx] = { ...this.messages[idx], ...updatedMsg }
           }
+          this.handleMessageEdited(updatedMsg)
           const room = this.rooms.find((r) => String(r.roomId) === rId)
           if (room && String(room.lastMessageId) === String(messageId)) {
             room.lastMessageContent = text
@@ -1380,6 +1444,35 @@ export const useChatStore = defineStore('chat', {
         }
       } catch (err) {
         console.error('Lỗi khi chỉnh sửa tin nhắn:', err)
+      }
+    },
+
+    // 12.1. Cập nhật đồng bộ các tin nhắn đang reply khi tin nhắn gốc được sửa
+    handleMessageEdited(updatedMessage) {
+      if (!updatedMessage) return
+      const targetId = String(updatedMessage.messageId)
+      const newContent = updatedMessage.content
+
+      this.messages.forEach((msg) => {
+        // 1. Cập nhật chính tin nhắn gốc được sửa
+        if (String(msg.messageId) === targetId) {
+          msg.content = newContent
+          msg.isEdited = true
+          if (updatedMessage.updatedAt) {
+            msg.updatedAt = updatedMessage.updatedAt
+          }
+        }
+
+        // 2. Cập nhật nội dung trích dẫn của các tin nhắn đang reply tin này
+        if (msg.repliedMessage && String(msg.repliedMessage.messageId) === targetId) {
+          msg.repliedMessage.content = newContent
+          msg.repliedMessage.isEdited = true
+        }
+      })
+
+      // Cập nhật nếu đang trong thanh Reply banner ở ô ChatInput
+      if (this.replyingMessage && String(this.replyingMessage.messageId) === targetId) {
+        this.replyingMessage.content = newContent
       }
     },
 
@@ -1405,6 +1498,7 @@ export const useChatStore = defineStore('chat', {
             saveDemoMessages(this.demoMessagesMap)
           }
         }
+        this.handleMessageRevoked(messageId)
         const room = this.rooms.find((r) => String(r.roomId) === rId)
         if (room && String(room.lastMessageId) === String(messageId)) {
           room.lastMessageContent = 'Tin nhắn đã bị thu hồi'
@@ -1424,6 +1518,7 @@ export const useChatStore = defineStore('chat', {
             isPinned: false,
           }
         }
+        this.handleMessageRevoked(messageId)
         this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== String(messageId))
         const room = this.rooms.find((r) => String(r.roomId) === rId)
         if (room && String(room.lastMessageId) === String(messageId)) {
@@ -1431,6 +1526,35 @@ export const useChatStore = defineStore('chat', {
         }
       } catch (err) {
         console.error('Lỗi khi thu hồi tin nhắn:', err)
+      }
+    },
+
+    // 13.1. Cập nhật đồng bộ các tin nhắn đang reply khi tin nhắn gốc bị thu hồi
+    handleMessageRevoked(revokedMessageId) {
+      if (!revokedMessageId) return
+      const targetId = String(revokedMessageId)
+
+      this.messages.forEach((msg) => {
+        // 1. Đánh dấu thu hồi tin gốc
+        if (String(msg.messageId) === targetId) {
+          msg.isRevoked = true
+          msg.content = 'Tin nhắn đã được thu hồi'
+          msg.isPinned = false
+        }
+
+        // 2. Cập nhật khối quote của các tin đang reply tin vừa bị thu hồi
+        if (msg.repliedMessage && String(msg.repliedMessage.messageId) === targetId) {
+          msg.repliedMessage.isRevoked = true
+          msg.repliedMessage.content = 'Tin nhắn đã được thu hồi'
+        }
+      })
+
+      // Đồng bộ pinnedMessages nếu tin bị thu hồi đang được ghim
+      this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== targetId)
+
+      // Hủy reply banner nếu tin đang chọn reply bị thu hồi
+      if (this.replyingMessage && String(this.replyingMessage.messageId) === targetId) {
+        this.clearReplyingMessage()
       }
     },
 

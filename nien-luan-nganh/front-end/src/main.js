@@ -22,6 +22,7 @@ import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
+<<<<<<< Updated upstream
 import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
 import {
   faChevronDown,
@@ -58,6 +59,42 @@ library.add(
   faCheck,
   faUserPlus,
 )
+=======
+import { faChevronDown, faChevronUp, faChevronRight, faEllipsisVertical, faPen, faTrash, faClockRotateLeft, faCheck, faReply, faUsers, faBell, faBellSlash, faFolderOpen, faImage, faVideo, faFileLines, faPlay, faArrowDown } from '@fortawesome/free-solid-svg-icons'
+library.add(faMagnifyingGlass,
+            faCircleInfo,
+            faList,faThumbTack,
+            faX,faPaperclip,
+            faFaceLaughSquint,
+            faFaceSmile,
+            faPaperPlane,
+            faHouse,
+            faMessage,
+            faUser,
+            faUserGroup,
+            faGear,
+            faComment,
+            faBars,
+            faPlus,
+            faChevronDown,
+            faChevronUp,
+            faChevronRight,
+            faEllipsisVertical,
+            faPen,
+            faTrash,
+            faClockRotateLeft,
+            faCheck,
+            faReply,
+            faUsers,
+            faBell,
+            faBellSlash,
+            faFolderOpen,
+            faImage,
+            faVideo,
+            faFileLines,
+            faPlay,
+            faArrowDown)
+>>>>>>> Stashed changes
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return
   const { worker } = await import('./mocks/browser')

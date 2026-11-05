@@ -10,7 +10,7 @@
  */
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { useChatStore } from '@/stores/chat';
+import { useChatStore, getReplySnippet } from '@/stores/chat';
 import MessageBubble from './MessageBubble.vue';
 
 const props = defineProps({
@@ -76,14 +76,32 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
+<<<<<<< Updated upstream
     // Hiển thị Avatar
     Avatar: {
     type: String,
     default: ''
   }
+=======
+    // Dữ liệu tin nhắn được phản hồi (nếu có)
+    repliedMessage: {
+        type: Object,
+        default: null
+    },
+    // Đối tượng tin nhắn gốc đầy đủ để truyền khi bấm Reply
+    rawMessage: {
+        type: Object,
+        default: null
+    },
+    // Từ khóa tìm kiếm đang kích hoạt để highlight
+    searchKeyword: {
+        type: String,
+        default: ''
+    }
+>>>>>>> Stashed changes
 });
 
-const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory'])
+const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory', 'replyMessage', 'scrollToMessage'])
 
 const authStore = useAuthStore();
 const chatStore = useChatStore();
@@ -144,6 +162,33 @@ const groupedReactions = computed(() => {
     }
     return groups;
 });
+
+// Kiểm tra nội dung tin nhắn có chứa từ khóa tìm kiếm hay không
+const hasKeywordMatch = computed(() => {
+    if (!props.searchKeyword || !props.Content_Message) return false;
+    return props.Content_Message.toLowerCase().includes(props.searchKeyword.toLowerCase());
+});
+
+// Chuyển ký tự đặc biệt tránh tấn công XSS
+const escapeHtml = (text) => {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+// Đánh dấu từ khóa khớp bên trong chuỗi tin nhắn
+const highlightKeyword = (text, keyword) => {
+    if (!text) return '';
+    if (!keyword || !keyword.trim()) return escapeHtml(text);
+    const escapedText = escapeHtml(text);
+    const escapedKw = escapeHtml(keyword.trim()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedKw})`, 'gi');
+    return escapedText.replace(regex, '<mark class="chat-search-mark">$1</mark>');
+};
 
 // Thả hoặc gỡ cảm xúc với Optimistic UI
 const handleSelectReaction = async (type) => {
@@ -211,6 +256,42 @@ const handleViewHistory = () => {
   })
 }
 
+// Tên hiển thị của người được trả lời ("Bạn" nếu là chính mình, "@username" nếu là người khác)
+const repliedSenderDisplayName = computed(() => {
+    if (!props.repliedMessage) return '';
+    const currentUserId = authStore.user?.userId;
+    const currentUsername = authStore.user?.username;
+    const senderId = props.repliedMessage.senderId;
+    const senderUsername = props.repliedMessage.senderUsername;
+    const isMe = (currentUserId && senderId && String(senderId) === String(currentUserId)) ||
+                 (currentUsername && senderUsername && currentUsername === senderUsername);
+    return isMe ? 'Bạn' : (senderUsername ? `@${senderUsername}` : 'Thành viên');
+});
+
+// Xử lý khi bấm nút Trả lời (Reply)
+const handleReplyClick = () => {
+    showMenu.value = false;
+    if (props.isRevoked) return;
+    const msgPayload = props.rawMessage || {
+        messageId: props.messageId,
+        sender: {
+            userId: props.variant === 'SendTo' ? authStore.user?.userId : null,
+            username: props.variant === 'SendTo' ? (authStore.user?.username || 'Bạn') : props.Sender,
+        },
+        content: props.Content_Message,
+        isRevoked: props.isRevoked,
+        messageType: 'TEXT',
+    };
+    emit('replyMessage', msgPayload);
+};
+
+// Xử lý khi click vào khối trích dẫn để cuộn tới tin nhắn gốc
+const handleClickRepliedQuote = () => {
+    if (props.repliedMessage?.messageId) {
+        emit('scrollToMessage', props.repliedMessage.messageId);
+    }
+};
+
 // Đóng menu 3 chấm và thanh chọn cảm xúc khi click bên ngoài
 const handleDocumentClick = () => {
     showMenu.value = false;
@@ -229,6 +310,7 @@ onUnmounted(() => {
 <template>
   <div
     :id="messageId ? 'msg-' + messageId : null"
+<<<<<<< Updated upstream
     :class="['container', `container--${variant}`, { 'container--consecutive': isConsecutive }]"
   > 
         
@@ -250,6 +332,45 @@ onUnmounted(() => {
           <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
             
       <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
+=======
+    :class="[
+      'container', 
+      `container--${variant}`, 
+      { 
+        'container--consecutive': isConsecutive,
+        'container--has-reply': repliedMessage && !isRevoked
+      }
+    ]"
+  >
+    <MessageBubble v-if="!isConsecutive" :type="variant"></MessageBubble>
+    <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
+    <div
+      :class="[
+        'wrapper',
+        `wrapper--${variant}`,
+        { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
+      ]"
+    >
+      <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
+
+      <!-- Khối trích dẫn đặt RIÊNG BIỆT phía trên bong bóng tin nhắn (không nằm chung khung) -->
+      <div 
+          v-if="repliedMessage && !isRevoked" 
+          class="replied-quote-box"
+          :class="`replied-quote-box--${variant}`"
+          @click.stop="handleClickRepliedQuote"
+          title="Bấm để cuộn tới tin nhắn gốc"
+      >
+          <div class="replied-quote-sender">
+              {{ repliedSenderDisplayName }}
+          </div>
+          <div class="replied-quote-content">
+              {{ getReplySnippet(repliedMessage) }}
+          </div>
+      </div>
+
+        <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
+>>>>>>> Stashed changes
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
             <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
             <div v-if="isRevoked" :class="['message', 'message--revoked']">
@@ -290,10 +411,11 @@ onUnmounted(() => {
                 @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
                 :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
             >
-                {{ Content_Message }}
+                <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
+                <template v-else>{{ Content_Message }}</template>
             </div>
 
-            <!-- Nút Thả cảm xúc, Ghim, ... để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
+            <!-- Nút Thả cảm xúc, Trả lời, Ghim, ... để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
             <div 
                 v-if="!isRevoked" 
                 class="message-actions" 
@@ -335,7 +457,16 @@ onUnmounted(() => {
                     </transition>
                 </div>
 
-                <!-- 2. Nút Ghim -->
+                <!-- 2. Nút Trả lời (Reply) -->
+                <span 
+                    class="action-btn reply-btn" 
+                    title="Trả lời" 
+                    @click="handleReplyClick"
+                >
+                    <font-awesome-icon icon="reply"/>
+                </span>
+
+                <!-- 3. Nút Ghim -->
                 <span 
                     class="action-btn pin-btn" 
                     :class="{ 'is-pinned': isPinned }" 
@@ -345,7 +476,7 @@ onUnmounted(() => {
                     <font-awesome-icon icon="thumbtack"/>
                 </span>
 
-                <!-- 3. Nút 3 chấm (...) -->
+                <!-- 4. Nút 3 chấm (...) -->
                 <div class="menu-container">
                     <span 
                         class="action-btn more-btn" 
@@ -357,6 +488,10 @@ onUnmounted(() => {
 
                     <!-- Menu xổ xuống -->
                     <div v-if="showMenu" class="action-dropdown" :class="`action-dropdown--${variant}`" @click.stop>
+                        <div class="dropdown-opt" @click="handleReplyClick">
+                            <font-awesome-icon icon="reply" class="opt-icon"/>
+                            <span>Trả lời</span>
+                        </div>
                         <div v-if="variant === 'SendTo'" class="dropdown-opt" @click="handleStartEdit">
                             <font-awesome-icon icon="pen" class="opt-icon"/>
                             <span>Chỉnh sửa</span>
@@ -427,7 +562,7 @@ onUnmounted(() => {
 }
 
 .container--consecutive {
-  margin-top: 0;
+  margin-top: -0.5px;
 }
 
 .container--consecutive .wrapper {
@@ -435,7 +570,16 @@ onUnmounted(() => {
 }
 
 .container--consecutive .message {
-  margin-top: 2px !important;
+  margin-top: -0.5px !important;
+}
+
+/* Tin nhắn có phần trích dẫn reply: tách xa ra 1 xíu so với tin nhắn trước đó */
+.container--has-reply {
+  margin-top: 8px;
+}
+
+.container--consecutive.container--has-reply {
+  margin-top: 10px !important;
 }
 
 .container--consecutive .bubble-spacer {
@@ -445,6 +589,7 @@ onUnmounted(() => {
 .wrapper {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   margin-top: 10px;
   max-width: 75%;
   position: relative;
@@ -519,6 +664,145 @@ onUnmounted(() => {
   color: white;
   background-color: #4b7bec;
   border-radius: 18px 4px 18px 18px;
+}
+
+/* =========================================================
+   KHỐI TRÍCH DẪN REPLY - TÁCH KHUNG RIÊNG BIỆT (DETACHED STYLE)
+   ========================================================= */
+.replied-quote-box {
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 4px 10px 4px 12px; /* Dành chỗ bên trái cho vạch accent */
+  margin-top: 4px; /* Giúp khối quote cách xa 1 xíu với tin nhắn trước đó */
+  margin-bottom: 2px; /* Dời sát lại gần bong bóng tin nhắn reply bên dưới */
+  text-align: left;
+  user-select: none;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Kéo bong bóng tin nhắn bên dưới sát lên ngay cạnh khối quote */
+.replied-quote-box + .bubble-row .message {
+  margin-top: 1px !important;
+}
+
+/* Hiệu ứng nhún nhẹ khi click/hover tạo cảm giác tương tác */
+.replied-quote-box:hover {
+  transform: translateY(-1px);
+}
+.replied-quote-box:active {
+  transform: translateY(0);
+}
+
+/* Vạch accent dọc bên trái: Thẳng tắp, bo tròn 2 đầu độc lập, không bị méo góc */
+.replied-quote-box::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3.5px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+/* Hàng tiêu đề người gửi */
+.replied-quote-sender {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  line-height: 1.15;
+}
+
+/* Tự động chèn icon reply mini trước tên người gửi */
+.replied-quote-sender::before {
+  content: '↩';
+  font-size: 10.5px;
+  font-weight: 900;
+  transform: translateY(-0.5px);
+  opacity: 0.85;
+}
+
+/* Nội dung tin nhắn trích dẫn */
+.replied-quote-content {
+  font-size: 11.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* =========================================================
+   1. KHỐI REPLY CỦA ĐỐI PHƯƠNG (default - Bên trái)
+   ========================================================= */
+.replied-quote-box--default {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.replied-quote-box--default::before {
+  background: linear-gradient(180deg, #3b82f6, #2563eb); /* Gradient xanh dương */
+}
+
+.replied-quote-box--default:hover {
+  background: #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.replied-quote-box--default .replied-quote-sender {
+  color: #2563eb;
+}
+
+.replied-quote-box--default .replied-quote-content {
+  color: #475569;
+}
+
+/* =========================================================
+   2. KHỐI REPLY CỦA CHÍNH MÌNH (SendTo - Bên phải)
+   ========================================================= */
+.replied-quote-box--SendTo {
+  background: #eff6ff; /* Nền xanh pastel tách biệt hoàn toàn khỏi bong bóng xanh đậm */
+  border: 1px solid #dbeafe;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
+}
+
+.replied-quote-box--SendTo::before {
+  background: linear-gradient(180deg, #4b7bec, #2563eb);
+}
+
+.replied-quote-box--SendTo:hover {
+  background: #dbeafe;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.1);
+}
+
+.replied-quote-box--SendTo .replied-quote-sender {
+  color: #2563eb;
+}
+
+.replied-quote-box--SendTo .replied-quote-content {
+  color: #334155;
+}
+
+.message-content-text {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.reply-btn:hover {
+  color: #4b7bec;
 }
 
 /* --- Bo góc bong bóng chuẩn Facebook Messenger theo vị trí trong cụm tin nhắn --- */
@@ -930,6 +1214,15 @@ onUnmounted(() => {
 
 .highlight-msg .message {
   animation: flashMessage 1.5s ease-out;
+}
+
+:deep(.chat-search-mark) {
+  background-color: #fde047;
+  color: #0f172a;
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 @keyframes flashMessage {

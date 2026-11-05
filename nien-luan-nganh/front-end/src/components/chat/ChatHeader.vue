@@ -7,8 +7,18 @@ const props = defineProps({
     StatusRoom:{
         type:String,
         default:'6 thành viên - 3 đang hoạt động'
+    },
+    isSearching: {
+        type: Boolean,
+        default: false
+    },
+    isInfoOpen: {
+        type: Boolean,
+        default: false
     }
 })
+
+const emit = defineEmits(['toggleSearch', 'toggleInfo'])
 
 const getInitials = (name) => {
     if (!name) return 'CS';
@@ -27,8 +37,20 @@ const getInitials = (name) => {
     </div>
     </div>
     <div class="right-header">
-        <font-awesome-icon class="icon" icon="magnifying-glass"/>
-        <font-awesome-icon class="icon" icon="list"/>
+        <font-awesome-icon 
+            class="icon" 
+            :class="{ 'icon--active': isSearching }"
+            icon="magnifying-glass"
+            title="Tìm kiếm tin nhắn trong đoạn chat (Ctrl+F)"
+            @click="emit('toggleSearch')"
+        />
+        <font-awesome-icon 
+            class="icon" 
+            :class="{ 'icon--active': isInfoOpen }"
+            icon="list"
+            title="Thông tin hội thoại"
+            @click="emit('toggleInfo')"
+        />
     </div>
 </div>
 
@@ -102,7 +124,8 @@ const getInitials = (name) => {
     border-radius: 1.25rem;
     transition: all 0.15s ease;
 }
-.icon:hover{
+.icon:hover,
+.icon--active {
     color:#4b7bec;
     padding:8px;
     background-color: #e6edfd;

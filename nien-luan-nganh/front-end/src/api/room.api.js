@@ -17,6 +17,14 @@ export const getRoom = (roomId) => {
 }
 
 /**
+ * Lấy danh sách thành viên trong phòng chat.
+ * @param {string} roomId
+ */
+export const getRoomMembers = (roomId) => {
+  return http.get(`/rooms/${roomId}/members`, { params: { status: 'ACTIVE' } }).then((res) => res.data?.data ?? res.data)
+}
+
+/**
  * Tạo hoặc lấy phòng chat 1-1 (DIRECT) với một người dùng khác.
  * Backend: POST /api/v1/rooms/direct — Body: { userId }
  * @param {string} userId UUID của người dùng muốn nhắn tin cùng

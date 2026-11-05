@@ -19,4 +19,6 @@ public class RoomMemberResponse {
     private LocalDateTime joinedAt;
     private UUID lastDeliveredMessagedId;
     private UUID lastReadMessageId;
+    private String username;
+    private String avatarUrl;
 }
