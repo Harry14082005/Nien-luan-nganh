@@ -225,7 +225,7 @@ watch(
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid #f1f5f9;
-  min-height: 60px;
+  min-height: 70px;
   box-sizing: border-box;
 }
 

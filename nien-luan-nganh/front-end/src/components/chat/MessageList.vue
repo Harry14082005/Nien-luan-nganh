@@ -564,17 +564,17 @@ onUnmounted(() => {
 }
 
 .container--consecutive .bubble-spacer {
-  height: 0;
+  height: 1px;
 }
 
 .wrapper {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  margin-top: 10px;
+  margin-top: 6px;
   max-width: 75%;
   position: relative;
-  padding-left: 44px
+  padding-left: 0;
 }
 
 /* Tin nhắn của mình: không chừa lề trái và căn toàn bộ nội dung về bên phải */
@@ -593,10 +593,10 @@ onUnmounted(() => {
 }
 
 .bubble-spacer {
-  width: 37px;
+  width: 36px;
   height: 1px;
-  margin-left: 10px;
-  margin-right: 6px;
+  margin-right: 8px;
+  margin-left: 0;
   flex-shrink: 0;
 }
 
@@ -1204,8 +1204,11 @@ onUnmounted(() => {
 .sender {
   font-family: 'Quicksand', sans-serif;
   font-weight: 600;
-  margin-left: 7px;
-  margin-top: 10px;
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 4px;
+  margin-top: 0;
+  margin-bottom: 2px;
 }
 
 .highlight-msg .message {
@@ -1291,15 +1294,12 @@ onUnmounted(() => {
 }
 
 .message-bubble-avatar-box {
-  position: absolute;    /* 🟢 Đặt vị trí tuyệt đối */
-  left: 0;
-  top: 16px;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
   font-family: 'Quicksand', sans-serif;
   font-weight: 700;
@@ -1307,30 +1307,16 @@ onUnmounted(() => {
   background-color: #ede9fe;
   color: #7c3aed;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-/* .message-bubble-avatar-box {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  overflow: hidden;
-  font-family: 'Quicksand', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-  background-color: #ede9fe; 
-  color: #7c3aed;          
   flex-shrink: 0;
   margin-right: 8px;
-  margin-top: 20px;
-} */
+  align-self: flex-start;
+  margin-top: 4px;
+}
 
 .custom-avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 </style>

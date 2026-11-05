@@ -51,25 +51,15 @@
 
         <hr class="divider" />
 
-        <!-- 4. DANH SÁCH THÀNH VIÊN (COLLAPSIBLE ACCORDION) -->
-        <div class="accordion-section">
-          <div class="accordion-header" @click="isMembersExpanded = !isMembersExpanded">
-            <div class="header-left">
-              <font-awesome-icon icon="user-group" class="section-icon" />
-              <span class="section-title">Thành viên phòng ({{ displayMembers.length }})</span>
-            </div>
-            <font-awesome-icon
-              icon="chevron-right"
-              class="arrow-icon"
-              :class="{ 'arrow--down': isMembersExpanded }"
-            />
-          </div>
-
-          <Transition name="accordion">
-            <div v-if="isMembersExpanded" class="accordion-body">
-              <div v-if="displayMembers.length === 0" class="empty-members-hint">
-                Chưa có danh sách thành viên
+        <!-- 4. DANH SÁCH THÀNH VIÊN (COLLAPSIBLE ACCORDION) - CHỈ HIỂN THỊ KHI LÀ NHÓM CHAT (GROUP) -->
+        <template v-if="isGroupRoom">
+          <div class="accordion-section">
+            <div class="accordion-header" @click="isMembersExpanded = !isMembersExpanded">
+              <div class="header-left">
+                <font-awesome-icon icon="user-group" class="section-icon" />
+                <span class="section-title">Thành viên phòng ({{ displayMembers.length }})</span>
               </div>
+<<<<<<< Updated upstream
               <div
                 v-for="member in displayMembers"
                 :key="member.userId || member.username"
@@ -85,16 +75,59 @@
                   <span
                     v-if="member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN'"
                     class="role-badge"
+=======
+              <font-awesome-icon
+                icon="chevron-right"
+                class="arrow-icon"
+                :class="{ 'arrow--down': isMembersExpanded }"
+              />
+            </div>
+
+            <!-- CSS Grid Accordion Collapse (Mượt mà, không lag/delay) -->
+            <div class="accordion-collapse" :class="{ 'is-expanded': isMembersExpanded }">
+              <div class="accordion-collapse-inner">
+                <div class="accordion-body">
+                  <!-- Thanh thêm thành viên mới vào phòng -->
+                  <div class="add-member-action-bar" @click="$emit('add-member')">
+                    <div class="add-member-icon-circle">
+                      <font-awesome-icon icon="user-plus" />
+                    </div>
+                    <span class="add-member-text">Thêm thành viên</span>
+                  </div>
+
+                  <div v-if="displayMembers.length === 0" class="empty-members-hint">
+                    Chưa có danh sách thành viên
+                  </div>
+                  <div
+                    v-for="member in displayMembers"
+                    :key="member.userId || member.username"
+                    class="member-item member-item--clickable"
+                    title="Bấm để xem thông tin thành viên"
+                    @click="openMemberProfile(member)"
+>>>>>>> Stashed changes
                   >
-                    Trưởng nhóm
-                  </span>
+                    <UserAvatar
+                      :name="member.username || 'Thành viên'"
+                      :src="member.avatarUrl"
+                      :size="34"
+                    />
+                    <div class="member-info">
+                      <span class="member-name">{{ member.username || 'Thành viên' }}</span>
+                      <span
+                        v-if="member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN'"
+                        class="role-badge"
+                      >
+                        Trưởng nhóm
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </Transition>
-        </div>
+          </div>
 
-        <hr class="divider" />
+          <hr class="divider" />
+        </template>
 
         <!-- 5. FILE PHƯƠNG TIỆN (ẢNH / VIDEO / FILE) -->
         <div class="accordion-section media-section">
@@ -110,9 +143,10 @@
             />
           </div>
 
-          <Transition name="accordion">
-            <div v-if="isMediaExpanded" class="accordion-body">
-              <!-- THANH NÚT TAB NGANG HÀNG -->
+          <div class="accordion-collapse" :class="{ 'is-expanded': isMediaExpanded }">
+            <div class="accordion-collapse-inner">
+              <div class="accordion-body">
+                <!-- THANH NÚT TAB NGANG HÀNG -->
               <div class="media-tabs-bar">
                 <button
                   type="button"
@@ -212,10 +246,35 @@
                 <font-awesome-icon :icon="isViewAllMedia ? 'chevron-up' : 'chevron-down'" />
               </button>
             </div>
-          </Transition>
+          </div>
         </div>
       </div>
+      </div>
     </div>
+
+    <!-- Popup xem hồ sơ thành viên (tái sử dụng ContactProfileCard) -->
+    <Teleport to="body">
+      <div
+        v-if="selectedMemberProfile"
+        class="profile-modal-backdrop"
+        @click.self="selectedMemberProfile = null"
+      >
+        <div class="profile-modal-card-wrap">
+          <button
+            type="button"
+            class="profile-modal-close-btn"
+            title="Đóng (Esc)"
+            @click="selectedMemberProfile = null"
+          >
+            <font-awesome-icon icon="x" />
+          </button>
+          <ContactProfileCard
+            :contact="selectedMemberProfile"
+            @message="handleDirectMessageWithMember"
+          />
+        </div>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -223,6 +282,12 @@
 import { resolveFileUrl } from '@/api/storage.api';
 import { ref, computed } from 'vue';
 import UserAvatar from '@/components/common/UserAvatar.vue';
+import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue';
+import { useChatStore } from '@/stores/chat';
+import { useAuthStore } from '@/stores/auth';
+
+const chatStore = useChatStore();
+const authStore = useAuthStore();
 
 const props = defineProps({
   room: {
@@ -239,7 +304,12 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'toggle-notification', 'preview-media']);
+const emit = defineEmits(['close', 'toggle-notification', 'preview-media', 'add-member']);
+
+// Phân biệt nhóm hay phòng trực tiếp 1-1
+const isGroupRoom = computed(() => {
+  return props.room?.roomType === 'GROUP';
+});
 
 // State quản lý Accordion
 const isMembersExpanded = ref(true);
@@ -300,6 +370,34 @@ const handleToggleNotification = (e) => {
 const openMediaPreview = (item) => {
   emit('preview-media', item);
 };
+
+// Quản lý popup xem hồ sơ thành viên (ContactProfileCard)
+const selectedMemberProfile = ref(null);
+
+const openMemberProfile = (member) => {
+  if (!member) return;
+  const isMe = authStore.user?.userId && member.userId === authStore.user.userId;
+  selectedMemberProfile.value = {
+    id: member.userId,
+    name: member.username || 'Thành viên',
+    role: (member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN') ? 'Trưởng nhóm' : (isMe ? 'Bạn (Thành viên)' : 'Thành viên'),
+    avatar: member.avatarUrl || member.avatar || '',
+    online: member.status === 'ACTIVE' || member.isOnline || false,
+    statusText: member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
+    bio: member.bio || member.description || 'Thành viên trong phòng trò chuyện.',
+  };
+};
+
+const handleDirectMessageWithMember = async (contact) => {
+  selectedMemberProfile.value = null;
+  if (!contact?.id) return;
+  // Không tự mở tin nhắn 1-1 với chính mình
+  if (authStore.user?.userId && contact.id === authStore.user.userId) {
+    return;
+  }
+  emit('close');
+  await chatStore.startDirectChat(contact.id);
+};
 </script>
 
 <style scoped>
@@ -334,7 +432,7 @@ const openMediaPreview = (item) => {
 }
 
 .sidebar-header {
-  height: 60px;
+  height: 70px;
   padding: 0 18px;
   display: flex;
   align-items: center;
@@ -577,12 +675,75 @@ input:checked + .slider:before {
   padding: 6px 18px 12px;
 }
 
+/* Nút thêm thành viên vào nhóm */
+.add-member-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  padding: 6px 8px;
+}
+
+.add-member-action-bar:hover {
+  background-color: #f1f5f9;
+}
+
+.add-member-action-bar:hover .add-member-text {
+  color: #2563eb;
+}
+
+.add-member-icon-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.add-member-action-bar:hover .add-member-icon-circle {
+  background-color: #3b82f6;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.add-member-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  transition: color 0.15s ease;
+}
+
 /* Members list */
 .member-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 7px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.member-item--clickable {
+  cursor: pointer;
+}
+
+.member-item--clickable:hover {
+  background-color: #f1f5f9;
+}
+
+.member-item--clickable:hover .member-name {
+  color: #2563eb;
 }
 
 .member-info {
@@ -815,17 +976,82 @@ input:checked + .slider:before {
   padding: 18px 0;
 }
 
-/* Accordion Transition */
-.accordion-enter-active,
-.accordion-leave-active {
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+/* Accordion Transition - Chuẩn CSS Grid 0fr -> 1fr  */
+.accordion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+  opacity: 0;
+}
+
+.accordion-collapse.is-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.accordion-collapse-inner {
   overflow: hidden;
 }
 
-.accordion-enter-from,
-.accordion-leave-to {
-  opacity: 0;
-  max-height: 0;
+/* Popup Xem hồ sơ thành viên (tái sử dụng ContactProfileCard) */
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 16px;
+  animation: modalFadeIn 0.18s ease-out;
+}
+
+.profile-modal-card-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  z-index: 20;
+  transition: all 0.15s ease;
+}
+
+.profile-modal-close-btn:hover {
+  background: rgba(0, 0, 0, 0.65);
+  transform: scale(1.08);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from {
+    transform: translateY(12px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
 }
 </style>
 

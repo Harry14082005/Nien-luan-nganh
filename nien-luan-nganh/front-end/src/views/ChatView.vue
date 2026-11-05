@@ -22,6 +22,7 @@ import ChatInput from '@/components/chat/ChatInput.vue';
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue';
+import AddMemberModal from '@/components/chat/AddMemberModal.vue';
 import { initGlobalWebSocket } from '@/services/websocket';
 import { getImageUrl } from '@/api/user.api';
 
@@ -50,6 +51,11 @@ const currentSearchKeyword = ref('');
 const isInfoSidebarOpen = ref(false);
 const currentRoomMembers = ref([]);
 const isNotificationMuted = ref(false);
+const showAddMemberModal = ref(false);
+
+const handleMemberAdded = async () => {
+  await fetchCurrentRoomMembers();
+};
 
 const fetchCurrentRoomMembers = async () => {
   if (!chatStore.activeRoomId) {
@@ -788,10 +794,20 @@ watch(
         :media-data="roomMediaData"
         @close="isInfoSidebarOpen = false"
         @toggle-notification="handleMuteNotification"
+        @add-member="showAddMemberModal = true"
       />
     </Transition>
   </div>
   </div>
+
+  <!-- Popup Modal thêm thành viên vào nhóm chat -->
+  <AddMemberModal
+    :show="showAddMemberModal"
+    :roomId="chatStore.activeRoomId || ''"
+    :existingMembers="currentRoomMembers"
+    @close="showAddMemberModal = false"
+    @member-added="handleMemberAdded"
+  />
 
   <!-- Popup Modal lịch sử các lần chỉnh sửa tin nhắn -->
   <MessageHistoryModal 
@@ -861,7 +877,7 @@ watch(
 }
 .app-container{
   display: grid;
-  grid-template-columns: 80px 430px 1fr;
+  grid-template-columns: 80px 370px 1fr;
   width: 100%;
   height: 100vh;
   overflow: hidden;

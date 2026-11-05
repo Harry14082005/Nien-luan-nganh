@@ -197,7 +197,7 @@ public class MessageService {
     public MessageResponse updateMessage(UUID currentUserId, UUID roomId, UUID messageId,
             UpdateMessageRequest request) {
         // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
+        userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không
@@ -283,7 +283,7 @@ public class MessageService {
     @Transactional
     public MessageResponse revokeMessage(UUID currentUserId, UUID roomId, UUID messageId) {
         // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
+        userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 2. Kiểm tra phòng chat có tồn tại không

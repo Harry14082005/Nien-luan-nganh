@@ -41,3 +41,14 @@ export const createDirectRoom = (userId) => {
 export const createGroup = (body) => {
   return http.post('/rooms/group', body).then((res) => res.data?.data ?? res.data)
 }
+
+/**
+ * Thêm thành viên vào nhóm chat hiện tại.
+ * Backend: POST /api/rooms/{roomId}/members — Body: { memberIds: string[] }
+ * @param {string} roomId
+ * @param {string[]} memberIds
+ */
+export const addRoomMembers = (roomId, memberIds) => {
+  return http.post(`/rooms/${roomId}/members`, { memberIds }).then((res) => res.data?.data ?? res.data)
+}
+

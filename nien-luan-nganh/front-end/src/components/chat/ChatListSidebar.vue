@@ -111,8 +111,8 @@ function getLastMessageText(room) {
         const users = Object.values(roomTyping);
         if (users.length > 0) {
             return users.length === 1
-                ? `${users[0].username} đang soạn...`
-                : 'Đang soạn tin nhắn...';
+                ? `✍ ${users[0].username} đang soạn...`
+                : '✍ Đang soạn tin nhắn...';
         }
     }
 
