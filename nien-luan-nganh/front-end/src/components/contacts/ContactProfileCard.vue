@@ -72,7 +72,7 @@ function onSendMessage() {
 
     <!-- Main Card Body -->
     <div class="card-content">
-      <!-- Avatar Section (overlapping the banner) -->
+      <!-- Avatar Section S -->
       <div class="avatar-container">
         <div class="avatar-wrapper">
           <img
@@ -110,7 +110,7 @@ function onSendMessage() {
         <!-- Divider line -->
         <div class="card-divider"></div>
 
-        <!-- Actions Row (Filtered Layout: Primary Message Action) -->
+        <!-- Actions Row -->
         <div class="actions-row">
           <button class="btn-message" @click="onSendMessage">
             <IconMessageSquare class="btn-icon" :size="18" />
@@ -158,7 +158,6 @@ function onSendMessage() {
   padding: 0 32px 32px 32px;
 }
 
-/* Avatar container with negative margin to overlap banner */
 .avatar-container {
   display: flex;
   align-items: flex-end;

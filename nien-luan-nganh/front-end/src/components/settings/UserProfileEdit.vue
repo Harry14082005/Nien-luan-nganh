@@ -296,7 +296,14 @@ watch(() => props.user.avatar, (newAvatar) => {
         <div class="modal-header">
           <h3>Chỉnh sửa hồ sơ</h3>
           <button class="btn-close" @click="closeEditModal">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -610,7 +617,9 @@ watch(() => props.user.avatar, (newAvatar) => {
   border-radius: 18px;
   width: 90%;
   max-width: 480px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   animation: modalFadeIn 0.2s ease-out;
 }
@@ -683,7 +692,9 @@ watch(() => props.user.avatar, (newAvatar) => {
   font-size: 14px;
   color: #1e293b;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .form-group input:focus,
@@ -698,7 +709,9 @@ watch(() => props.user.avatar, (newAvatar) => {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 0 12px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .input-handle-wrap:focus-within {
@@ -897,4 +910,3 @@ watch(() => props.user.avatar, (newAvatar) => {
   box-shadow: 0 4px 14px rgba(0,0,0,0.1);
 }
 </style>
-
