@@ -4,7 +4,6 @@
       <!-- 1. HEADER SIDEBAR -->
       <div class="sidebar-header">
         <div class="header-title">
-          <!-- <font-awesome-icon icon="circle-info" class="header-icon" /> -->
           <h3>Thông tin hội thoại</h3>
         </div>
         <button class="btn-close" title="Đóng (Esc)" @click="$emit('close')">

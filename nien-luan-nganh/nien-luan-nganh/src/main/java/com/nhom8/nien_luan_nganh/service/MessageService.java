@@ -7,7 +7,6 @@ import com.nhom8.nien_luan_nganh.dto.request.UpdateMessageRequest;
 import com.nhom8.nien_luan_nganh.dto.response.CursorResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageHistoryResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
-import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResultDTO;
 import com.nhom8.nien_luan_nganh.dto.response.ReactionResponse;
 import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
@@ -83,34 +82,6 @@ public class MessageService {
      */
     @Transactional
     public MessageResponse sendMessage(UUID currentUserId, UUID roomId, SendMessageRequest request) {
-//        // 1. Kiểm tra người gửi có tồn tại không
-//        User sender = userRepository.findById(currentUserId)
-//                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-//
-//        // 2. Kiểm tra phòng chat có tồn tại không
-//        Room room = roomRepository.findById(roomId)
-//                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-//
-//        // 3. Kiểm tra bảo mật: Người gửi BẮT BUỘC phải là thành viên trong phòng chat
-//        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-//                roomId);
-//        if (!isMember) {
-//            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-//        }
-//
-//        // 4. Nếu là phòng chat 1-1 (DIRECT): Kiểm tra trạng thái Chặn (Block)
-//        if (room.getRoomType() == RoomType.DIRECT) {
-//            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
-//            for (RoomMember member : members) {
-//                UUID otherUserId = member.getRoomMemberId().getUserId();
-//                if (!otherUserId.equals(currentUserId)) {
-//                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
-//                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
-//                        throw new AppException(ErrorCode.USER_BLOCKED);
-//                    }
-//                }
-//            }
-//        }
         MessageContext context = getMessageContext(currentUserId, roomId);
 
         User sender = context.sender();
@@ -940,15 +911,14 @@ public class MessageService {
                 .build();
     }
 
-<<<<<<< Updated upstream
     private MessageResponse sendAttachment(
             UUID currentUserId,
             UUID roomId,
             MultipartFile file,
             MessageType messageType,
-            UUID repliedMessageId){
+            UUID repliedMessageId) {
 
-        if(file == null || file.isEmpty()){
+        if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
 
@@ -1007,7 +977,7 @@ public class MessageService {
                 throw new AppException(ErrorCode.INVALID_INPUT);
             }
 
-            //content lưu thành đường dẫn
+            // content lưu thành đường dẫn
             savedMessage.setContent(storageKey);
             savedMessage = messageRepository.save(savedMessage);
             log.info("5. Đã lưu content");
@@ -1028,10 +998,10 @@ public class MessageService {
             log.info("6. Đã cập nhật room");
 
             return messageMapper.toMessageResponse(savedMessage);
-        }catch (RuntimeException e){
-            //nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
+        } catch (RuntimeException e) {
+            // nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
             log.error("Lỗi khi gửi attachment", e);
-            if(storageKey != null){
+            if (storageKey != null) {
                 fileStorageService.deleteFile(storageKey);
             }
 
@@ -1044,8 +1014,7 @@ public class MessageService {
             UUID currentUserId,
             UUID roomId,
             MultipartFile file,
-            UUID repliedMessageId
-    ){
+            UUID repliedMessageId) {
         return sendAttachment(
                 currentUserId,
                 roomId,
@@ -1069,14 +1038,16 @@ public class MessageService {
                 repliedMessageId);
     }
 
+    private record MessageContext(User sender, Room room) {
+    }
 
-    private record MessageContext(User sender, Room room){}
-    private MessageContext getMessageContext(UUID currentUserId, UUID roomId){
+    private MessageContext getMessageContext(UUID currentUserId, UUID roomId) {
         User sender = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId);
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                roomId);
 
         if (!isMember) {
             throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
@@ -1099,57 +1070,11 @@ public class MessageService {
         }
 
         return new MessageContext(sender, room);
-=======
-    /**
-     * Tìm kiếm tin nhắn trong phòng chat theo từ khóa (Metadata siêu nhẹ:
-     * totalMatches + matchIds).
-     * Phục vụ cơ chế điều hướng 1/N và tải ngữ cảnh (Context Windowing) theo nhu
-     * cầu.
-     *
-     * @param currentUserId UUID của người dùng hiện tại
-     * @param roomId        UUID của phòng chat
-     * @param q             Từ khóa tìm kiếm
-     * @return MessageSearchResponse chứa tổng số kết quả và danh sách ID các tin
-     *         nhắn khớp
-     */
-    @Transactional(readOnly = true)
-    public MessageSearchResponse searchMessagesInRoom(UUID currentUserId, UUID roomId, String q) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        if (q == null || q.trim().isEmpty()) {
-            return MessageSearchResponse.builder()
-                    .totalMatches(0)
-                    .matchIds(Collections.emptyList())
-                    .build();
-        }
-
-        String pattern = "%" + q.trim().toLowerCase() + "%";
-        List<Message> matchedMessages = messageRepository.searchMessagesInRoom(
-                roomId,
-                pattern,
-                PageRequest.of(0, 200));
-
-        List<UUID> matchIds = matchedMessages.stream()
-                .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
-                .map(Message::getMessageId)
-                .toList();
-
-        return MessageSearchResponse.builder()
-                .totalMatches(matchIds.size())
-                .matchIds(matchIds)
-                .build();
     }
 
     /**
-     * Tìm kiếm tin nhắn kèm chi tiết người gửi phục vụ hiển thị trên Search Sidebar Drawer bên phải.
+     * Tìm kiếm tin nhắn kèm chi tiết người gửi phục vụ hiển thị trên Search Sidebar
+     * Drawer bên phải.
      *
      * @param currentUserId UUID của người dùng hiện tại
      * @param roomId        UUID của phòng chat
@@ -1176,8 +1101,7 @@ public class MessageService {
         List<Message> messages = messageRepository.searchMessagesWithDetails(
                 roomId,
                 pattern,
-                PageRequest.of(0, 100)
-        );
+                PageRequest.of(0, 100));
 
         return messages.stream()
                 .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
@@ -1187,9 +1111,7 @@ public class MessageService {
                         .createdAt(m.getCreatedAt())
                         .senderUsername(m.getSender() != null ? m.getSender().getUsername() : "Thành viên")
                         .senderAvatarUrl(m.getSender() != null ? m.getSender().getAvatarUrl() : null)
-                        .build()
-                )
+                        .build())
                 .toList();
->>>>>>> Stashed changes
     }
 }

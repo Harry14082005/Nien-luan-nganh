@@ -6,7 +6,6 @@ import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.CursorResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageHistoryResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
-import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResponse;
 import com.nhom8.nien_luan_nganh.dto.response.MessageSearchResultDTO;
 import com.nhom8.nien_luan_nganh.service.MessageService;
 import jakarta.validation.Valid;
@@ -40,41 +39,12 @@ public class MessageController {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * API: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
-     * (Cursor-based Pagination).
-     * Method: GET /api/v1/rooms/{roomId}/messages
-     * Hỗ trợ alias tham số: before hoặc cursor.
-     * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
-     *
-     * @param authentication Thông tin người dùng từ JWT Token
-     * @param roomId         Khóa chính UUID của phòng chat
-     * @param cursor         Khóa chính UUID tin nhắn mốc phân trang (tùy chọn)
-     * @param before         Alias cho cursor (tùy chọn)
-     * @param limit          Số lượng tin nhắn cần lấy (mặc định 20)
-     * @return HTTP 200 OK kèm dữ liệu CursorResponse<MessageResponse>
-     */
-
-    /**
-     * API: Tìm kiếm tin nhắn trong phòng chat (Lightweight Metadata: totalMatches, matchIds).
-     * Method: GET /api/v1/rooms/{roomId}/messages/search?q={query}
-     * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
-     */
-    @GetMapping("/search")
-    public ResponseEntity<ApiResponse<MessageSearchResponse>> searchMessages(
-            Authentication authentication,
-            @PathVariable UUID roomId,
-            @RequestParam(required = false, defaultValue = "") String q) {
-        UUID currentUserId = UUID.fromString(authentication.getName());
-        MessageSearchResponse response = messageService.searchMessagesInRoom(currentUserId, roomId, q);
-        return ResponseEntity.ok(ApiResponse.success(response, "Tìm kiếm tin nhắn thành công"));
-    }
-
-    /**
      * API: Tìm kiếm tin nhắn chi tiết cho Sidebar Drawer bên phải (Search Preview).
-     * Method: GET /api/v1/rooms/{roomId}/messages/search/sidebar?q={query}
+     * Method: GET /api/v1/rooms/{roomId}/messages/search?q={query}
+     * Hỗ trợ alias: /api/v1/rooms/{roomId}/messages/search/sidebar?q={query}
      * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
      */
-    @GetMapping("/search/sidebar")
+    @GetMapping({"/search", "/search/sidebar"})
     public ResponseEntity<ApiResponse<List<MessageSearchResultDTO>>> searchMessagesSidebar(
             Authentication authentication,
             @PathVariable UUID roomId,

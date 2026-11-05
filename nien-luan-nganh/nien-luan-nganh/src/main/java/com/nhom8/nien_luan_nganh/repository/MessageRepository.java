@@ -107,16 +107,6 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         @Param("q") String q,
                         Pageable pageable);
 
-        // Tim danh sach tin nhan khop tu khoa (phuc vu tim kiem trong phong)
-        @Query("SELECT m FROM Message m " +
-                        "WHERE m.room.roomId = :roomId " +
-                        "AND LOWER(m.content) LIKE :pattern " +
-                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
-                        "ORDER BY m.createdAt DESC")
-        List<Message> searchMessagesInRoom(@Param("roomId") UUID roomId,
-                        @Param("pattern") String pattern,
-                        Pageable pageable);
-
         // Tim danh sach tin nhan kem thong tin nguoi gui (phuc vu Search Sidebar bên phải)
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
