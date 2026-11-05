@@ -44,7 +44,7 @@ public class MessageController {
      * Hỗ trợ alias: /api/v1/rooms/{roomId}/messages/search/sidebar?q={query}
      * Quyền: Đã đăng nhập và phải là thành viên trong phòng chat.
      */
-    @GetMapping({"/search", "/search/sidebar"})
+    @GetMapping({ "/search", "/search/sidebar" })
     public ResponseEntity<ApiResponse<List<MessageSearchResultDTO>>> searchMessagesSidebar(
             Authentication authentication,
             @PathVariable UUID roomId,
@@ -55,7 +55,8 @@ public class MessageController {
     }
 
     /**
-     * API: Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh một tin nhắn cụ thể (ví dụ tin nhắn ghim)
+     * API: Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh một tin nhắn cụ thể (ví dụ tin
+     * nhắn ghim)
      * Method: GET /api/v1/rooms/{roomId}/messages/{messageId}/context
      */
     @GetMapping("/{messageId}/context")
@@ -69,7 +70,8 @@ public class MessageController {
     }
 
     /**
-     * API: Lấy danh sách tin nhắn MỚI HƠN con trỏ cursor (sắp xếp tăng dần theo thời gian)
+     * API: Lấy danh sách tin nhắn MỚI HƠN con trỏ cursor (sắp xếp tăng dần theo
+     * thời gian)
      * Method: GET /api/v1/rooms/{roomId}/messages/after
      */
     @GetMapping("/after")
@@ -326,18 +328,15 @@ public class MessageController {
     }
 
     /*
-    * API 11: Gửi tin nhắn hình ảnh
-    *
-    * */
-    @PostMapping(
-            value = "/images",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+     * API 11: Gửi tin nhắn hình ảnh
+     *
+     */
+    @PostMapping(value = "/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<MessageResponse>> sendImage(
             Authentication authentication,
             @PathVariable UUID roomId,
-            @RequestParam("file")MultipartFile file,
-            @RequestParam(required = false) UUID repliedMessageId
-            ){
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) UUID repliedMessageId) {
         UUID currentUserId = UUID.fromString(authentication.getName());
 
         MessageResponse response = messageService.sendImage(
@@ -352,12 +351,8 @@ public class MessageController {
                 .body(ApiResponse.success(response, "Gửi ảnh thành công"));
     }
 
-    /*
-    * API 12; Gửi tin nhắn file
-    * */
-    @PostMapping(
-            value = "/files",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    // Gui tin nhan file
+    @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<MessageResponse>> sendFile(
             Authentication authentication,
             @PathVariable UUID roomId,

@@ -23,11 +23,10 @@ import NavigationSidebar from '@/components/common/NavigationSidebar.vue';
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue';
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue';
 import { initGlobalWebSocket } from '@/services/websocket';
-<<<<<<< Updated upstream
 import { getImageUrl } from '@/api/user.api';
-=======
+
 import { getRoomMembers } from '@/api/room.api';
->>>>>>> Stashed changes
+
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();

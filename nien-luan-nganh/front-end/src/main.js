@@ -5,36 +5,12 @@ import './assets/main.css'
 
 import App from './App.vue'
 import router from './router'
-import { library } from '@fortawesome/fontawesome-svg-core' //lay cai loi library tu FA
+import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faMagnifyingGlass, faUser } from '@fortawesome/free-solid-svg-icons'
-import { faCircleInfo } from '@fortawesome/free-solid-svg-icons'
-import { faList } from '@fortawesome/free-solid-svg-icons'
-import { faThumbTack } from '@fortawesome/free-solid-svg-icons'
-import { faX } from '@fortawesome/free-solid-svg-icons'
-import { faPaperclip } from '@fortawesome/free-solid-svg-icons'
-import { faFaceLaughSquint } from '@fortawesome/free-solid-svg-icons/faFaceLaughSquint'
-import { faPaperPlane } from '@fortawesome/free-solid-svg-icons'
-import { faHouse } from '@fortawesome/free-regular-svg-icons/faHouse'
-import { faMessage } from '@fortawesome/free-regular-svg-icons/faMessage'
-import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
-import { faGear } from '@fortawesome/free-solid-svg-icons'
-import { faComment } from '@fortawesome/free-solid-svg-icons'
-import { faBars } from '@fortawesome/free-solid-svg-icons'
-import { faPlus } from '@fortawesome/free-solid-svg-icons'
-<<<<<<< Updated upstream
-import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
+
 import {
-  faChevronDown,
-  faChevronUp,
-  faEllipsisVertical,
-  faPen,
-  faTrash,
-  faClockRotateLeft,
-  faCheck,
-} from '@fortawesome/free-solid-svg-icons'
-library.add(
   faMagnifyingGlass,
+  faUser,
   faCircleInfo,
   faList,
   faThumbTack,
@@ -42,59 +18,73 @@ library.add(
   faPaperclip,
   faFaceLaughSquint,
   faPaperPlane,
-  faHouse,
-  faMessage,
-  faUser,
   faUserGroup,
   faGear,
   faComment,
   faBars,
   faPlus,
+  faUserPlus,
   faChevronDown,
   faChevronUp,
+  faChevronRight,
   faEllipsisVertical,
   faPen,
   faTrash,
   faClockRotateLeft,
   faCheck,
+  faReply,
+  faUsers,
+  faBell,
+  faBellSlash,
+  faFolderOpen,
+  faImage,
+  faVideo,
+  faFileLines,
+  faPlay,
+  faArrowDown,
+} from '@fortawesome/free-solid-svg-icons'
+
+import { faHouse, faMessage, faFaceSmile } from '@fortawesome/free-regular-svg-icons'
+
+library.add(
+  faMagnifyingGlass,
+  faUser,
+  faCircleInfo,
+  faList,
+  faThumbTack,
+  faX,
+  faPaperclip,
+  faFaceLaughSquint,
+  faFaceSmile,
+  faPaperPlane,
+  faHouse,
+  faMessage,
+  faUserGroup,
+  faGear,
+  faComment,
+  faBars,
+  faPlus,
   faUserPlus,
+  faChevronDown,
+  faChevronUp,
+  faChevronRight,
+  faEllipsisVertical,
+  faPen,
+  faTrash,
+  faClockRotateLeft,
+  faCheck,
+  faReply,
+  faUsers,
+  faBell,
+  faBellSlash,
+  faFolderOpen,
+  faImage,
+  faVideo,
+  faFileLines,
+  faPlay,
+  faArrowDown,
 )
-=======
-import { faChevronDown, faChevronUp, faChevronRight, faEllipsisVertical, faPen, faTrash, faClockRotateLeft, faCheck, faReply, faUsers, faBell, faBellSlash, faFolderOpen, faImage, faVideo, faFileLines, faPlay, faArrowDown } from '@fortawesome/free-solid-svg-icons'
-library.add(faMagnifyingGlass,
-            faCircleInfo,
-            faList,faThumbTack,
-            faX,faPaperclip,
-            faFaceLaughSquint,
-            faFaceSmile,
-            faPaperPlane,
-            faHouse,
-            faMessage,
-            faUser,
-            faUserGroup,
-            faGear,
-            faComment,
-            faBars,
-            faPlus,
-            faChevronDown,
-            faChevronUp,
-            faChevronRight,
-            faEllipsisVertical,
-            faPen,
-            faTrash,
-            faClockRotateLeft,
-            faCheck,
-            faReply,
-            faUsers,
-            faBell,
-            faBellSlash,
-            faFolderOpen,
-            faImage,
-            faVideo,
-            faFileLines,
-            faPlay,
-            faArrowDown)
->>>>>>> Stashed changes
+
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return
   const { worker } = await import('./mocks/browser')

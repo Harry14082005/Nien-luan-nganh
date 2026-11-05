@@ -76,13 +76,11 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
-<<<<<<< Updated upstream
     // Hiển thị Avatar
     Avatar: {
-    type: String,
-    default: ''
-  }
-=======
+      type: String,
+      default: ''
+    },
     // Dữ liệu tin nhắn được phản hồi (nếu có)
     repliedMessage: {
         type: Object,
@@ -98,7 +96,6 @@ const props = defineProps({
         type: String,
         default: ''
     }
->>>>>>> Stashed changes
 });
 
 const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory', 'replyMessage', 'scrollToMessage'])
@@ -310,29 +307,6 @@ onUnmounted(() => {
 <template>
   <div
     :id="messageId ? 'msg-' + messageId : null"
-<<<<<<< Updated upstream
-    :class="['container', `container--${variant}`, { 'container--consecutive': isConsecutive }]"
-  > 
-        
-        
-        <!-- <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div> -->
-
-        <div
-          :class="[
-            'wrapper',
-            `wrapper--${variant}`,
-            { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
-          ]"
-        >
-          <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
-            <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
-            <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
-          </div>
-
-          <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
-            
-      <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
-=======
     :class="[
       'container', 
       `container--${variant}`, 
@@ -342,8 +316,12 @@ onUnmounted(() => {
       }
     ]"
   >
-    <MessageBubble v-if="!isConsecutive" :type="variant"></MessageBubble>
+    <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
+      <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
+      <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
+    </div>
     <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
+
     <div
       :class="[
         'wrapper',
@@ -370,7 +348,6 @@ onUnmounted(() => {
       </div>
 
         <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
->>>>>>> Stashed changes
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
             <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
             <div v-if="isRevoked" :class="['message', 'message--revoked']">
@@ -555,6 +532,7 @@ onUnmounted(() => {
   display: flex;
   width: 100%;
   flex-direction: row;
+  position: relative;
 }
 
 .container--SendTo {
