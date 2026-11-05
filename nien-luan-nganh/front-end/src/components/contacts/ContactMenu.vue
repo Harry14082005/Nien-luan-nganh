@@ -16,7 +16,6 @@ function choose(action) {
   emit(action)
 }
 
-// Bấm ra ngoài thì đóng menu
 function onClickOutside(e) {
   if (root.value && !root.value.contains(e.target)) open.value = false
 }

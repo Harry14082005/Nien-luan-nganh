@@ -163,13 +163,11 @@ function getInitials(contact) {
           <span class="contact-role">{{ contact.role }}</span>
         </div>
 
-        <!-- Right Arrow Icon -->
         <div class="right-icon-wrap">
           <ContactMenu @block="handleBlock(contact)" @remove="handleRemove(contact)" />
         </div>
       </div>
 
-      <!-- Empty Result State -->
       <div v-if="filteredContacts.length === 0" class="empty-search">
         <span>Không tìm thấy liên hệ phù hợp</span>
       </div>
@@ -197,7 +195,6 @@ function getInitials(contact) {
   box-sizing: border-box;
 }
 
-/* App Branding Header */
 .nameApp {
   display: flex;
   align-items: center;
@@ -233,7 +230,6 @@ function getInitials(contact) {
   color: #3b82f6;
 }
 
-/* Header Section */
 .header-section {
   padding: 10px 24px 14px 24px;
 }
@@ -296,7 +292,6 @@ function getInitials(contact) {
   transform: translateY(-1px);
 }
 
-/* Search Container */
 .search-container {
   padding: 0 24px 16px 24px;
 }

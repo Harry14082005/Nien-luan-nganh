@@ -79,21 +79,6 @@ function handleMessageContact() {
       <!-- Header / Topbar -->
       <div class="contacts-topbar">
         <div class="topbar-actions">
-          <button class="topbar-btn" title="Thông báo">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </button>
           <div class="user-avatar-badge">{{ myInitials }}</div>
         </div>
       </div>
@@ -162,24 +147,6 @@ function handleMessageContact() {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.topbar-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: #64748b;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.topbar-btn:hover {
-  background-color: #f1f5f9;
-  color: #4b88f6;
 }
 
 .user-avatar-badge {
