@@ -841,6 +841,9 @@ watch(
           @viewHistory="handleViewHistory"
           @replyMessage="handleReplyMessage"
           @scrollToMessage="handleScrollToMessage"
+
+          :messageType="msg.messageType"
+          :mediaUrl="msg.messageType === 'IMAGE' || msg.messageType === 'VIDEO' || msg.messageType === 'FILE' || msg.messageType === 'DOCUMENT' ? msg.content : ''"
         />
       </template>
 

@@ -12,7 +12,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
 import MessageBubble from './MessageBubble.vue';
-
+import { resolveFileUrl } from '@/api/storage.api'; 
 const props = defineProps({
     // Mốc thời gian gửi tin nhắn (vd: 14:30)
     Time: {
@@ -95,7 +95,25 @@ const props = defineProps({
     searchKeyword: {
         type: String,
         default: ''
-    }
+    },
+
+    // Xử lý cái hiển thị ảnh file chỗ tin nhắn
+    messageType: {
+          type: String,
+          default: 'TEXT', // TEXT, IMAGE, VIDEO, FILE
+      },
+      mediaUrl: {
+          type: String,
+          default: ''
+      },
+      fileName: {
+          type: String,
+          default: ''
+      },
+      fileSize: {
+          type: String,
+          default: ''
+      }
 });
 
 const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory', 'replyMessage', 'scrollToMessage'])
@@ -159,6 +177,16 @@ const groupedReactions = computed(() => {
     }
     return groups;
 });
+
+//CÁI NÀY ĐỂ XỬ LÝ HIỂN THỊ ẢNH FILE TRÊN TIN NHẮN
+const fileStorageKey = computed(() => {
+    // Nếu là tin nhắn media/file mà có Content_Message chứa đường dẫn
+    if (['IMAGE', 'VIDEO', 'FILE'].includes(props.messageType)) {
+        return props.mediaUrl || props.Content_Message || '';
+    }
+    return props.mediaUrl || '';
+});
+
 
 // Kiểm tra nội dung tin nhắn có chứa từ khóa tìm kiếm hay không
 const hasKeywordMatch = computed(() => {
@@ -351,12 +379,13 @@ onUnmounted(() => {
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
             <!-- Khối chứa bong bóng chat và huy hiệu cảm xúc đính kèm sát mép dưới -->
             <div class="message-bubble-group" :class="`message-bubble-group--${variant}`">
-                <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
+                
+                <!-- 1. Trạng thái tin nhắn đã bị thu hồi (Ưu tiên kiểm tra đầu tiên) -->
                 <div v-if="isRevoked" :class="['message', 'message--revoked']">
                     <i>Tin nhắn đã được thu hồi</i>
                 </div>
 
-                <!-- 2. Trạng thái đang chỉnh sửa: giữ nguyên màu sắc & phong cách bong bóng bình thường -->
+                <!-- 2. Trạng thái đang chỉnh sửa -->
                 <div 
                     v-else-if="isEditing" 
                     :class="['message', `message--${variant}`, 'message--editing']"
@@ -383,10 +412,52 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- 3. Tin nhắn bình thường -->
+                <!-- 3. Tin nhắn dạng Ảnh -->
+                <div 
+                    v-else-if="messageType === 'IMAGE'" 
+                    class="message message--media message--img-box"
+                    :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
+                    @click="emit('preview-media', { type: 'IMAGE', url: Content_Message })"
+                >
+                    <div class="message-media-wrapper">
+                        <img :src="resolveFileUrl(Content_Message)" alt="Hình ảnh đính kèm" class="msg-media-img" />
+                    </div>
+                </div>
+
+                <!-- 4. Tin nhắn dạng Video -->
+                <div 
+                    v-else-if="messageType === 'VIDEO'" 
+                    class="message message--media message--video-box"
+                    :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
+                >
+                    <div class="message-media-wrapper">
+                        <video :src="resolveFileUrl(Content_Message)" controls class="msg-media-video"></video>
+                    </div>
+                </div>
+
+                <!-- 5. Tin nhắn dạng Tệp đính kèm (File) -->
+                <div 
+                    v-else-if="messageType === 'FILE'" 
+                    class="message message--file-wrapper"
+                    :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
+                >
+                    <a :href="resolveFileUrl(Content_Message)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
+                        <div class="msg-file-icon-box">
+                            <font-awesome-icon icon="file-lines" />
+                        </div>
+                        <div class="msg-file-meta">
+                            <span class="msg-file-name" :title="Content_Message.split('/').pop()">{{ Content_Message.split('/').pop() || 'Tài liệu đính kèm' }}</span>
+                            <span class="msg-file-size">Tệp tải xuống</span>
+                        </div>
+                        <font-awesome-icon icon="arrow-down" class="msg-file-download-icon" />
+                    </a>
+                </div>
+
+                <!-- 6. Tin nhắn Văn bản (TEXT) thông thường -->
                 <div 
                     v-else 
-                    :class="['message', `message--${variant}`, `message--pos-${groupPosition}`]"
+                    class="message"
+                    :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                     @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
                     :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
                 >
@@ -1318,5 +1389,99 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   border-radius: 14px;
+}
+
+/* Tinh chỉnh bong bóng khi chứa ảnh/video (bỏ padding thừa để ảnh tràn đẹp) */
+.message.message--media {
+    padding: 4px !important;
+    overflow: hidden;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+.message-media-wrapper {
+    max-width: 260px;
+    max-height: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.msg-media-img, .msg-media-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Khung hiển thị Tệp đính kèm (File Card) */
+.message-file-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    max-width: 280px;
+    transition: background-color 0.15s ease;
+}
+
+/* Màu sắc file card tùy biến theo variant (của mình hay người khác) */
+.message--SendTo .message-file-card {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+.message:not(.message--SendTo) .message-file-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #1e293b;
+}
+
+.msg-file-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.message--SendTo .msg-file-icon-box {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.message:not(.message--SendTo) .msg-file-icon-box {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.msg-file-meta {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+}
+
+.msg-file-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-file-size {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+.msg-file-download-icon {
+    font-size: 12px;
+    opacity: 0.8;
+    flex-shrink: 0;
 }
 </style>
