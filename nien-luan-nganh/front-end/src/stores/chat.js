@@ -14,14 +14,14 @@ function loadDemoRooms() {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
-  } catch {}
+  } catch { }
   return []
 }
 
 function saveDemoRooms(rooms) {
   try {
     localStorage.setItem('bluespace_demo_rooms', JSON.stringify(rooms))
-  } catch {}
+  } catch { }
 }
 
 function loadDemoMessages() {
@@ -31,14 +31,14 @@ function loadDemoMessages() {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') return parsed
     }
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveDemoMessages(messagesMap) {
   try {
     localStorage.setItem('bluespace_demo_messages', JSON.stringify(messagesMap))
-  } catch {}
+  } catch { }
 }
 
 // Lưu trữ trạng thái hoạt động mới nhất của phòng (đặc biệt khi ghim/bỏ ghim)
@@ -50,28 +50,28 @@ function loadRoomOverrides() {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') return parsed
     }
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveRoomOverrides(overrides) {
   try {
     localStorage.setItem('bluespace_room_overrides', JSON.stringify(overrides))
-  } catch {}
+  } catch { }
 }
 
 // Lưu danh sách sự kiện ghim / bỏ ghim trong khung chat theo từng phòng
 function loadRoomEvents() {
   try {
     localStorage.removeItem('bluespace_room_events')
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveRoomEvents() {
   try {
     localStorage.removeItem('bluespace_room_events')
-  } catch {}
+  } catch { }
 }
 
 // Lưu thông tin người vừa bấm ghim/bỏ ghim theo messageId để đồng bộ tức thời giữa các tab và chống race-condition WebSocket
@@ -86,7 +86,7 @@ function recordRecentPinActor(messageId, actorUsername, actorUserId, type) {
       timestamp: Date.now(),
     }
     localStorage.setItem('bluespace_recent_pin_actors', JSON.stringify(map))
-  } catch {}
+  } catch { }
 }
 
 function getRecentPinActor(messageId) {
@@ -98,7 +98,7 @@ function getRecentPinActor(messageId) {
     if (entry && Date.now() - entry.timestamp < 20000) {
       return entry
     }
-  } catch {}
+  } catch { }
   return null
 }
 
@@ -536,7 +536,7 @@ export const useChatStore = defineStore('chat', {
         const cursorInfo = extractCursorInfo(res)
         const oldestRealMessage = rawList.length > 0 ? rawList[rawList.length - 1] : null
         this.nextCursor = cursorInfo.nextCursor || oldestRealMessage?.messageId || null
-        
+
         // Nếu backend có trả về trường hasMore cụ thể thì dùng, còn không thì dựa trên số lượng tin (>= 20 nghĩa là còn tin cũ)
         const hasMoreCalculated = cursorInfo.hasMore !== undefined && cursorInfo.hasMore !== false
           ? Boolean(cursorInfo.hasMore)
@@ -757,11 +757,11 @@ export const useChatStore = defineStore('chat', {
       const repliedMessageId = this.replyingMessage?.messageId || null
       const replyingSnapshot = this.replyingMessage
         ? {
-            messageId: this.replyingMessage.messageId,
-            senderId: this.replyingMessage.sender?.userId || null,
-            senderUsername: this.replyingMessage.sender?.username || 'Bạn',
-            content: this.replyingMessage.content,
-          }
+          messageId: this.replyingMessage.messageId,
+          senderId: this.replyingMessage.sender?.userId || null,
+          senderUsername: this.replyingMessage.sender?.username || 'Bạn',
+          content: this.replyingMessage.content,
+        }
         : null
 
       // Hủy trạng thái reply ngay khi gửi
@@ -864,18 +864,18 @@ export const useChatStore = defineStore('chat', {
       const isPinAction = Boolean(
         isSystemPin ||
         (message.isPinned &&
-        !message.isRevoked &&
-        (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin')),
+          !message.isRevoked &&
+          (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin')),
       )
       const isUnpinAction = Boolean(
         isSystemUnpin ||
         (message.isPinned === false &&
-        !message.isRevoked &&
-        (wasPinned ||
-          existingMsg?.isPinned ||
-          (hasValidMyPinRecord && myPinRecord.type === 'unpin') ||
-          sharedPinActor?.type === 'unpin' ||
-          (message.pinnedBy && msgAgeMs > 1500))),
+          !message.isRevoked &&
+          (wasPinned ||
+            existingMsg?.isPinned ||
+            (hasValidMyPinRecord && myPinRecord.type === 'unpin') ||
+            sharedPinActor?.type === 'unpin' ||
+            (message.pinnedBy && msgAgeMs > 1500))),
       )
       const isPinOrUnpin = isPinAction || isUnpinAction
 
@@ -1578,6 +1578,99 @@ export const useChatStore = defineStore('chat', {
       } catch (err) {
         console.error('Lỗi khi tải lịch sử chỉnh sửa:', err)
         return []
+      }
+    },
+
+    // 15. Xử lý gửi file
+    // Gửi tin nhắn dạng hình ảnh (hỗ trợ đính kèm file và reply)
+    async sendImageMessage(roomId, file, repliedMessageId = null) {
+      if (!roomId || !file) return
+      const roomKey = String(roomId)
+
+      // 1. Nếu là phòng mẫu dự phòng ('1', '2', '3') thì giả lập lưu local
+      if (['1', '2', '3'].includes(roomKey)) {
+        const mockMsg = {
+          messageId: 'mock-img-' + Date.now() + Math.random(),
+          roomId: roomKey,
+          content: URL.createObjectURL(file), // tạm thời dùng object URL để hiển thị demo
+          messageType: 'IMAGE',
+          sender: {
+            userId: 'me',
+            username: 'Bạn',
+          },
+          createdAt: new Date().toISOString(),
+        }
+        if (!this.demoMessagesMap[roomKey]) {
+          this.demoMessagesMap[roomKey] = []
+        }
+        this.demoMessagesMap[roomKey].push(mockMsg)
+        saveDemoMessages(this.demoMessagesMap)
+        this.handleNewMessage(mockMsg)
+        return mockMsg
+      }
+
+      // 2. Phòng thật: Gọi API POST /rooms/{roomId}/messages/images với FormData
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        if (repliedMessageId) {
+          formData.append('repliedMessageId', repliedMessageId)
+        }
+
+        // Gọi trực tiếp qua axios hoặc qua messageApi 
+        // Dưới đây dùng messageApi nếu bạn đã cấu hình, hoặc axios trực tiếp:
+        const sentMsg = await messageApi.sendImageMessage(roomId, formData)
+        if (sentMsg) {
+          this.handleNewMessage(sentMsg)
+        }
+        return sentMsg
+      } catch (err) {
+        console.error('Lỗi khi gửi ảnh:', err)
+        throw err
+      }
+    },
+
+    // Gửi tin nhắn dạng tệp đính kèm (hỗ trợ đính kèm file và reply)
+    async sendFileMessage(roomId, file, repliedMessageId = null) {
+      if (!roomId || !file) return
+      const roomKey = String(roomId)
+
+      if (['1', '2', '3'].includes(roomKey)) {
+        const mockMsg = {
+          messageId: 'mock-file-' + Date.now() + Math.random(),
+          roomId: roomKey,
+          content: file.name,
+          messageType: 'FILE',
+          sender: {
+            userId: 'me',
+            username: 'Bạn',
+          },
+          createdAt: new Date().toISOString(),
+        }
+        if (!this.demoMessagesMap[roomKey]) {
+          this.demoMessagesMap[roomKey] = []
+        }
+        this.demoMessagesMap[roomKey].push(mockMsg)
+        saveDemoMessages(this.demoMessagesMap)
+        this.handleNewMessage(mockMsg)
+        return mockMsg
+      }
+
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        if (repliedMessageId) {
+          formData.append('repliedMessageId', repliedMessageId)
+        }
+
+        const sentMsg = await messageApi.sendFileMessage(roomId, formData)
+        if (sentMsg) {
+          this.handleNewMessage(sentMsg)
+        }
+        return sentMsg
+      } catch (err) {
+        console.error('Lỗi khi gửi file:', err)
+        throw err
       }
     },
 

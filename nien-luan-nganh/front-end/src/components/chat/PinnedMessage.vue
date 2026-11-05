@@ -9,8 +9,10 @@
  * - Hỗ trợ nút sổ xuống (chevron-down) xem toàn bộ danh sách tin đã ghim (tối đa 5 tin).
  * - Cho phép bấm nút 'x' để bỏ ghim nhanh tin nhắn.
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { resolveFileUrl } from '@/api/storage.api';
+
 
 // Phát sự kiện cuộn tới tin nhắn lên component cha (ChatView.vue)
 const emit = defineEmits(['scrollToMessage'])
@@ -53,6 +55,71 @@ const handleItemClick = (messageId) => {
   emit('scrollToMessage', messageId)
   showList.value = false
 }
+
+/**
+ * Chuyển đổi nội dung hiển thị của tin ghim tùy theo messageType hoặc định dạng tệp
+ */
+const formatPinContent = (msg) => {
+    if (!msg) return '';
+    const type = msg.messageType;
+    const content = msg.content || '';
+
+    if (type === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        return '[Hình ảnh]';
+    }
+    if (type === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)) {
+        return '[Video]';
+    }
+    if (type === 'FILE' || type === 'DOCUMENT' || content.match(/\.(pdf|doc|docx|xls|xlsx|txt|zip|rar)$/i)) {
+        const fileName = content.split('/').pop() || 'Tệp đính kèm';
+        return `[Tệp: ${fileName}]`;
+    }
+  return content;
+};
+
+const isImageMessage = (msg) => {
+  if (!msg) return false
+  const type = msg.messageType
+  const content = msg.content || ''
+  return type === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+}
+
+const isVideoMessage = (msg) => {
+  if (!msg) return false
+  const type = msg.messageType
+  const content = msg.content || ''
+  return type === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+}
+
+const isFileMessage = (msg) => {
+  if (!msg) return false
+  const type = msg.messageType
+  const content = msg.content || ''
+  return type === 'FILE' || type === 'DOCUMENT' || content.match(/\.(pdf|doc|docx|xls|xlsx|txt|zip|rar)$/i)
+}
+
+const getFileName = (content) => {
+  if (!content) return 'Tài liệu đính kèm'
+  return content.split('/').pop() || 'Tài liệu đính kèm'
+}
+
+// Đóng danh sách ghim khi click ra bên ngoài
+const handleDocumentClick = (e) => {
+  // Nếu dropdown đang mở và click nằm ngoài vùng của container ghim thì đóng lại
+  const container = document.querySelector('.pinned-container');
+  if (showList.value && container && !container.contains(e.target)) {
+    showList.value = false;
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
+
 </script>
 
 <template>
@@ -69,8 +136,8 @@ const handleItemClick = (messageId) => {
             (+{{ chatStore.pinnedMessages.length - 1 }} tin khác)
           </span>
         </div>
-        <div class="Content_PinnedMessage">
-          {{ (pinnedMsg.sender?.username ? pinnedMsg.sender.username + ': ' : '') + (pinnedMsg.content || '') }}
+        <div class="Content_PinnedMessage"> <!-- sửa lại để hiển thị [Hình ảnh] thay vì storageKey-->
+            {{ (pinnedMsg.sender?.username ? pinnedMsg.sender.username + ': ' : '') + formatPinContent(pinnedMsg) }}
         </div>
       </div>
     </div>
@@ -94,7 +161,7 @@ const handleItemClick = (messageId) => {
   </div>
 
   <!-- Menu sổ xuống danh sách tất cả tin nhắn ghim -->
-  <div v-if="showList" class="pinned-dropdown">
+  <div v-if="showList" class="pinned-dropdown" @click.stop> <!-- thêm để xử lý ấn ra ngoài mất-->
     <div class="dropdown-header">
       <span class="dropdown-title">
         <font-awesome-icon icon="thumbtack" style="margin-right: 5px; color: #4b7bec;"/>
@@ -112,7 +179,21 @@ const handleItemClick = (messageId) => {
           <span class="item-badge">#{{ idx + 1 }}</span>
           <div class="item-text-wrap">
             <span class="item-sender">{{ pin.sender?.username || 'Thành viên' }}</span>
-            <span class="item-content">{{ pin.content }}</span>
+            <!-- Khung hiển thị trực quan chỉ có trong dropdown -->
+            <div class="item-content-wrapper">
+              <div v-if="isImageMessage(pin)" class="pinned-media-preview dropdown-media">
+                <img :src="resolveFileUrl(pin.content)" alt="img" class="pinned-thumbnail" />
+              </div>
+              <div v-else-if="isVideoMessage(pin)" class="pinned-media-preview dropdown-media">
+                <video :src="resolveFileUrl(pin.content)" class="pinned-thumbnail" muted></video>
+                <span class="pin-play-icon"><font-awesome-icon icon="play" /></span>
+              </div>
+              <div v-else-if="isFileMessage(pin)" class="pinned-file-preview">
+                <font-awesome-icon icon="file-lines" class="pin-file-icon" />
+                <span class="pin-file-name">{{ getFileName(pin.content) }}</span>
+              </div>
+              <span v-else class="item-content">{{ pin.content }}</span>
+            </div>
           </div>
         </div>
         <div 
@@ -257,7 +338,7 @@ const handleItemClick = (messageId) => {
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(15, 37, 71, 0.12);
     margin-top: 4px;
-    max-height: 280px;
+    max-height: 400px;
     overflow-y: auto;
     font-family: "Quicksand", sans-serif;
 }
@@ -339,5 +420,74 @@ const handleItemClick = (messageId) => {
     overflow: hidden;
     text-overflow: ellipsis;
     border-radius: 1.25rem;
+}
+
+/* Chỉnh css cho phần drop down hiện hình file */
+.item-content-wrapper {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.pinned-media-preview {
+  position: relative;
+  width: 150;
+  max-width: 150px;   /* Giới hạn bề ngang tối đa */
+  /* height: 60px;       Tăng chiều cao lên chút cho thoáng (hoặc để auto) */
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f1f5f9; /* Màu nền lót nhẹ nếu ảnh có tỷ lệ đặc biệt */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  margin-top: 4px;
+}
+
+.pinned-thumbnail {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* Đổi từ cover sang contain để hiện đầy đủ trọn vẹn bức ảnh */
+  display: block;
+}
+
+.pin-play-icon {
+  position: absolute;
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pinned-file-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: #1e293b;
+  max-width: 220px;
+}
+
+.pin-file-icon {
+  color: #3b82f6;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.pin-file-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

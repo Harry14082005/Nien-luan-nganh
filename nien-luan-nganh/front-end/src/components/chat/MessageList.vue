@@ -438,8 +438,7 @@ onUnmounted(() => {
                 <!-- 5. Tin nhắn dạng Tệp đính kèm (File) -->
                 <div 
                     v-else-if="messageType === 'FILE'" 
-                    class="message message--file-wrapper"
-                    :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
+                    class="message-file-standalone"
                 >
                     <a :href="resolveFileUrl(Content_Message)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
                         <div class="msg-file-icon-box">
@@ -1393,37 +1392,65 @@ onUnmounted(() => {
 
 /* Tinh chỉnh bong bóng khi chứa ảnh/video (bỏ padding thừa để ảnh tràn đẹp) */
 .message.message--media {
-    padding: 4px !important;
-    overflow: hidden;
+    padding: 4px !important; /* Thu nhỏ khoảng đệm để khung ôm sát ảnh */
     background-color: transparent !important;
     border: none !important;
+    box-shadow: none !important;
+    overflow: hidden;
 }
 
 .message-media-wrapper {
     max-width: 260px;
-    max-height: 300px;
+    max-height: 820px;
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
+    border-radius: 12px;
+    background-color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
 }
 
 .msg-media-img, .msg-media-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain; /* để hiển thị đầy đủ hình ảnh không bị cắt */
     display: block;
+}
+
+.message-file-standalone {
+    margin-top: 4px;
+    margin-bottom: 2px;
+    display: inline-block;
+    max-width: 100%;
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
 /* Khung hiển thị Tệp đính kèm (File Card) */
 .message-file-card {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 12px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
+    padding: 10px 14px;
     text-decoration: none;
+    color: #1e293b;
     max-width: 280px;
-    transition: background-color 0.15s ease;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.message-file-card:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 /* Màu sắc file card tùy biến theo variant (của mình hay người khác) */
@@ -1439,12 +1466,14 @@ onUnmounted(() => {
 }
 
 .msg-file-icon-box {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 38px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 8px;
     font-size: 16px;
     flex-shrink: 0;
 }
@@ -1462,13 +1491,15 @@ onUnmounted(() => {
 .msg-file-meta {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    min-width: 0;
     flex: 1;
+    gap: 2px;
 }
 
 .msg-file-name {
     font-size: 13px;
     font-weight: 600;
+    color: #1e293b;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1476,12 +1507,18 @@ onUnmounted(() => {
 
 .msg-file-size {
     font-size: 11px;
-    opacity: 0.8;
+    color: #64748b;
 }
 
 .msg-file-download-icon {
-    font-size: 12px;
-    opacity: 0.8;
+    color: #64748b;
+    font-size: 13px;
     flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.message-file-card:hover .msg-file-download-icon {
+    /* transform: translateY(2px); */
+    color: #2563eb;
 }
 </style>

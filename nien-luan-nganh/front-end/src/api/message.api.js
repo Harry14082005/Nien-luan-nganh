@@ -185,3 +185,29 @@ export const getMessageReactions = (roomId, messageId) => {
     .get(`/rooms/${roomId}/messages/${messageId}/reactions`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+/**
+ * Gửi hình ảnh vào phòng chat qua REST API.
+ * @param {string} roomId UUID của phòng chat
+ * @param {FormData} formData Chứa file ảnh và optional repliedMessageId
+ */
+export const sendImageMessage = (roomId, formData) => {
+  return http
+    .post(`/rooms/${roomId}/messages/images`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Gửi tệp đính kèm vào phòng chat qua REST API.
+ * @param {string} roomId UUID của phòng chat
+ * @param {FormData} formData Chứa file tài liệu và optional repliedMessageId
+ */
+export const sendFileMessage = (roomId, formData) => {
+  return http
+    .post(`/rooms/${roomId}/messages/files`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
