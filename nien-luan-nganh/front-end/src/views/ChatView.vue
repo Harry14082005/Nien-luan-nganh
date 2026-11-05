@@ -234,6 +234,101 @@ const formatTime = (isoString) => {
 };
 
 /**
+ * Nhận diện tin nhắn SYSTEM dạng mốc thời gian cũ trong DB (vd: "14:35 05/11/2026")
+ * để ẩn đi, tránh hiển thị trùng lặp với mốc thời gian tự động của Frontend.
+ */
+const isLegacyTimeLogMessage = (msg) => {
+  if (!msg || msg.messageType !== 'SYSTEM') return false;
+  const content = String(msg.content || '').trim();
+  return /^\d{1,2}:\d{2}(\s+\d{1,2}\/\d{1,2}(\/\d{2,4})?)?$/.test(content);
+};
+
+/**
+ * Định dạng mốc phân chia thời gian giữa các cuộc trò chuyện (Time Divider):
+ * - Hôm nay: "Hôm nay, 14:35"
+ * - Hôm qua: "Hôm qua, 14:35"
+ * - Cùng năm: "14:35, 14/11"
+ * - Khác năm: "14:35, 14/11/2025"
+ */
+const formatTimeDivider = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+      return `Hôm nay, ${timeStr}`;
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+    if (isYesterday) {
+      return `Hôm qua, ${timeStr}`;
+    }
+
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+
+    if (year === now.getFullYear()) {
+      return `${timeStr}, ${day}/${month}`;
+    }
+
+    return `${timeStr}, ${day}/${month}/${year}`;
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Kiểm tra xem có nên hiển thị mốc phân chia thời gian (Time Divider) trước tin nhắn thứ idx hay không
+ * Hiển thị khi:
+ * 1. Là tin nhắn đầu tiên trong danh sách (idx === 0)
+ * 2. Khoảng cách thời gian giữa tin hiện tại và tin hợp lệ liền trước >= 5 phút (300,000 ms)
+ * 3. Hoặc chuyển sang ngày mới (khác ngày)
+ */
+const shouldShowTimeDivider = (idx) => {
+  const current = chatStore.messages[idx];
+  if (!current || !current.createdAt) return false;
+  if (isLegacyTimeLogMessage(current)) return false;
+
+  // Tìm tin nhắn hợp lệ liền trước (bỏ qua các tin nhắn time log cũ nếu có trong DB)
+  let prev = null;
+  for (let i = idx - 1; i >= 0; i--) {
+    const msg = chatStore.messages[i];
+    if (!isLegacyTimeLogMessage(msg)) {
+      prev = msg;
+      break;
+    }
+  }
+
+  // Nếu không có tin nhắn hợp lệ nào trước đó -> đây là tin đầu tiên -> hiển thị mốc giờ
+  if (!prev || !prev.createdAt) return true;
+
+  const prevDate = new Date(prev.createdAt);
+  const currDate = new Date(current.createdAt);
+  const prevTime = prevDate.getTime();
+  const currTime = currDate.getTime();
+
+  if (isNaN(prevTime) || isNaN(currTime)) return false;
+
+  // Nếu khác ngày -> luôn hiện mốc ngày mới
+  if (prevDate.toDateString() !== currDate.toDateString()) {
+    return true;
+  }
+
+  // Cùng ngày -> hiển thị nếu cách nhau >= 5 phút (5 * 60 * 1000 ms)
+  return Math.abs(currTime - prevTime) >= 5 * 60 * 1000;
+};
+
+/**
  * Kiểm tra xem 2 tin nhắn có cùng người gửi hay không
  */
 const isSameSender = (msg1, msg2) => {
@@ -705,8 +800,16 @@ watch(
         Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên! 👋
       </div>
       <template v-for="(msg, idx) in chatStore.messages" :key="msg.messageId">
-        <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat -->
-        <div v-if="msg.isEvent || msg.messageType === 'SYSTEM'" class="system-message-row chat-event-row">
+        <!-- Mốc thời gian lớn giữa các đoạn hội thoại (>= 5 phút hoặc sang ngày mới) -->
+        <div v-if="shouldShowTimeDivider(idx)" class="chat-time-divider-row">
+          <span class="chat-time-divider-pill">{{ formatTimeDivider(msg.createdAt) }}</span>
+        </div>
+
+        <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat (ẩn legacy time log nếu có) -->
+        <div 
+          v-if="(msg.isEvent || msg.messageType === 'SYSTEM') && !isLegacyTimeLogMessage(msg)" 
+          class="system-message-row chat-event-row"
+        >
           <div class="system-message-badge chat-event-pill">
             <font-awesome-icon icon="thumbtack" class="event-pin-icon" />
             <span>{{ formatSystemMessageContent(msg) }}</span>
@@ -715,7 +818,7 @@ watch(
 
         <!-- 2. Dòng tin nhắn thông thường -->
         <MessageList 
-          v-else
+          v-else-if="!isLegacyTimeLogMessage(msg)"
           :messageId="msg.messageId"
           :isPinned="!!msg.isPinned"
           :isRevoked="!!msg.isRevoked"
@@ -895,6 +998,27 @@ watch(
   background-color: white;
 }
 
+.chat-time-divider-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0 10px;
+  width: 100%;
+  user-select: none;
+}
+
+.chat-time-divider-pill {
+  display: inline-block;
+  padding: 4px 14px;
+  background-color: rgba(226, 232, 240, 0.7);
+  color: #64748b;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
 .chat-event-row {
   display: flex;
   justify-content: center;
@@ -907,15 +1031,15 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 14px;
-  background-color: #f1f5f9;
+  padding: 3px 14px;
+  /* background-color: #f1f5f9; */
   color: #64748b;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
+  /* border: 1px solid #e2e8f0; */
+  /* border-radius: 20px; */
   font-size: 12px;
   font-family: 'Quicksand', sans-serif;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); */
 }
 
 .event-pin-icon {

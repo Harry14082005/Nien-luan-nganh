@@ -833,6 +833,12 @@ export const useChatStore = defineStore('chat', {
     // 6. Nhận tin nhắn mới -> Cập nhật khung chat + Cập nhật Sidebar trái & Đưa phòng lên đầu
     handleNewMessage(message) {
       if (!message || !message.roomId) return
+
+      // Bỏ qua tin nhắn log mốc thời gian dạng SYSTEM cũ nếu còn sót lại (FE tự render mốc giờ)
+      if (message.messageType === 'SYSTEM' && /^\d{1,2}:\d{2}/.test(String(message.content || '').trim())) {
+        return
+      }
+
       const authStore = useAuthStore()
       const msgRoomId = String(message.roomId)
       const msgId = String(message.messageId)
@@ -878,6 +884,8 @@ export const useChatStore = defineStore('chat', {
             (message.pinnedBy && msgAgeMs > 1500))),
       )
       const isPinOrUnpin = isPinAction || isUnpinAction
+
+
 
       // Xác định chính xác NGƯỜI THỰC HIỆN GHIM / BỎ GHIM (tuyệt đối không lấy nhầm tác giả tin nhắn cũ)
       let isMyPinAction = false
