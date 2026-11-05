@@ -14,14 +14,14 @@ function loadDemoRooms() {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
-  } catch {}
+  } catch { }
   return []
 }
 
 function saveDemoRooms(rooms) {
   try {
     localStorage.setItem('bluespace_demo_rooms', JSON.stringify(rooms))
-  } catch {}
+  } catch { }
 }
 
 function loadDemoMessages() {
@@ -31,14 +31,14 @@ function loadDemoMessages() {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') return parsed
     }
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveDemoMessages(messagesMap) {
   try {
     localStorage.setItem('bluespace_demo_messages', JSON.stringify(messagesMap))
-  } catch {}
+  } catch { }
 }
 
 // Lưu trữ trạng thái hoạt động mới nhất của phòng (đặc biệt khi ghim/bỏ ghim)
@@ -50,28 +50,28 @@ function loadRoomOverrides() {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') return parsed
     }
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveRoomOverrides(overrides) {
   try {
     localStorage.setItem('bluespace_room_overrides', JSON.stringify(overrides))
-  } catch {}
+  } catch { }
 }
 
 // Lưu danh sách sự kiện ghim / bỏ ghim trong khung chat theo từng phòng
 function loadRoomEvents() {
   try {
     localStorage.removeItem('bluespace_room_events')
-  } catch {}
+  } catch { }
   return {}
 }
 
 function saveRoomEvents() {
   try {
     localStorage.removeItem('bluespace_room_events')
-  } catch {}
+  } catch { }
 }
 
 // Lưu thông tin người vừa bấm ghim/bỏ ghim theo messageId để đồng bộ tức thời giữa các tab và chống race-condition WebSocket
@@ -86,7 +86,7 @@ function recordRecentPinActor(messageId, actorUsername, actorUserId, type) {
       timestamp: Date.now(),
     }
     localStorage.setItem('bluespace_recent_pin_actors', JSON.stringify(map))
-  } catch {}
+  } catch { }
 }
 
 function getRecentPinActor(messageId) {
@@ -98,7 +98,7 @@ function getRecentPinActor(messageId) {
     if (entry && Date.now() - entry.timestamp < 20000) {
       return entry
     }
-  } catch {}
+  } catch { }
   return null
 }
 
@@ -536,7 +536,7 @@ export const useChatStore = defineStore('chat', {
         const cursorInfo = extractCursorInfo(res)
         const oldestRealMessage = rawList.length > 0 ? rawList[rawList.length - 1] : null
         this.nextCursor = cursorInfo.nextCursor || oldestRealMessage?.messageId || null
-        
+
         // Nếu backend có trả về trường hasMore cụ thể thì dùng, còn không thì dựa trên số lượng tin (>= 20 nghĩa là còn tin cũ)
         const hasMoreCalculated = cursorInfo.hasMore !== undefined && cursorInfo.hasMore !== false
           ? Boolean(cursorInfo.hasMore)
@@ -757,11 +757,11 @@ export const useChatStore = defineStore('chat', {
       const repliedMessageId = this.replyingMessage?.messageId || null
       const replyingSnapshot = this.replyingMessage
         ? {
-            messageId: this.replyingMessage.messageId,
-            senderId: this.replyingMessage.sender?.userId || null,
-            senderUsername: this.replyingMessage.sender?.username || 'Bạn',
-            content: this.replyingMessage.content,
-          }
+          messageId: this.replyingMessage.messageId,
+          senderId: this.replyingMessage.sender?.userId || null,
+          senderUsername: this.replyingMessage.sender?.username || 'Bạn',
+          content: this.replyingMessage.content,
+        }
         : null
 
       // Hủy trạng thái reply ngay khi gửi
@@ -833,6 +833,12 @@ export const useChatStore = defineStore('chat', {
     // 6. Nhận tin nhắn mới -> Cập nhật khung chat + Cập nhật Sidebar trái & Đưa phòng lên đầu
     handleNewMessage(message) {
       if (!message || !message.roomId) return
+
+      // Bỏ qua tin nhắn log mốc thời gian dạng SYSTEM cũ nếu còn sót lại (FE tự render mốc giờ)
+      if (message.messageType === 'SYSTEM' && /^\d{1,2}:\d{2}/.test(String(message.content || '').trim())) {
+        return
+      }
+
       const authStore = useAuthStore()
       const msgRoomId = String(message.roomId)
       const msgId = String(message.messageId)
@@ -864,20 +870,22 @@ export const useChatStore = defineStore('chat', {
       const isPinAction = Boolean(
         isSystemPin ||
         (message.isPinned &&
-        !message.isRevoked &&
-        (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin')),
+          !message.isRevoked &&
+          (!wasPinned || (hasValidMyPinRecord && myPinRecord.type === 'pin') || sharedPinActor?.type === 'pin')),
       )
       const isUnpinAction = Boolean(
         isSystemUnpin ||
         (message.isPinned === false &&
-        !message.isRevoked &&
-        (wasPinned ||
-          existingMsg?.isPinned ||
-          (hasValidMyPinRecord && myPinRecord.type === 'unpin') ||
-          sharedPinActor?.type === 'unpin' ||
-          (message.pinnedBy && msgAgeMs > 1500))),
+          !message.isRevoked &&
+          (wasPinned ||
+            existingMsg?.isPinned ||
+            (hasValidMyPinRecord && myPinRecord.type === 'unpin') ||
+            sharedPinActor?.type === 'unpin' ||
+            (message.pinnedBy && msgAgeMs > 1500))),
       )
       const isPinOrUnpin = isPinAction || isUnpinAction
+
+
 
       // Xác định chính xác NGƯỜI THỰC HIỆN GHIM / BỎ GHIM (tuyệt đối không lấy nhầm tác giả tin nhắn cũ)
       let isMyPinAction = false
