@@ -59,23 +59,7 @@
                 <font-awesome-icon icon="user-group" class="section-icon" />
                 <span class="section-title">Thành viên phòng ({{ displayMembers.length }})</span>
               </div>
-<<<<<<< Updated upstream
-              <div
-                v-for="member in displayMembers"
-                :key="member.userId || member.username"
-                class="member-item"
-              >
-                <UserAvatar
-                  :name="member.username || 'Thành viên'"
-                  :src="resolveFileUrl(member.avatarUrl)"
-                  :size="34"
-                />
-                <div class="member-info">
-                  <span class="member-name">{{ member.username || 'Thành viên' }}</span>
-                  <span
-                    v-if="member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN'"
-                    class="role-badge"
-=======
+
               <font-awesome-icon
                 icon="chevron-right"
                 class="arrow-icon"
@@ -104,11 +88,10 @@
                     class="member-item member-item--clickable"
                     title="Bấm để xem thông tin thành viên"
                     @click="openMemberProfile(member)"
->>>>>>> Stashed changes
                   >
                     <UserAvatar
                       :name="member.username || 'Thành viên'"
-                      :src="member.avatarUrl"
+                      :src="resolveFileUrl(member.avatarUrl)"
                       :size="34"
                     />
                     <div class="member-info">
