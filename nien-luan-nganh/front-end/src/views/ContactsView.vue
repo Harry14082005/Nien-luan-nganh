@@ -4,6 +4,10 @@ import { useRouter } from 'vue-router'
 
 import { getFriends, toContact } from '@/api/contacts.api'
 import { getMe } from '@/api/auth.api'
+import { useChatStore } from '@/stores/chat'
+
+const chatStore = useChatStore()
+const startingChat = ref(false) // chặn bấm liên tục tạo phòng 2 lần
 const router = useRouter()
 
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
@@ -54,8 +58,27 @@ function onSelectContact(contact) {
   selectedContactId.value = contact.id
 }
 
-function handleMessageContact() {
-  router.push('/chat')
+async function handleMessageContact(contact) {
+  if (startingChat.value) return
+  const userId = contact?.userId ?? contact?.id
+  if (!userId) return
+
+  startingChat.value = true
+  errorMsg.value = ''
+  try {
+    // Backend tự lấy phòng 1-1 đã có hoặc tạo mới, store tự chọn phòng đó làm phòng đang mở
+    const room = await chatStore.startDirectChat(userId)
+    if (room?.roomId) {
+      router.push('/chat')
+    } else {
+      errorMsg.value = 'Không mở được cuộc trò chuyện'
+    }
+  } catch (e) {
+    console.error('Lỗi mở cuộc trò chuyện:', e)
+    errorMsg.value = e.response?.data?.message || 'Không thể mở cuộc trò chuyện'
+  } finally {
+    startingChat.value = false
+  }
 }
 </script>
 
@@ -178,7 +201,8 @@ function handleMessageContact() {
 
 .card-display-area {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
+  margin-top: 20px;
 }
 
 .state-msg {

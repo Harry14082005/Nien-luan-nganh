@@ -132,8 +132,7 @@ function onSendMessage() {
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   border: 1px solid #eef2f7;
-  width: 100%;
-  max-width: 680px;
+  width: 80%;
 }
 
 /* Banner */

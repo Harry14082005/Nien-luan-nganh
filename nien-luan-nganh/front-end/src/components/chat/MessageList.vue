@@ -3,229 +3,202 @@
  * =========================================================================
  * Component: MessageList.vue
  * =========================================================================
- * - Hiển thị từng dòng tin nhắn trong khung chat (bong bóng chat, tên người gửi, thời gian).
- * - Nút 3 chấm (...) và nút Ghim nằm ngang hàng ngay sau/bên cạnh bong bóng tin nhắn (hiện khi hover).
- * - Giao diện chỉnh sửa inline đẹp mắt, giữ nguyên hình dạng và màu sắc của bong bóng tin nhắn bình thường.
+ * - Hiển thị từng dòng tin nhắn trong khung chat (avatar, tên người gửi, bong bóng, thời gian).
+ * - Nút thả cảm xúc, trả lời, ghim và 3 chấm (...) nằm ngang hàng ngay bên cạnh bong bóng (hiện khi hover).
+ * - Chỉnh sửa inline, giữ nguyên hình dạng và màu sắc của bong bóng tin nhắn bình thường.
  * - Hỗ trợ xem lịch sử các lần chỉnh sửa tin nhắn.
  */
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { useAuthStore } from '@/stores/auth';
-import { useChatStore, getReplySnippet } from '@/stores/chat';
-import MessageBubble from './MessageBubble.vue';
-import { resolveFileUrl } from '@/api/storage.api'; 
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore, getReplySnippet } from '@/stores/chat'
+
 const props = defineProps({
-    // Mốc thời gian gửi tin nhắn (vd: 14:30)
-    Time: {
-        type: String,
-        default: '12:35'
-    },
-    // Nội dung văn bản của tin nhắn
-    Content_Message: {
-        type: String,
-        default: ''
-    },
-    // Tên người gửi (ẩn đi nếu là tin nhắn của chính mình)
-    Sender: {
-        type: String,
-        default: 'Minh Anh'
-    },
-    // Kiểu hiển thị: 'default' (người khác) hoặc 'SendTo' (chính mình)
-    variant: {
-        type: String,
-        default: 'default',
-        validator: (v) => ['default', 'SendTo'].includes(v),
-    },
-    // Khóa chính UUID của tin nhắn
-    messageId: {
-        type: String,
-        default: ''
-    },
-    // Trạng thái tin nhắn đã được ghim hay chưa
-    isPinned: {
-        type: Boolean,
-        default: false
-    },
-    // Trạng thái tin nhắn đã bị thu hồi hay chưa
-    isRevoked: {
-        type: Boolean,
-        default: false
-    },
-    // Danh sách cảm xúc đã thả trên tin nhắn
-    reactions: {
-        type: Array,
-        default: () => []
-    },
-    // Tin nhắn liên tiếp từ cùng 1 người gửi (ẩn avatar, ẩn tên, thu hẹp khoảng cách)
-    isConsecutive: {
-        type: Boolean,
-        default: false
-    },
-    // Hiển thị mốc thời gian (chỉ hiển thị ở tin nhắn cuối của cụm tin nhắn liên tiếp)
-    showTime: {
-        type: Boolean,
-        default: true
-    },
-    // Vị trí của tin nhắn trong cụm tin nhắn liên tiếp ('single', 'first', 'middle', 'last')
-    groupPosition: {
-        type: String,
-        default: 'single',
-        validator: (v) => ['single', 'first', 'middle', 'last'].includes(v),
-    },
-    // Trạng thái tin nhắn đã từng được chỉnh sửa hay chưa
-    isEdited: {
-        type: Boolean,
-        default: false
-    },
-    // Hiển thị Avatar
-    Avatar: {
-      type: String,
-      default: ''
-    },
-    // Dữ liệu tin nhắn được phản hồi (nếu có)
-    repliedMessage: {
-        type: Object,
-        default: null
-    },
-    // Đối tượng tin nhắn gốc đầy đủ để truyền khi bấm Reply
-    rawMessage: {
-        type: Object,
-        default: null
-    },
-    // Từ khóa tìm kiếm đang kích hoạt để highlight
-    searchKeyword: {
-        type: String,
-        default: ''
-    },
+  // Mốc thời gian gửi tin nhắn (vd: 14:30)
+  Time: {
+    type: String,
+    default: '12:35',
+  },
+  // Nội dung văn bản của tin nhắn
+  Content_Message: {
+    type: String,
+    default: '',
+  },
+  // Tên người gửi (ẩn đi nếu là tin nhắn của chính mình)
+  Sender: {
+    type: String,
+    default: 'Minh Anh',
+  },
+  // Kiểu hiển thị: 'default' (người khác) hoặc 'SendTo' (chính mình)
+  variant: {
+    type: String,
+    default: 'default',
+    validator: (v) => ['default', 'SendTo'].includes(v),
+  },
+  // Khóa chính UUID của tin nhắn
+  messageId: {
+    type: String,
+    default: '',
+  },
+  // Trạng thái tin nhắn đã được ghim hay chưa
+  isPinned: {
+    type: Boolean,
+    default: false,
+  },
+  // Trạng thái tin nhắn đã bị thu hồi hay chưa
+  isRevoked: {
+    type: Boolean,
+    default: false,
+  },
+  // Danh sách cảm xúc đã thả trên tin nhắn
+  reactions: {
+    type: Array,
+    default: () => [],
+  },
+  // Tin nhắn liên tiếp từ cùng 1 người gửi (ẩn avatar, ẩn tên, thu hẹp khoảng cách)
+  isConsecutive: {
+    type: Boolean,
+    default: false,
+  },
+  // Hiển thị mốc thời gian (chỉ hiển thị ở tin nhắn cuối của cụm tin nhắn liên tiếp)
+  showTime: {
+    type: Boolean,
+    default: true,
+  },
+  // Vị trí của tin nhắn trong cụm tin nhắn liên tiếp ('single', 'first', 'middle', 'last')
+  groupPosition: {
+    type: String,
+    default: 'single',
+    validator: (v) => ['single', 'first', 'middle', 'last'].includes(v),
+  },
+  // Trạng thái tin nhắn đã từng được chỉnh sửa hay chưa
+  isEdited: {
+    type: Boolean,
+    default: false,
+  },
+  // Dữ liệu tin nhắn được phản hồi (nếu có)
+  repliedMessage: {
+    type: Object,
+    default: null,
+  },
+  // Đối tượng tin nhắn gốc đầy đủ để truyền khi bấm Reply
+  rawMessage: {
+    type: Object,
+    default: null,
+  },
+  // Từ khóa tìm kiếm đang kích hoạt để highlight
+  searchKeyword: {
+    type: String,
+    default: '',
+  },
+})
 
-    // Xử lý cái hiển thị ảnh file chỗ tin nhắn
-    messageType: {
-          type: String,
-          default: 'TEXT', // TEXT, IMAGE, VIDEO, FILE
-      },
-      mediaUrl: {
-          type: String,
-          default: ''
-      },
-      fileName: {
-          type: String,
-          default: ''
-      },
-      fileSize: {
-          type: String,
-          default: ''
-      }
-});
+const emit = defineEmits([
+  'togglePin',
+  'editMessage',
+  'revokeMessage',
+  'viewHistory',
+  'replyMessage',
+  'scrollToMessage',
+])
 
-const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory', 'replyMessage', 'scrollToMessage'])
+const authStore = useAuthStore()
+const chatStore = useChatStore()
 
-const authStore = useAuthStore();
-const chatStore = useChatStore();
+const showMenu = ref(false) // Trạng thái mở menu 3 chấm
+const showReactionPicker = ref(false) // Trạng thái hiển thị thanh chọn nhanh 6 icon
+let closeReactionTimer = null // Timer hoãn đóng thanh cảm xúc
+const isEditing = ref(false) // Trạng thái đang chỉnh sửa inline
+const editContent = ref('') // Nội dung văn bản đang sửa
+const editTextareaRef = ref(null) // Ref tới ô textarea sửa
 
-const showMenu = ref(false); // Trạng thái mở menu 3 chấm
-const showReactionPicker = ref(false); // Trạng thái hiển thị thanh chọn nhanh 6 icon
-let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
-const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
-const editContent = ref(''); // Nội dung văn bản đang sửa
-const editTextareaRef = ref(null); // Ref tới ô textarea sửa
-
-// Quản lý đóng/mở thanh cảm xúc có độ trễ 250ms
+// Quản lý đóng/mở thanh cảm xúc có độ trễ 200ms
 const handleMouseEnterReaction = () => {
-    if (closeReactionTimer) {
-        clearTimeout(closeReactionTimer);
-        closeReactionTimer = null;
-    }
-    showReactionPicker.value = true;
-};
+  if (closeReactionTimer) {
+    clearTimeout(closeReactionTimer)
+    closeReactionTimer = null
+  }
+  showReactionPicker.value = true
+}
 
 const handleMouseLeaveReaction = () => {
-    if (closeReactionTimer) {
-        clearTimeout(closeReactionTimer);
-    }
-    closeReactionTimer = setTimeout(() => {
-        showReactionPicker.value = false;
-    }, 200);
-};
+  if (closeReactionTimer) {
+    clearTimeout(closeReactionTimer)
+  }
+  closeReactionTimer = setTimeout(() => {
+    showReactionPicker.value = false
+  }, 200)
+}
 
 // 6 biểu cảm chuẩn: LIKE, LOVE, HAHA, WOW, SAD, ANGRY
 const AVAILABLE_REACTIONS = [
-    { type: 'LIKE', emoji: '👍', label: 'Thích' },
-    { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
-    { type: 'HAHA', emoji: '😂', label: 'Haha' },
-    { type: 'WOW', emoji: '😮', label: 'Wow' },
-    { type: 'SAD', emoji: '😢', label: 'Buồn' },
-    { type: 'ANGRY', emoji: '😡', label: 'Phẫn nộ' }
-];
+  { type: 'LIKE', emoji: '👍', label: 'Thích' },
+  { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
+  { type: 'HAHA', emoji: '😂', label: 'Haha' },
+  { type: 'WOW', emoji: '😮', label: 'Wow' },
+  { type: 'SAD', emoji: '😢', label: 'Buồn' },
+  { type: 'ANGRY', emoji: '😡', label: 'Phẫn nộ' },
+]
 
 const getEmojiChar = (type) => {
-    const found = AVAILABLE_REACTIONS.find((r) => r.type === type);
-    return found ? found.emoji : '👍';
-};
+  const found = AVAILABLE_REACTIONS.find((r) => r.type === type)
+  return found ? found.emoji : '👍'
+}
 
 // Gom nhóm reactions để render badge: { LOVE: { count: 1, reactedByMe: true, users: ['Harry'] } }
 const groupedReactions = computed(() => {
-    const groups = {};
-    const myId = authStore.user?.userId;
-    for (const r of (props.reactions || [])) {
-        if (!groups[r.reactionType]) {
-            groups[r.reactionType] = { count: 0, reactedByMe: false, users: [] };
-        }
-        groups[r.reactionType].count++;
-        groups[r.reactionType].users.push(r.username || 'Thành viên');
-        if (myId && String(r.userId) === String(myId)) {
-            groups[r.reactionType].reactedByMe = true;
-        }
+  const groups = {}
+  const myId = authStore.user?.userId
+  for (const r of props.reactions || []) {
+    if (!groups[r.reactionType]) {
+      groups[r.reactionType] = { count: 0, reactedByMe: false, users: [] }
     }
-    return groups;
-});
-
-//CÁI NÀY ĐỂ XỬ LÝ HIỂN THỊ ẢNH FILE TRÊN TIN NHẮN
-const fileStorageKey = computed(() => {
-    // Nếu là tin nhắn media/file mà có Content_Message chứa đường dẫn
-    if (['IMAGE', 'VIDEO', 'FILE'].includes(props.messageType)) {
-        return props.mediaUrl || props.Content_Message || '';
+    groups[r.reactionType].count++
+    groups[r.reactionType].users.push(r.username || 'Thành viên')
+    if (myId && String(r.userId) === String(myId)) {
+      groups[r.reactionType].reactedByMe = true
     }
-    return props.mediaUrl || '';
-});
-
+  }
+  return groups
+})
 
 // Kiểm tra nội dung tin nhắn có chứa từ khóa tìm kiếm hay không
 const hasKeywordMatch = computed(() => {
-    if (!props.searchKeyword || !props.Content_Message) return false;
-    return props.Content_Message.toLowerCase().includes(props.searchKeyword.toLowerCase());
-});
+  if (!props.searchKeyword || !props.Content_Message) return false
+  return props.Content_Message.toLowerCase().includes(props.searchKeyword.toLowerCase())
+})
 
 // Chuyển ký tự đặc biệt tránh tấn công XSS
 const escapeHtml = (text) => {
-    if (!text) return '';
-    return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-};
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 // Đánh dấu từ khóa khớp bên trong chuỗi tin nhắn
 const highlightKeyword = (text, keyword) => {
-    if (!text) return '';
-    if (!keyword || !keyword.trim()) return escapeHtml(text);
-    const escapedText = escapeHtml(text);
-    const escapedKw = escapeHtml(keyword.trim()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedKw})`, 'gi');
-    return escapedText.replace(regex, '<mark class="chat-search-mark">$1</mark>');
-};
+  if (!text) return ''
+  if (!keyword || !keyword.trim()) return escapeHtml(text)
+  const escapedText = escapeHtml(text)
+  const escapedKw = escapeHtml(keyword.trim()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escapedKw})`, 'gi')
+  return escapedText.replace(regex, '<mark class="chat-search-mark">$1</mark>')
+}
 
 // Thả hoặc gỡ cảm xúc với Optimistic UI
 const handleSelectReaction = async (type) => {
-    if (closeReactionTimer) {
-        clearTimeout(closeReactionTimer);
-        closeReactionTimer = null;
-    }
-    showReactionPicker.value = false;
-    if (props.messageId) {
-        await chatStore.toggleReaction(props.messageId, type);
-    }
-};
+  if (closeReactionTimer) {
+    clearTimeout(closeReactionTimer)
+    closeReactionTimer = null
+  }
+  showReactionPicker.value = false
+  if (props.messageId) {
+    await chatStore.toggleReaction(props.messageId, type)
+  }
+}
 
 // Tự động điều chỉnh chiều cao textarea theo nội dung gõ
 const autoResize = () => {
@@ -283,45 +256,46 @@ const handleViewHistory = () => {
 
 // Tên hiển thị của người được trả lời ("Bạn" nếu là chính mình, "@username" nếu là người khác)
 const repliedSenderDisplayName = computed(() => {
-    if (!props.repliedMessage) return '';
-    const currentUserId = authStore.user?.userId;
-    const currentUsername = authStore.user?.username;
-    const senderId = props.repliedMessage.senderId;
-    const senderUsername = props.repliedMessage.senderUsername;
-    const isMe = (currentUserId && senderId && String(senderId) === String(currentUserId)) ||
-                 (currentUsername && senderUsername && currentUsername === senderUsername);
-    return isMe ? 'Bạn' : (senderUsername ? `@${senderUsername}` : 'Thành viên');
-});
+  if (!props.repliedMessage) return ''
+  const currentUserId = authStore.user?.userId
+  const currentUsername = authStore.user?.username
+  const senderId = props.repliedMessage.senderId
+  const senderUsername = props.repliedMessage.senderUsername
+  const isMe =
+    (currentUserId && senderId && String(senderId) === String(currentUserId)) ||
+    (currentUsername && senderUsername && currentUsername === senderUsername)
+  return isMe ? 'Bạn' : senderUsername ? `@${senderUsername}` : 'Thành viên'
+})
 
 // Xử lý khi bấm nút Trả lời (Reply)
 const handleReplyClick = () => {
-    showMenu.value = false;
-    if (props.isRevoked) return;
-    const msgPayload = props.rawMessage || {
-        messageId: props.messageId,
-        sender: {
-            userId: props.variant === 'SendTo' ? authStore.user?.userId : null,
-            username: props.variant === 'SendTo' ? (authStore.user?.username || 'Bạn') : props.Sender,
-        },
-        content: props.Content_Message,
-        isRevoked: props.isRevoked,
-        messageType: 'TEXT',
-    };
-    emit('replyMessage', msgPayload);
-};
+  showMenu.value = false
+  if (props.isRevoked) return
+  const msgPayload = props.rawMessage || {
+    messageId: props.messageId,
+    sender: {
+      userId: props.variant === 'SendTo' ? authStore.user?.userId : null,
+      username: props.variant === 'SendTo' ? authStore.user?.username || 'Bạn' : props.Sender,
+    },
+    content: props.Content_Message,
+    isRevoked: props.isRevoked,
+    messageType: 'TEXT',
+  }
+  emit('replyMessage', msgPayload)
+}
 
 // Xử lý khi click vào khối trích dẫn để cuộn tới tin nhắn gốc
 const handleClickRepliedQuote = () => {
-    if (props.repliedMessage?.messageId) {
-        emit('scrollToMessage', props.repliedMessage.messageId);
-    }
-};
+  if (props.repliedMessage?.messageId) {
+    emit('scrollToMessage', props.repliedMessage.messageId)
+  }
+}
 
 // Đóng menu 3 chấm và thanh chọn cảm xúc khi click bên ngoài
 const handleDocumentClick = () => {
-    showMenu.value = false;
-    showReactionPicker.value = false;
-};
+  showMenu.value = false
+  showReactionPicker.value = false
+}
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
@@ -329,6 +303,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
+  if (closeReactionTimer) clearTimeout(closeReactionTimer)
 })
 </script>
 
@@ -336,20 +311,16 @@ onUnmounted(() => {
   <div
     :id="messageId ? 'msg-' + messageId : null"
     :class="[
-      'container', 
-      `container--${variant}`, 
-      { 
+      'container',
+      `container--${variant}`,
+      {
         'container--consecutive': isConsecutive,
-        'container--has-reply': repliedMessage && !isRevoked
-      }
+        'container--has-reply': repliedMessage && !isRevoked,
+      },
     ]"
   >
-    <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
-      <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
-      <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
-    </div>
+    <MessageBubble v-if="!isConsecutive" :type="variant"></MessageBubble>
     <div v-else-if="variant !== 'SendTo'" class="bubble-spacer"></div>
-
     <div
       :class="[
         'wrapper',
@@ -357,60 +328,30 @@ onUnmounted(() => {
         { 'wrapper--consecutive': isConsecutive, 'wrapper--editing': isEditing },
       ]"
     >
-      <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
-
-      <!-- Khối trích dẫn đặt RIÊNG BIỆT phía trên bong bóng tin nhắn (không nằm chung khung) -->
-      <div 
-          v-if="repliedMessage && !isRevoked" 
-          class="replied-quote-box"
-          :class="`replied-quote-box--${variant}`"
-          @click.stop="handleClickRepliedQuote"
-          title="Bấm để cuộn tới tin nhắn gốc"
-      >
-          <div class="replied-quote-sender">
-              {{ repliedSenderDisplayName }}
-          </div>
-          <div class="replied-quote-content">
-              {{ getReplySnippet(repliedMessage) }}
-          </div>
+      <!-- Avatar người gửi (chỉ hiện ở tin đầu cụm, không hiện cho tin của mình) -->
+      <div v-if="!isConsecutive && variant !== 'SendTo'" class="message-bubble-avatar-box">
+        <img v-if="Avatar" :src="Avatar" alt="Avatar" class="custom-avatar-img" />
+        <span v-else>{{ Sender ? Sender.charAt(0).toUpperCase() : '?' }}</span>
       </div>
 
-        <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
-        <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
-            <!-- Khối chứa bong bóng chat và huy hiệu cảm xúc đính kèm sát mép dưới -->
-            <div class="message-bubble-group" :class="`message-bubble-group--${variant}`">
-                
-                <!-- 1. Trạng thái tin nhắn đã bị thu hồi (Ưu tiên kiểm tra đầu tiên) -->
-                <div v-if="isRevoked" :class="['message', 'message--revoked']">
-                    <i>Tin nhắn đã được thu hồi</i>
-                </div>
+      <!-- Tên người gửi -->
+      <div v-if="Sender && !isConsecutive" class="sender">{{ Sender }}</div>
 
-                <!-- 2. Trạng thái đang chỉnh sửa -->
-                <div 
-                    v-else-if="isEditing" 
-                    :class="['message', `message--${variant}`, 'message--editing']"
-                >
-                    <textarea 
-                        ref="editTextareaRef"
-                        v-model="editContent" 
-                        class="inline-edit-textarea" 
-                        rows="1" 
-                        @input="autoResize"
-                        @keydown.enter.exact.prevent="handleSaveEdit" 
-                        @keydown.esc="handleCancelEdit"
-                    ></textarea>
-                    <div class="edit-toolbar">
-                        <span class="edit-hint"></span>
-                        <div class="edit-btn-group">
-                            <button class="edit-mini-btn btn-save" title="Lưu" @click="handleSaveEdit">
-                                <font-awesome-icon icon="check" />
-                            </button>
-                            <button class="edit-mini-btn btn-cancel" title="Hủy" @click="handleCancelEdit">
-                                <font-awesome-icon icon="x" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
+      <!-- Khối trích dẫn đặt riêng phía trên bong bóng tin nhắn -->
+      <div
+        v-if="repliedMessage && !isRevoked"
+        class="replied-quote-box"
+        :class="`replied-quote-box--${variant}`"
+        title="Bấm để cuộn tới tin nhắn gốc"
+        @click.stop="handleClickRepliedQuote"
+      >
+        <div class="replied-quote-sender">
+          {{ repliedSenderDisplayName }}
+        </div>
+        <div class="replied-quote-content">
+          {{ getReplySnippet(repliedMessage) }}
+        </div>
+      </div>
 
                 <!-- 3. Tin nhắn dạng Ảnh -->
                 <div 
@@ -576,30 +517,193 @@ onUnmounted(() => {
                     </div>
                 </div>
             </div>
+      <!-- Hàng bong bóng tin nhắn kèm nút thao tác nằm ngang hàng ngay bên cạnh -->
+      <div
+        class="bubble-row"
+        :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]"
+      >
+        <!-- 1. Trạng thái tin nhắn đã bị thu hồi -->
+        <div v-if="isRevoked" :class="['message', 'message--revoked']">
+          <i>Tin nhắn đã được thu hồi</i>
         </div>
 
-        <!-- Dòng thời gian phía dưới (kèm nhãn 'đã chỉnh sửa') -->
-        <div
-          v-if="showTime || (isEdited && !isRevoked)"
-          class="time-row"
-          :class="`time-row--${variant}`"
-        >
-          <div v-if="showTime" :class="['time', `time--${variant}`]">{{ Time }}</div>
-          <span
-            v-if="isEdited && !isRevoked"
-            class="edited-badge"
-            title="Bấm để xem lịch sử chỉnh sửa"
-            @click="handleViewHistory"
-          >
-            Đã chỉnh sửa
-          </span>
+        <!-- 2. Trạng thái đang chỉnh sửa: giữ nguyên màu sắc & phong cách bong bóng bình thường -->
+        <div v-else-if="isEditing" :class="['message', `message--${variant}`, 'message--editing']">
+          <textarea
+            ref="editTextareaRef"
+            v-model="editContent"
+            class="inline-edit-textarea"
+            rows="1"
+            @input="autoResize"
+            @keydown.enter.exact.prevent="handleSaveEdit"
+            @keydown.esc="handleCancelEdit"
+          ></textarea>
+          <div class="edit-toolbar">
+            <span class="edit-hint"></span>
+            <div class="edit-btn-group">
+              <button class="edit-mini-btn btn-save" title="Lưu" @click="handleSaveEdit">
+                <font-awesome-icon icon="check" />
+              </button>
+              <button class="edit-mini-btn btn-cancel" title="Hủy" @click="handleCancelEdit">
+                <font-awesome-icon icon="x" />
+              </button>
+            </div>
+          </div>
         </div>
+
+        <!-- 3. Tin nhắn bình thường -->
+        <div
+          v-else
+          :class="['message', `message--${variant}`, `message--pos-${groupPosition}`]"
+          @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
+          :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
+        >
+          <span
+            v-if="searchKeyword && hasKeywordMatch"
+            v-html="highlightKeyword(Content_Message, searchKeyword)"
+          ></span>
+          <template v-else>{{ Content_Message }}</template>
+        </div>
+
+        <!-- Nút thao tác nằm ngay cạnh tin nhắn (hiện khi hover) -->
+        <div
+          v-if="!isRevoked"
+          class="message-actions"
+          :class="[`message-actions--${variant}`, { 'has-active-picker': showReactionPicker }]"
+        >
+          <!-- 1. Thả cảm xúc -->
+          <div
+            class="reaction-trigger-container"
+            @mouseenter="handleMouseEnterReaction"
+            @mouseleave="handleMouseLeaveReaction"
+          >
+            <span
+              class="action-btn react-btn"
+              title="Thả cảm xúc"
+              @click.stop="showReactionPicker = !showReactionPicker"
+            >
+              <font-awesome-icon :icon="['far', 'face-smile']" />
+            </span>
+
+            <!-- Thanh chọn nhanh 6 icon -->
+            <transition name="reaction-pop">
+              <div
+                v-if="showReactionPicker"
+                class="quick-reaction-bar"
+                :class="`quick-reaction-bar--${variant}`"
+                @click.stop
+              >
+                <button
+                  v-for="item in AVAILABLE_REACTIONS"
+                  :key="item.type"
+                  type="button"
+                  class="quick-reaction-btn"
+                  :title="item.label"
+                  @click="handleSelectReaction(item.type)"
+                >
+                  {{ item.emoji }}
+                </button>
+              </div>
+            </transition>
+          </div>
+
+          <!-- 2. Trả lời -->
+          <span class="action-btn reply-btn" title="Trả lời" @click="handleReplyClick">
+            <font-awesome-icon icon="reply" />
+          </span>
+
+          <!-- 3. Ghim -->
+          <span
+            class="action-btn pin-btn"
+            :class="{ 'is-pinned': isPinned }"
+            :title="isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'"
+            @click="emit('togglePin', messageId)"
+          >
+            <font-awesome-icon icon="thumbtack" />
+          </span>
+
+          <!-- 4. Nút 3 chấm -->
+          <div class="menu-container">
+            <span
+              class="action-btn more-btn"
+              title="Tùy chọn tin nhắn"
+              @click.stop="showMenu = !showMenu"
+            >
+              <font-awesome-icon icon="ellipsis-vertical" />
+            </span>
+
+            <!-- Menu xổ xuống -->
+            <div
+              v-if="showMenu"
+              class="action-dropdown"
+              :class="`action-dropdown--${variant}`"
+              @click.stop
+            >
+              <div class="dropdown-opt" @click="handleReplyClick">
+                <font-awesome-icon icon="reply" class="opt-icon" />
+                <span>Trả lời</span>
+              </div>
+              <div v-if="variant === 'SendTo'" class="dropdown-opt" @click="handleStartEdit">
+                <font-awesome-icon icon="pen" class="opt-icon" />
+                <span>Chỉnh sửa</span>
+              </div>
+              <div v-if="isEdited" class="dropdown-opt" @click="handleViewHistory">
+                <font-awesome-icon icon="clock-rotate-left" class="opt-icon" />
+                <span>Xem lịch sử</span>
+              </div>
+              <div
+                v-if="variant === 'SendTo'"
+                class="dropdown-opt opt-danger"
+                @click="handleRevoke"
+              >
+                <font-awesome-icon icon="trash" class="opt-icon" />
+                <span>Thu hồi</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reaction Badges gắn dưới chân tin nhắn -->
+      <div
+        v-if="props.reactions && props.reactions.length > 0 && !isRevoked"
+        class="reaction-badges"
+        :class="`reaction-badges--${variant}`"
+      >
+        <button
+          v-for="(data, type) in groupedReactions"
+          :key="type"
+          type="button"
+          :class="['reaction-badge-item', { 'reaction-badge-item--active': data.reactedByMe }]"
+          :title="data.users.join(', ')"
+          @click.stop="handleSelectReaction(type)"
+        >
+          <span class="badge-emoji">{{ getEmojiChar(type) }}</span>
+          <span class="badge-count">{{ data.count }}</span>
+        </button>
+      </div>
+
+      <!-- Dòng thời gian phía dưới (kèm nhãn "Đã chỉnh sửa") -->
+      <div
+        v-if="showTime || (isEdited && !isRevoked)"
+        class="time-row"
+        :class="`time-row--${variant}`"
+      >
+        <div v-if="showTime" :class="['time', `time--${variant}`]">{{ Time }}</div>
+        <span
+          v-if="isEdited && !isRevoked"
+          class="edited-badge"
+          title="Bấm để xem lịch sử chỉnh sửa"
+          @click="handleViewHistory"
+        >
+          Đã chỉnh sửa
+        </span>
+      </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap');
 
 .container {
   display: flex;
@@ -633,10 +737,7 @@ onUnmounted(() => {
   margin-top: 10px !important;
 }
 
-.container--consecutive .bubble-spacer {
-  height: 1px;
-}
-
+/* Wrapper duy nhất: chừa 44px bên trái cho avatar (tin của mình thì không chừa) */
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -644,14 +745,19 @@ onUnmounted(() => {
   margin-top: 6px;
   max-width: 75%;
   position: relative;
+  padding-left: 44px;
+}
+
+/* Tin nhắn của mình thì không chừa lề trái */
+.wrapper--SendTo {
   padding-left: 0;
 }
 
-/* Tin nhắn của mình: không chừa lề trái và căn toàn bộ nội dung về bên phải */
-.wrapper--SendTo {
-  padding-left: 0;
+/* .wrapper--SendTo {
+  display: flex;
   align-items: flex-end;
-}
+  max-width: 75%;
+} */
 
 .wrapper--consecutive {
   margin-top: 0 !important;
@@ -662,12 +768,38 @@ onUnmounted(() => {
   max-width: 75% !important;
 }
 
-.bubble-spacer {
+/* Avatar nằm tuyệt đối ở mép trái wrapper */
+.message-bubble-avatar-box {
+  position: absolute;
+  left: 0;
+  top: 16px;
   width: 36px;
-  height: 1px;
-  margin-right: 8px;
-  margin-left: 0;
-  flex-shrink: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  background-color: #ede9fe;
+  color: #7c3aed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.custom-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.sender {
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  margin-left: 7px;
+  margin-top: 10px;
 }
 
 /* Hàng ngang chứa bong bóng chat và các nút thao tác bên cạnh */
@@ -729,15 +861,15 @@ onUnmounted(() => {
 }
 
 /* =========================================================
-   KHỐI TRÍCH DẪN REPLY - TÁCH KHUNG RIÊNG BIỆT (DETACHED STYLE)
+   KHỐI TRÍCH DẪN REPLY - TÁCH KHUNG RIÊNG BIỆT
    ========================================================= */
 .replied-quote-box {
   position: relative;
   cursor: pointer;
   border-radius: 8px;
-  padding: 4px 10px 4px 12px; /* Dành chỗ bên trái cho vạch accent */
-  margin-top: 4px; /* Giúp khối quote cách xa 1 xíu với tin nhắn trước đó */
-  margin-bottom: 2px; /* Dời sát lại gần bong bóng tin nhắn reply bên dưới */
+  padding: 4px 10px 4px 12px;
+  margin-top: 4px;
+  margin-bottom: 2px;
   text-align: left;
   user-select: none;
   width: fit-content;
@@ -747,7 +879,10 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 1px;
   overflow: hidden;
-  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 /* Kéo bong bóng tin nhắn bên dưới sát lên ngay cạnh khối quote */
@@ -755,15 +890,15 @@ onUnmounted(() => {
   margin-top: 1px !important;
 }
 
-/* Hiệu ứng nhún nhẹ khi click/hover tạo cảm giác tương tác */
 .replied-quote-box:hover {
   transform: translateY(-1px);
 }
+
 .replied-quote-box:active {
   transform: translateY(0);
 }
 
-/* Vạch accent dọc bên trái: Thẳng tắp, bo tròn 2 đầu độc lập, không bị méo góc */
+/* Vạch accent dọc bên trái */
 .replied-quote-box::before {
   content: '';
   position: absolute;
@@ -775,7 +910,6 @@ onUnmounted(() => {
   transition: background-color 0.2s ease;
 }
 
-/* Hàng tiêu đề người gửi */
 .replied-quote-sender {
   display: flex;
   align-items: center;
@@ -786,7 +920,7 @@ onUnmounted(() => {
   line-height: 1.15;
 }
 
-/* Tự động chèn icon reply mini trước tên người gửi */
+/* Icon reply mini trước tên người gửi */
 .replied-quote-sender::before {
   content: '↩';
   font-size: 10.5px;
@@ -795,7 +929,6 @@ onUnmounted(() => {
   opacity: 0.85;
 }
 
-/* Nội dung tin nhắn trích dẫn */
 .replied-quote-content {
   font-size: 11.5px;
   line-height: 1.3;
@@ -805,9 +938,7 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
-/* =========================================================
-   1. KHỐI REPLY CỦA ĐỐI PHƯƠNG (default - Bên trái)
-   ========================================================= */
+/* 1. Khối reply của đối phương (bên trái) */
 .replied-quote-box--default {
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
@@ -815,7 +946,7 @@ onUnmounted(() => {
 }
 
 .replied-quote-box--default::before {
-  background: linear-gradient(180deg, #3b82f6, #2563eb); /* Gradient xanh dương */
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
 }
 
 .replied-quote-box--default:hover {
@@ -831,11 +962,9 @@ onUnmounted(() => {
   color: #475569;
 }
 
-/* =========================================================
-   2. KHỐI REPLY CỦA CHÍNH MÌNH (SendTo - Bên phải)
-   ========================================================= */
+/* 2. Khối reply của chính mình (bên phải) */
 .replied-quote-box--SendTo {
-  background: #eff6ff; /* Nền xanh pastel tách biệt hoàn toàn khỏi bong bóng xanh đậm */
+  background: #eff6ff;
   border: 1px solid #dbeafe;
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
 }
@@ -857,17 +986,11 @@ onUnmounted(() => {
   color: #334155;
 }
 
-.message-content-text {
-  word-break: break-word;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-}
-
 .reply-btn:hover {
   color: #4b7bec;
 }
 
-/* --- Bo góc bong bóng chuẩn Facebook Messenger theo vị trí trong cụm tin nhắn --- */
+/* --- Bo góc bong bóng kiểu Messenger theo vị trí trong cụm tin nhắn --- */
 /* 1. Tin nhắn của đối phương (bên trái) */
 .message--pos-first {
   border-radius: 18px 18px 18px 4px !important;
@@ -894,37 +1017,37 @@ onUnmounted(() => {
   border-radius: 18px 4px 18px 18px !important;
 }
 
-/* Giao diện chỉnh sửa tin nhắn inline: kéo dài bằng chiều rộng tin nhắn đầy đủ */
+/* Giao diện chỉnh sửa inline */
 .message--editing {
-    width: 100% !important;
-    min-width: 280px;
-    max-width: 100% !important;
-    padding: 10px 14px;
-    box-shadow: 0 0 0 2px rgba(75, 123, 236, 0.4);
-    overflow: hidden;
+  width: 100% !important;
+  min-width: 280px;
+  max-width: 100% !important;
+  padding: 10px 14px;
+  box-shadow: 0 0 0 2px rgba(75, 123, 236, 0.4);
+  overflow: hidden;
 }
 
 .inline-edit-textarea {
-    width: 100%;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: inherit;
-    font-family: inherit;
-    font-size: 14px;
-    line-height: 1.4;
-    resize: none;
-    box-sizing: border-box;
-    display: block;
-    overflow: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  resize: none;
+  box-sizing: border-box;
+  display: block;
+  overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .inline-edit-textarea::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .edit-toolbar {
@@ -1003,7 +1126,7 @@ onUnmounted(() => {
   border-radius: 12px !important;
 }
 
-/* Các nút thao tác (Ghim, ...) nằm ngang hàng cạnh bong bóng */
+/* Các nút thao tác nằm ngang hàng cạnh bong bóng */
 .message-actions {
   display: flex;
   align-items: center;
@@ -1015,137 +1138,137 @@ onUnmounted(() => {
 
 .bubble-row:hover .message-actions,
 .message-actions.has-active-picker {
-    opacity: 1;
+  opacity: 1;
 }
 
 /* Container kích hoạt thanh chọn cảm xúc */
 .reaction-trigger-container {
-    position: relative;
-    display: inline-flex;
+  position: relative;
+  display: inline-flex;
 }
 
 .react-btn:hover {
-    color: #f59e0b;
+  color: #f59e0b;
 }
 
 /* Thanh chọn nhanh 6 icon cảm xúc nổi lên trên */
 .quick-reaction-bar {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    background: #ffffff;
-    padding: 3px 6px;
-    border-radius: 24px;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.06);
-    z-index: 60;
-    white-space: nowrap;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #ffffff;
+  padding: 3px 6px;
+  border-radius: 24px;
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  z-index: 60;
+  white-space: nowrap;
+}
+
+/* Vùng đệm trong suốt lấp khoảng hở giữa thanh icon và nút bên dưới */
+.quick-reaction-bar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 10px;
+  background: transparent;
 }
 
 .quick-reaction-bar--SendTo {
-    right: 0;
+  right: 0;
 }
 
 .quick-reaction-bar--default {
-    left: 0;
+  left: 0;
 }
 
 .quick-reaction-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 19px;
-    line-height: 1;
-    padding: 3px 4px;
-    border-radius: 50%;
-    transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    user-select: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+  padding: 3px 4px;
+  border-radius: 50%;
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  user-select: none;
 }
 
 .quick-reaction-btn:hover {
-    transform: scale(1.35) translateY(-2px);
+  transform: scale(1.35) translateY(-2px);
 }
 
 .reaction-pop-enter-active,
 .reaction-pop-leave-active {
-    transition: all 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .reaction-pop-enter-from,
 .reaction-pop-leave-to {
-    opacity: 0;
-    transform: translateY(6px) scale(0.85);
+  opacity: 0;
+  transform: translateY(6px) scale(0.85);
 }
 
-/* Huy hiệu gom nhóm cảm xúc (Reaction Badges) đính sát mép dưới bong bóng */
+/* Huy hiệu gom nhóm cảm xúc (Reaction Badges) */
 .reaction-badges {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 3px;
-    margin-top: -8px; /* Đính ôm sát nhẹ vào góc dưới bong bóng tin nhắn chuẩn Messenger/Zalo */
-    z-index: 2;
-    position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .reaction-badges--SendTo {
-    justify-content: flex-end;
-    margin-right: 6px; /* Căn góc phải bong bóng tin nhắn mình */
+  justify-content: flex-end;
 }
 
 .reaction-badges--default {
-    justify-content: flex-start;
-    margin-left: 6px; /* Căn góc trái bong bóng tin nhắn đối phương */
+  justify-content: flex-start;
 }
 
 .reaction-badge-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1.5px 6px;
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    cursor: pointer;
-    font-size: 11px;
-    font-family: 'Quicksand', sans-serif;
-    color: #475569;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: all 0.15s ease;
-    user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-family: 'Quicksand', sans-serif;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .reaction-badge-item:hover {
-    background-color: #f8fafc;
-    border-color: #cbd5e1;
-    transform: scale(1.05);
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  transform: scale(1.05);
 }
 
 .reaction-badge-item--active {
-    background-color: #eff6ff;
-    border-color: #93c5fd;
-    color: #1d4ed8;
-    font-weight: 600;
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .badge-emoji {
-    font-size: 13px;
-    line-height: 1;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .badge-count {
-    font-size: 11px;
-    font-weight: 600;
-}
-.quick-reaction-bar::after {
-    content: '';
-    position: absolute;
-    top: 100%;             /* Nằm ngay mép dưới của thanh icon */
-    left: 0;
-    width: 100%;
-    height: 10px;           /* Phủ kín khoảng hở 6px và chờ chờm nhẹ xuống nút dưới */
-    background: transparent;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .action-btn {
@@ -1171,7 +1294,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/* Menu xổ xuống của nút 3 chấm (...) */
+/* Menu xổ xuống của nút 3 chấm */
 .menu-container {
   position: relative;
   display: inline-flex;
@@ -1271,16 +1394,7 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-.sender {
-  font-family: 'Quicksand', sans-serif;
-  font-weight: 600;
-  font-size: 12px;
-  color: #64748b;
-  margin-left: 4px;
-  margin-top: 0;
-  margin-bottom: 2px;
-}
-
+/* Hiệu ứng nhấp nháy khi nhảy tới tin nhắn (class highlight-msg do ChatView gắn vào .container) */
 .highlight-msg .message {
   animation: flashMessage 1.5s ease-out;
 }

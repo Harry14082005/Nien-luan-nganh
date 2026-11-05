@@ -1,10 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal_AddFriend from './Modal_AddFriend.vue'
 import Modal_FriendRequests from './Modal_FriendRequests.vue'
 import ContactMenu from './ContactMenu.vue'
-import { removeFriendship } from '@/api/contacts.api.js'
-import { blockFriendship } from '@/api/contacts.api.js'
+import { removeFriendship, blockFriendship, getPendingFriendships } from '@/api/contacts.api.js'
 
 const emit = defineEmits(['select', 'refresh'])
 
@@ -32,6 +31,32 @@ async function handleBlock(contact) {
 
 const showNewAddFriendModal = ref(false)
 const showNewFriendRequestsModal = ref(false)
+const incomingCount = ref(0)
+const hasIncomingRequests = computed(() => incomingCount.value > 0)
+let pollTimer = null
+
+async function checkPendingRequests() {
+  try {
+    const res = await getPendingFriendships({ page: 0, size: 50 })
+    const list = Array.isArray(res) ? res : res?.content || []
+    const incoming = list.filter((r) => r.direction === 'INCOMING')
+    incomingCount.value = incoming.length
+  } catch (e) {
+    console.debug('Lỗi kiểm tra lời mời kết bạn:', e)
+  }
+}
+
+onMounted(() => {
+  checkPendingRequests()
+  pollTimer = setInterval(checkPendingRequests, 20000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
 const props = defineProps({
   contacts: {
     type: Array,
@@ -86,11 +111,17 @@ function getInitials(contact) {
     <!-- App Header -->
     <section class="nameApp">
       <div class="logo-title">bluespace.</div>
-      <font-awesome-icon
-        icon="user-plus"
-        class="menu-icon"
+      <div
+        class="icon-badge-wrapper"
+        title="Lời mời kết bạn"
+        role="button"
+        tabindex="0"
         @click="showNewFriendRequestsModal = true"
-      />
+        @keydown.enter="showNewFriendRequestsModal = true"
+      >
+        <font-awesome-icon icon="user-plus" class="menu-icon" />
+        <span v-if="hasIncomingRequests" class="notification-dot"></span>
+      </div>
     </section>
 
     <!-- Page Header -->
@@ -172,11 +203,25 @@ function getInitials(contact) {
         <span>Không tìm thấy liên hệ phù hợp</span>
       </div>
     </div>
-    <Modal_AddFriend v-if="showNewAddFriendModal" @close="showNewAddFriendModal = false" />
+    <Modal_AddFriend
+      v-if="showNewAddFriendModal"
+      :friend-ids="contacts.map((c) => c.id)"
+      @close="
+        showNewAddFriendModal = false;
+        checkPendingRequests()
+      "
+    />
     <Modal_FriendRequests
       v-if="showNewFriendRequestsModal"
-      @close="showNewFriendRequestsModal = false"
-      @accepted="emit('refresh')"
+      @close="
+        showNewFriendRequestsModal = false;
+        checkPendingRequests()
+      "
+      @accepted="
+        emit('refresh');
+        checkPendingRequests()
+      "
+      @changed="checkPendingRequests"
     />
   </div>
 </template>
@@ -217,6 +262,33 @@ function getInitials(contact) {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   letter-spacing: -0.5px;
+}
+
+.icon-badge-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.icon-badge-wrapper:hover .menu-icon {
+  color: #3b82f6;
+}
+
+.notification-dot {
+  position: absolute;
+  top: 14px;
+  right: 17px;
+  width: 9px;
+  height: 9px;
+  background-color: #2563eb;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .menu-icon {
