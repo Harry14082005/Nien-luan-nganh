@@ -191,5 +191,3 @@ function handleMessageContact() {
   color: #dc2626;
 }
 </style>
-
-Claude đang trả lời Beta AI có thể mắc lỗi, hãy kiểm tra lại. 0 / 10 lượt đã dùng 1
