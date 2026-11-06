@@ -154,8 +154,14 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
   })
 
   merged.sort((a, b) => {
-    const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
-    const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+    const timeA = Math.max(
+      a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0,
+      a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+    )
+    const timeB = Math.max(
+      b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0,
+      b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+    )
     return timeB - timeA
   })
 
@@ -236,6 +242,9 @@ export const useChatStore = defineStore('chat', {
     // Danh sách tin nhắn đã ghim trong phòng đang mở (tối đa 5 tin)
     pinnedMessages: [],
 
+    // Danh sách toàn bộ file phương tiện (Ảnh, Video, Tài liệu) của phòng đang mở cho Sidebar Thông tin
+    roomMedia: { images: [], videos: [], files: [] },
+
     // Kho lưu trữ tin nhắn mẫu dự phòng (nếu dùng các phòng mẫu '1', '2', '3')
     demoMessagesMap: loadDemoMessages(),
 
@@ -301,10 +310,28 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Tin nhắn đã ghim mới nhất của phòng đang mở
+    // ĐOẠN CODE MỚI:
     latestPinnedMessage: (state) => {
-      return state.pinnedMessages.length > 0
-        ? state.pinnedMessages[0]
-        : null
+      if (!state.pinnedMessages || state.pinnedMessages.length === 0) return null
+
+      // 1. Quét tìm thông báo hệ thống ghim tin gần đây nhất trong khung chat
+      const lastPinSystemMsg = [...state.messages]
+        .reverse()
+        .find(
+          (m) =>
+            m.messageType === 'SYSTEM' &&
+            m.repliedMessage?.messageId &&
+            (m.content?.includes('đã ghim') || m.content?.includes('pinned'))
+        )
+
+      if (lastPinSystemMsg?.repliedMessage?.messageId) {
+        const targetId = String(lastPinSystemMsg.repliedMessage.messageId)
+        const found = state.pinnedMessages.find((p) => String(p.messageId) === targetId)
+        if (found) return found
+      }
+
+      // 2. Nếu không tìm thấy thông báo hệ thống, lấy phần tử ghim mới nhất
+      return state.pinnedMessages[state.pinnedMessages.length - 1] || state.pinnedMessages[0]
     },
   },
 
@@ -446,14 +473,16 @@ export const useChatStore = defineStore('chat', {
       // Đăng ký nhận tin nhắn WebSocket cho phòng này
       subscribeToRoom(roomId)
 
-      // Tải tin nhắn và tin nhắn ghim của phòng
+      // Tải tin nhắn, tin nhắn ghim và toàn bộ file phương tiện của phòng
       if (!isSameRoom || this.messages.length === 0) {
         await Promise.all([
           this.fetchMessages(roomId),
           this.fetchPinnedMessages(roomId),
+          this.fetchRoomMedia(roomId),
         ])
       } else {
         await this.fetchPinnedMessages(roomId)
+        await this.fetchRoomMedia(roomId)
         await this.markRoomAsRead(roomId)
       }
     },
@@ -1259,6 +1288,132 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // 9.1. Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin
+    async fetchRoomMedia(roomId) {
+      if (!roomId) {
+        this.roomMedia = { images: [], videos: [], files: [] }
+        return
+      }
+
+      try {
+        const rawMedia = await messageApi.getRoomMedia(roomId)
+        const list = Array.isArray(rawMedia) ? rawMedia : []
+        const images = []
+        const videos = []
+        const files = []
+
+        list.forEach((m) => {
+          if (m.isRevoked) return
+          const content = m.content || ''
+          const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+
+          if (isImg) {
+            images.push({
+              id: m.messageId,
+              url: m.content,
+              name: 'Hình ảnh',
+              type: 'IMAGE',
+              createdAt: m.createdAt,
+            })
+          } else if (isVid) {
+            videos.push({
+              id: m.messageId,
+              url: m.content,
+              name: 'Video',
+              type: 'VIDEO',
+              createdAt: m.createdAt,
+            })
+          } else {
+            files.push({
+              id: m.messageId,
+              url: m.content,
+              name: m.content?.split('/').pop() || 'Tài liệu',
+              size: 'Đính kèm',
+              type: 'FILE',
+              createdAt: m.createdAt,
+            })
+          }
+        })
+
+        const sortByDateDesc = (a, b) => {
+          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return tB - tA
+        }
+
+        images.sort(sortByDateDesc)
+        videos.sort(sortByDateDesc)
+        files.sort(sortByDateDesc)
+
+        this.roomMedia = { images, videos, files }
+      } catch (err) {
+        console.warn('Lỗi tải danh sách file phương tiện phòng:', err)
+        // Fallback: quét từ messages hiện tại nếu API chưa sẵn sàng
+        this.syncRoomMediaFromCurrentMessages()
+      }
+    },
+
+    // Quét bổ sung từ messages hiện tại (khi có tin nhắn mới gửi đến)
+    syncRoomMediaFromCurrentMessages() {
+      const images = [...(this.roomMedia?.images || [])]
+      const videos = [...(this.roomMedia?.videos || [])]
+      const files = [...(this.roomMedia?.files || [])]
+      const seenIds = new Set([
+        ...images.map((i) => String(i.id)),
+        ...videos.map((v) => String(v.id)),
+        ...files.map((f) => String(f.id)),
+      ])
+
+      ;(this.messages || []).forEach((m) => {
+        if (m.isRevoked || seenIds.has(String(m.messageId))) return
+        const content = m.content || ''
+        const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+        const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+
+        if (isImg) {
+          images.unshift({
+            id: m.messageId,
+            url: m.content,
+            name: 'Hình ảnh',
+            type: 'IMAGE',
+            createdAt: m.createdAt,
+          })
+          seenIds.add(String(m.messageId))
+        } else if (isVid) {
+          videos.unshift({
+            id: m.messageId,
+            url: m.content,
+            name: 'Video',
+            type: 'VIDEO',
+            createdAt: m.createdAt,
+          })
+          seenIds.add(String(m.messageId))
+        } else if (m.messageType === 'FILE' || m.messageType === 'DOCUMENT') {
+          files.unshift({
+            id: m.messageId,
+            url: m.content,
+            name: m.content?.split('/').pop() || 'Tài liệu',
+            size: 'Đính kèm',
+            type: 'FILE',
+            createdAt: m.createdAt,
+          })
+          seenIds.add(String(m.messageId))
+        }
+      })
+
+      const sortByDateDesc = (a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return tB - tA
+      }
+      images.sort(sortByDateDesc)
+      videos.sort(sortByDateDesc)
+      files.sort(sortByDateDesc)
+
+      this.roomMedia = { images, videos, files }
+    },
+
     // 10. Ghim một tin nhắn
     async pinMessage(messageId) {
       if (!this.activeRoomId || !messageId) return
@@ -1304,6 +1459,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageContent: 'đã ghim 1 tin nhắn',
           lastMessageSenderName: 'Bạn',
           lastMessageAt: nowIso,
+          updatedAt: nowIso,
           hasUnread: false,
           unreadCount: 0,
         }
@@ -1312,6 +1468,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageContent: 'đã ghim 1 tin nhắn',
           lastMessageSenderName: senderName,
           lastMessageAt: nowIso,
+          updatedAt: nowIso,
         }
         saveRoomOverrides(this.roomActivityOverrides)
 
@@ -1376,6 +1533,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageContent: 'đã bỏ ghim 1 tin nhắn',
           lastMessageSenderName: 'Bạn',
           lastMessageAt: nowIso,
+          updatedAt: nowIso,
           hasUnread: false,
           unreadCount: 0,
         }
@@ -1384,6 +1542,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageContent: 'đã bỏ ghim 1 tin nhắn',
           lastMessageSenderName: senderName,
           lastMessageAt: nowIso,
+          updatedAt: nowIso,
         }
         saveRoomOverrides(this.roomActivityOverrides)
 

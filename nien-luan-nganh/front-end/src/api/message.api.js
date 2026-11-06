@@ -211,3 +211,13 @@ export const sendFileMessage = (roomId, formData) => {
     })
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+/**
+ * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
+ * @param {string} roomId UUID của phòng chat
+ */
+export const getRoomMedia = (roomId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/media`)
+    .then((res) => res.data?.data ?? res.data)
+}

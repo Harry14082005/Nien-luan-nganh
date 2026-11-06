@@ -77,7 +77,7 @@ const isBold = computed(() => {
       <div v-else class="avatar avatar-text" :style="avatarStyle">
         {{ avatarText }}
       </div>
-      <span v-if="online" class="online-dot"></span>
+        <span v-if="online" class="online-dot"></span>
     </div>
 
     <!-- Nội dung -->
@@ -156,10 +156,11 @@ const isBold = computed(() => {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 11px;
-  height: 11px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
   border: 2px solid #fff;
 }
 

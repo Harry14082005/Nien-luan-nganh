@@ -89,6 +89,9 @@ const handleToggleInfo = () => {
     showSearchBar.value = false
     currentSearchKeyword.value = ''
     fetchCurrentRoomMembers()
+    if (chatStore.activeRoomId) {
+      chatStore.fetchRoomMedia(chatStore.activeRoomId)
+    }
   }
 }
 
@@ -96,15 +99,28 @@ const handleMuteNotification = (isMuted) => {
   isNotificationMuted.value = isMuted
 }
 
-// Tổng hợp danh sách File phương tiện (Ảnh, Video, Tài liệu) từ tin nhắn trong phòng
+// Tổng hợp danh sách File phương tiện (Ảnh, Video, Tài liệu) từ Pinia Store (Toàn bộ trong phòng)
 const roomMediaData = computed(() => {
+  const storeMedia = chatStore.roomMedia
+  if (
+    storeMedia &&
+    (storeMedia.images?.length > 0 || storeMedia.videos?.length > 0 || storeMedia.files?.length > 0)
+  ) {
+    return storeMedia
+  }
+
+  // Fallback từ các tin nhắn hiện có
   const images = []
   const videos = []
   const files = []
 
   ;(chatStore.messages || []).forEach((m) => {
     if (m.isRevoked) return
-    if (m.messageType === 'IMAGE') {
+    const content = m.content || ''
+    const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+    const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+
+    if (isImg) {
       images.push({
         id: m.messageId,
         url: m.content,
@@ -112,7 +128,7 @@ const roomMediaData = computed(() => {
         type: 'IMAGE',
         createdAt: m.createdAt,
       })
-    } else if (m.messageType === 'VIDEO') {
+    } else if (isVid) {
       videos.push({
         id: m.messageId,
         url: m.content,
@@ -131,6 +147,15 @@ const roomMediaData = computed(() => {
       })
     }
   })
+
+  const sortByDateDesc = (a, b) => {
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return tB - tA
+  }
+  images.sort(sortByDateDesc)
+  videos.sort(sortByDateDesc)
+  files.sort(sortByDateDesc)
 
   return { images, videos, files }
 })
@@ -190,13 +215,24 @@ const formatPresenceStatus = (room) => {
 }
 
 /**
- * Cuộn khung chat xuống đáy mượt mà sau khi DOM cập nhật
+ * Cuộn khung chat xuống sát đáy mượt mà và chuẩn xác sau khi DOM cập nhật
+ * (Có nhịp chờ dự phòng 60ms và 180ms để đảm bảo các badge thông báo hệ thống và avatar render xong vẫn chạm sát đáy)
  */
 const scrollToBottom = async () => {
   await nextTick()
   if (chatBodyRef.value) {
     chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
   }
+  setTimeout(() => {
+    if (chatBodyRef.value) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+    }
+  }, 60)
+  setTimeout(() => {
+    if (chatBodyRef.value) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+    }
+  }, 180)
 }
 
 /**
@@ -425,15 +461,18 @@ onMounted(async () => {
   if (token) {
     initGlobalWebSocket(token)
   }
-  // 3. Tải tin nhắn và tin ghim của phòng đang mở
+  // 3. Tải tin nhắn, tin ghim và toàn bộ file phương tiện của phòng đang mở
   if (chatStore.activeRoomId) {
     if (chatStore.messages.length === 0) {
       await chatStore.fetchMessages(chatStore.activeRoomId)
     }
-    await chatStore.fetchPinnedMessages(chatStore.activeRoomId)
+    await Promise.all([
+      chatStore.fetchPinnedMessages(chatStore.activeRoomId),
+      chatStore.fetchRoomMedia(chatStore.activeRoomId),
+    ])
     await chatStore.markRoomAsRead(chatStore.activeRoomId)
   }
-  scrollToBottom()
+  await scrollOrJumpToLatestActivity()
 
   // 4. Kích hoạt timer cập nhật trạng thái offline mỗi 30s
   tickerTimer = setInterval(() => {
@@ -562,7 +601,7 @@ const scrollToElement = (messageId) => {
 
 /**
  * Nhảy tới tin nhắn ghim:
- * 1. Nếu đã có trong danh sách hiển thị -> Cuộn mượt + Nhấp nháy 2s
+ * 1. Nếu đã có trong danh sách hiển thị 
  * 2. Nếu chưa có -> Gọi API lấy Cửa sổ ngữ cảnh 20 tin bao quanh tin ghim (10 trước + target + 10 sau)
  *    và thay thế danh sách hiển thị, bật cờ isDetachedFromBottom = true
  */
@@ -580,6 +619,14 @@ const handleScrollToMessage = async (pinnedId) => {
       showScrollBottomBtn.value = true
     }
   }
+}
+
+/**
+ * Tự động cuộn khung chat xuống đáy khi vào phòng hoặc chuyển phòng
+ * để luôn hiển thị thông tin / tin nhắn / thông báo sự kiện ghim mới nhất
+ */
+const scrollOrJumpToLatestActivity = async () => {
+  await scrollToBottom()
 }
 
 const isLoadingNewer = ref(false)
@@ -704,12 +751,18 @@ const handleMessageSent = async () => {
 // Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
   () => chatStore.messages.length,
-  () => {
+  async (newLen, oldLen) => {
     // Nếu tin nhắn mới nhất là do chính mình gửi đi -> LUÔN LUÔN cuộn xuống sát đáy
     const lastMsg = chatStore.messages[chatStore.messages.length - 1]
     if (lastMsg && isMyMessage(lastMsg)) {
       scrollToBottom()
       showScrollBottomBtn.value = false
+      return
+    }
+
+    // Khi vừa tải danh sách tin nhắn phòng (từ 0 lên N tin) -> tự kiểm tra nhảy tới tin ghim nếu cập nhật mới nhất là ghim
+    if (oldLen === 0 && newLen > 0) {
+      await scrollOrJumpToLatestActivity()
       return
     }
 
@@ -737,15 +790,18 @@ const getImageUrl = (path) => {
   return resolveFileUrl(path);
 };
 
-// Tự động tải tin ghim và cuộn xuống đáy khi chuyển đổi phòng chat
+// Tự động tải tin ghim và điều hướng phù hợp khi chuyển đổi phòng chat
 watch(
   () => chatStore.activeRoomId,
   async (newRoomId) => {
     showScrollBottomBtn.value = false
     if (newRoomId) {
-      await chatStore.fetchPinnedMessages(newRoomId)
+      await Promise.all([
+        chatStore.fetchPinnedMessages(newRoomId),
+        chatStore.fetchRoomMedia(newRoomId),
+      ])
     }
-    scrollToBottom()
+    await scrollOrJumpToLatestActivity()
   },
 )
 
@@ -771,6 +827,7 @@ watch(
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
           :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
+          :isOnline="chatStore.activeRoom?.roomType !== 'GROUP' && Boolean(chatStore.activeRoom?.isOnline)"
           :isSearching="showSearchBar"
           :isInfoOpen="isInfoSidebarOpen"
           @toggleSearch="handleToggleSearch"
@@ -827,6 +884,7 @@ watch(
             <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat (ẩn legacy time log nếu có) -->
             <div
               v-if="(msg.isEvent || msg.messageType === 'SYSTEM') && !isLegacyTimeLogMessage(msg)"
+              :id="msg.messageId ? 'msg-' + msg.messageId : null"
               class="system-message-row chat-event-row"
             >
               <div class="system-message-badge chat-event-pill">

@@ -21,8 +21,30 @@ const chatStore = useChatStore()
 // Trạng thái bật/tắt menu popup danh sách toàn bộ tin đã ghim
 const showList = ref(false)
 
-// Tin nhắn ghim mới nhất (lấy từ Pinia Store)
-const pinnedMsg = computed(() => chatStore.latestPinnedMessage)
+// ĐOẠN CODE MỚI:
+const pinnedMsg = computed(() => {
+  const pins = chatStore.pinnedMessages
+  if (!pins || pins.length === 0) return null
+
+  // Tìm sự kiện ghim tin mới nhất từ danh sách tin nhắn hệ thống
+  const lastPinEvent = [...chatStore.messages]
+    .reverse()
+    .find(
+      (m) =>
+        m.messageType === 'SYSTEM' &&
+        m.repliedMessage?.messageId &&
+        m.content?.includes('đã ghim')
+    )
+
+  if (lastPinEvent?.repliedMessage?.messageId) {
+    const targetId = String(lastPinEvent.repliedMessage.messageId)
+    const found = pins.find((p) => String(p.messageId) === targetId)
+    if (found) return found
+  }
+
+  // Mặc định lấy tin ghim mới nhất trong danh sách
+  return pins[pins.length - 1] || pins[0]
+})
 
 /**
  * Xử lý bỏ ghim một tin nhắn bất kỳ.

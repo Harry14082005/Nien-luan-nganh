@@ -120,15 +120,7 @@ function getLastMessageText(room) {
   }
   if (!room.lastMessageContent) return 'Chưa có tin nhắn'
 
-  // 2. Hiển thị thông báo khi có tin nhắn được ghim: "A đã ghim 1 tin nhắn"
-  if (room.lastMessageContent.includes('đã ghim')) {
-    const isMyAction =
-      authStore.user?.username && room.lastMessageSenderName === authStore.user.username
-    const sender = isMyAction ? 'Bạn' : room.lastMessageSenderName || 'Thành viên'
-    return `${sender} đã ghim 1 tin nhắn`
-  }
-
-  // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim (SYSTEM Message hoặc Preview)
+  // 2. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim (SYSTEM Message hoặc Preview)
   const content = room.lastMessageContent || ''
   if (content.includes('ghim') || content.includes('gỡ')) {
     const myUsername = authStore.user?.username
@@ -148,8 +140,7 @@ function getLastMessageText(room) {
     }
 
     const isUnpin = content.includes('bỏ') || content.includes('gỡ')
-    const actionText = isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'
-    return `${sender}: ${actionText}`
+    return `${sender} ${isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'}`
   }
 
   // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim

@@ -549,6 +549,30 @@ public class MessageService {
     }
 
     /**
+     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
+     *
+     * @param currentUserId Khóa chính UUID của người yêu cầu
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @return Danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getRoomMediaMessages(UUID currentUserId, UUID roomId) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId);
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
+        return messageMapper.toMessageResponseList(mediaList);
+    }
+
+    /**
      * Nghiệp vụ 8: Thả hoặc cập nhật cảm xúc trên tin nhắn (Reactions).
      * Hỗ trợ các cảm xúc: LIKE, LOVE, HAHA, WOW, SAD, ANGRY.
      * Quy tắc nghiệp vụ:

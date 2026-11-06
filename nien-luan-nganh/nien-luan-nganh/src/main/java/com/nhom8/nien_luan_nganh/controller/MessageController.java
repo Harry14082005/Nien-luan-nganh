@@ -255,6 +255,25 @@ public class MessageController {
     }
 
     /**
+     * API: Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
+     * Method: GET /api/v1/rooms/{roomId}/messages/media
+     * Quyền: Thành viên trong phòng chat.
+     *
+     * @param authentication Thông tin người dùng từ JWT Token
+     * @param roomId         Khóa chính UUID của phòng chat
+     * @return HTTP 200 OK kèm danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
+     */
+    @GetMapping("/media")
+    public ResponseEntity<ApiResponse<List<MessageResponse>>> getRoomMedia(
+            Authentication authentication,
+            @PathVariable UUID roomId) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+
+        List<MessageResponse> response = messageService.getRoomMediaMessages(currentUserId, roomId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách file phương tiện thành công"));
+    }
+
+    /**
      * API 8: Thả hoặc cập nhật cảm xúc trên tin nhắn.
      * Method: POST /api/v1/rooms/{roomId}/messages/{messageId}/reactions
      * Quyền: Thành viên trong phòng chat.

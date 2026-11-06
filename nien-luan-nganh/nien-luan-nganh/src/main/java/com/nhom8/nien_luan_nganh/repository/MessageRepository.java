@@ -122,6 +122,15 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         "AND (m.isRevoked = false OR m.isRevoked IS NULL)")
         long countPinnedMessagesByRoomId(@Param("roomId") UUID roomId);
 
+        // Lay danh sach file phuong tien (Anh, Video, Tai lieu) trong phong chat
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND m.messageType IN (com.nhom8.nien_luan_nganh.enums.MessageType.IMAGE, com.nhom8.nien_luan_nganh.enums.MessageType.FILE) " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> findMediaMessagesByRoomId(@Param("roomId") UUID roomId);
+
         // Admin
         // 1. Thống kê số tin nhắn theo khoảng thời gian
         @Query("SELECT COUNT(m) FROM Message m WHERE m.createdAt >= :start AND m.createdAt < :end")

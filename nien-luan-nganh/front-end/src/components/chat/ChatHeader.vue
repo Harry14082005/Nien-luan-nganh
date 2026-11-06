@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
     RoomName:{
         type:String,
@@ -7,6 +9,10 @@ const props = defineProps({
     StatusRoom:{
         type:String,
         default:'6 thành viên - 3 đang hoạt động'
+    },
+    isOnline: {
+        type: Boolean,
+        default: false
     },
     isSearching: {
         type: Boolean,
@@ -19,6 +25,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['toggleSearch', 'toggleInfo'])
+
+const isUserOnline = computed(() => {
+    return Boolean(props.isOnline || props.StatusRoom === 'Đang hoạt động')
+})
 
 const getInitials = (name) => {
     if (!name) return 'CS';
@@ -33,7 +43,10 @@ const getInitials = (name) => {
     <div class="AvatarRoom">{{ getInitials(RoomName) }}</div>
     <div class="info-group">
         <div class="RoomName">{{ RoomName }}</div>
-        <div class="StatusRoom">{{ StatusRoom }}</div>
+        <div class="status-wrap">
+            <span class="StatusRoom">{{ StatusRoom }}</span>
+            <span v-if="isUserOnline" class="online-dot" title="Đang trực tuyến"></span>
+        </div>
     </div>
     </div>
     <div class="right-header">
@@ -114,9 +127,22 @@ const getInitials = (name) => {
     font-weight: 600;
     color:rgb(34, 52, 81);
 }
+.status-wrap{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 .StatusRoom{
     font-size:14px;
     color:#64748b;
+}
+.online-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #22c55e;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
 }
 .icon{
     padding:8px;

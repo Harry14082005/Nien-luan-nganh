@@ -17,6 +17,7 @@ import { faFaceLaughSquint } from '@fortawesome/free-solid-svg-icons/faFaceLaugh
 import { faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { faHouse } from '@fortawesome/free-regular-svg-icons/faHouse'
 import { faMessage } from '@fortawesome/free-regular-svg-icons/faMessage'
+import { faFaceSmile as faFaceSmileRegular } from '@fortawesome/free-regular-svg-icons/faFaceSmile'
 import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
@@ -53,6 +54,7 @@ import {
 library.add(
   faHouse,
   faMessage,
+  faFaceSmileRegular,
   faMagnifyingGlass,
   faUser,
   faCircleInfo,

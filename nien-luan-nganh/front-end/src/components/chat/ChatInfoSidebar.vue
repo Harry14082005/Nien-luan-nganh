@@ -512,11 +512,18 @@ const switchMediaTab = (tab) => {
   currentMediaTab.value = tab;
 };
 
-// Lọc dữ liệu theo tab hiện tại
+// Lọc dữ liệu theo tab hiện tại, luôn sắp xếp DESC (mới nhất lên đầu)
 const currentTabMediaList = computed(() => {
-  if (currentMediaTab.value === 'IMAGE') return props.mediaData?.images || [];
-  if (currentMediaTab.value === 'VIDEO') return props.mediaData?.videos || [];
-  return props.mediaData?.files || [];
+  let list = [];
+  if (currentMediaTab.value === 'IMAGE') list = props.mediaData?.images || [];
+  else if (currentMediaTab.value === 'VIDEO') list = props.mediaData?.videos || [];
+  else list = props.mediaData?.files || [];
+
+  return [...list].sort((a, b) => {
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tB - tA;
+  });
 });
 
 const handleToggleNotification = (e) => {

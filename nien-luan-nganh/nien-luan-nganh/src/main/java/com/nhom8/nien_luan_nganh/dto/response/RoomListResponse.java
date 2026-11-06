@@ -34,6 +34,9 @@ public class RoomListResponse {
     private String lastMessageSenderName;
     private LocalDateTime lastMessageAt;
 
+    // Thời điểm cập nhật hoạt động mới nhất của phòng
+    private LocalDateTime updatedAt;
+
     // Trạng thái của thành viên hiện tại
     private UUID lastDeliveredMessageId;
     private UUID lastReadMessageId;

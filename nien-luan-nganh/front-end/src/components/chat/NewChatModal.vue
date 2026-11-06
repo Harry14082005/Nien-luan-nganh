@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import * as userApi from '@/api/user.api'
+import { getFriends } from '@/api/contacts.api'
 import { useChatStore } from '@/stores/chat'
 
 const emit = defineEmits(['close'])
@@ -8,6 +8,7 @@ const chatStore = useChatStore()
 
 const activeTab = ref('direct') // 'direct' | 'group'
 const searchKeyword = ref('')
+const allFriends = ref([])
 const users = ref([])
 const loadingUsers = ref(false)
 const submitting = ref(false)
@@ -19,46 +20,64 @@ const selectedUsers = ref([]) // mảng các user object đã chọn
 
 let debounceTimer = null
 
-const loadInitialUsers = async () => {
+const loadInitialFriends = async () => {
   loadingUsers.value = true
   errorMsg.value = ''
   try {
-    users.value = await userApi.getSuggestedUsers()
-  } catch {
+    const res = await getFriends({ page: 0, size: 500 })
+    const list = Array.isArray(res) ? res : res?.content || []
+    allFriends.value = list
+      .map((item) => {
+        const u = item.friend || item
+        if (!u || !u.userId) return null
+        const online =
+          u.isOnline ||
+          (u.lastSeenAt ? Date.now() - new Date(u.lastSeenAt).getTime() < 5 * 60 * 1000 : false)
+        return {
+          userId: u.userId,
+          username: u.username || 'Người dùng',
+          email: u.email || '',
+          phoneNumber: u.phoneNumber || '',
+          avatarUrl: u.avatarUrl || '',
+          isOnline: Boolean(online),
+        }
+      })
+      .filter(Boolean)
+
+    applySearchFilter(searchKeyword.value)
+  } catch (err) {
+    console.error('Lỗi khi tải danh sách bạn bè:', err)
+    errorMsg.value = 'Không thể tải danh sách bạn bè'
+    allFriends.value = []
     users.value = []
   } finally {
     loadingUsers.value = false
   }
 }
 
-const handleSearch = async (q) => {
-  const trimmed = (q || '').trim()
+const applySearchFilter = (q) => {
+  const trimmed = (q || '').trim().toLowerCase()
   if (!trimmed) {
-    await loadInitialUsers()
+    users.value = [...allFriends.value]
     return
   }
-  loadingUsers.value = true
-  errorMsg.value = ''
-  try {
-    const res = await userApi.searchUsers(trimmed, 0, 20)
-    users.value = res?.content || []
-  } catch (err) {
-    console.error('Lỗi tìm kiếm người dùng:', err)
-    users.value = []
-  } finally {
-    loadingUsers.value = false
-  }
+  users.value = allFriends.value.filter((u) => {
+    const nameMatch = u.username && u.username.toLowerCase().includes(trimmed)
+    const emailMatch = u.email && u.email.toLowerCase().includes(trimmed)
+    const phoneMatch = u.phoneNumber && u.phoneNumber.toLowerCase().includes(trimmed)
+    return nameMatch || emailMatch || phoneMatch
+  })
 }
 
 watch(searchKeyword, (newVal) => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    handleSearch(newVal)
-  }, 250)
+    applySearchFilter(newVal)
+  }, 150)
 })
 
 onMounted(() => {
-  loadInitialUsers()
+  loadInitialFriends()
 })
 
 const getInitials = (name) => {
@@ -181,48 +200,67 @@ const handleCreateGroup = async () => {
           v-model="searchKeyword"
           type="text"
           class="text-input"
-          placeholder="Tìm theo tên, email hoặc số điện thoại..."
+          placeholder="Tìm kiếm bạn bè theo tên, email hoặc số điện thoại..."
         />
       </div>
 
       <div v-if="errorMsg" class="error-banner">{{ errorMsg }}</div>
 
-      <!-- Danh sách kết quả người dùng -->
+      <!-- Danh sách kết quả người dùng (Bạn bè) -->
       <div class="user-list">
-        <div v-if="loadingUsers" class="empty-state">Đang tìm kiếm người dùng...</div>
+        <div v-if="loadingUsers" class="empty-state">Đang tải danh sách bạn bè...</div>
+        <div v-else-if="allFriends.length === 0" class="empty-state">
+          Bạn chưa có bạn bè nào trong danh bạ.
+        </div>
         <div v-else-if="users.length === 0" class="empty-state">
-          Không tìm thấy người dùng nào phù hợp.
+          Không tìm thấy bạn bè nào phù hợp.
         </div>
 
-        <div
-          v-else
-          v-for="user in users"
-          :key="user.userId"
-          class="user-row"
-          @click="activeTab === 'direct' ? handleStartDirect(user) : toggleSelectUser(user)"
-        >
-          <div class="user-avatar-wrap">
-            <div class="user-avatar">{{ getInitials(user.username || user.email) }}</div>
-            <span v-if="user.isOnline" class="online-dot"></span>
-          </div>
+        <template v-else>
+          <div
+            v-for="user in users"
+            :key="user.userId"
+            class="user-row"
+            @click="activeTab === 'direct' ? handleStartDirect(user) : toggleSelectUser(user)"
+          >
+            <div class="user-avatar-wrap">
+              <img
+                v-if="user.avatarUrl"
+                :src="user.avatarUrl"
+                class="user-avatar-img"
+                alt=""
+              />
+              <div v-else class="user-avatar">{{ getInitials(user.username || user.email) }}</div>
+              <span v-if="user.isOnline" class="online-dot"></span>
+            </div>
 
-          <div class="user-info">
-            <div class="user-name">{{ user.username || 'Người dùng' }}</div>
-            <div class="user-sub">{{ user.email || user.phoneNumber || '' }}</div>
-          </div>
+            <div class="user-info">
+              <div class="user-name">{{ user.username || 'Người dùng' }}</div>
+              <div class="user-sub">{{ user.email || user.phoneNumber || '' }}</div>
+            </div>
 
-          <div v-if="activeTab === 'direct'">
-            <button class="action-btn" :disabled="submitting">Nhắn tin</button>
+            <!-- Tab Nhắn tin 1-1 -->
+            <div v-if="activeTab === 'direct'">
+              <button
+                class="action-btn"
+                :disabled="submitting"
+                @click.stop="handleStartDirect(user)"
+              >
+                {{ submitting ? 'Đang mở...' : 'Nhắn tin' }}
+              </button>
+            </div>
+
+            <!-- Tab Tạo nhóm (Chọn nhiều) -->
+            <div v-else>
+              <input
+                type="checkbox"
+                class="user-checkbox"
+                :checked="isUserSelected(user.userId)"
+                @click.stop="toggleSelectUser(user)"
+              />
+            </div>
           </div>
-          <div v-else>
-            <input
-              type="checkbox"
-              class="user-checkbox"
-              :checked="isUserSelected(user.userId)"
-              @click.stop="toggleSelectUser(user)"
-            />
-          </div>
-        </div>
+        </template>
       </div>
 
       <!-- Footer cho Tạo nhóm -->
@@ -430,16 +468,13 @@ const handleCreateGroup = async () => {
   font-size: 15px;
 }
 
-.online-dot {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #22c55e;
-  border: 2px solid #ffffff;
+.user-avatar-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  object-fit: cover;
 }
+
 
 .user-info {
   flex: 1;
