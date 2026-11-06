@@ -24,6 +24,7 @@ import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
+import { resolveFileUrl } from '@/api/storage.api';
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -719,6 +720,17 @@ watch(
   },
 )
 
+/**
+ * Chuẩn hóa URL hiển thị ảnh (Avatar hoặc hình ảnh đính kèm)
+ */
+const getImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
+    return path;
+  }
+  return resolveFileUrl(path);
+};
+
 // Tự động tải tin ghim và cuộn xuống đáy khi chuyển đổi phòng chat
 watch(
   () => chatStore.activeRoomId,
@@ -815,6 +827,7 @@ watch(
             <!-- 2. Dòng tin nhắn thông thường -->
             <MessageList
               v-else
+              :messageType="msg.messageType"
               :messageId="msg.messageId"
               :isPinned="!!msg.isPinned"
               :isRevoked="!!msg.isRevoked"
