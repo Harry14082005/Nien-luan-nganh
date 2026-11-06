@@ -813,9 +813,14 @@ watch(
             Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên! 👋
           </div>
           <template v-for="(msg, idx) in chatStore.messages" :key="msg.messageId">
-            <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat -->
+            <!-- Mốc thời gian lớn giữa các đoạn hội thoại (>= 5 phút hoặc sang ngày mới) -->
+            <div v-if="shouldShowTimeDivider(idx)" class="chat-time-divider-row">
+              <span class="chat-time-divider-pill">{{ formatTimeDivider(msg.createdAt) }}</span>
+            </div>
+
+            <!-- 1. Sự kiện ghim tin nhắn hoặc thông báo hệ thống trong phòng chat (ẩn legacy time log nếu có) -->
             <div
-              v-if="msg.isEvent || msg.messageType === 'SYSTEM'"
+              v-if="(msg.isEvent || msg.messageType === 'SYSTEM') && !isLegacyTimeLogMessage(msg)"
               class="system-message-row chat-event-row"
             >
               <div class="system-message-badge chat-event-pill">
@@ -826,7 +831,7 @@ watch(
 
             <!-- 2. Dòng tin nhắn thông thường -->
             <MessageList
-              v-else
+              v-else-if="!isLegacyTimeLogMessage(msg)"
               :messageType="msg.messageType"
               :messageId="msg.messageId"
               :isPinned="!!msg.isPinned"
