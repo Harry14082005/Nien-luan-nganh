@@ -18,8 +18,19 @@ export const declineFriendship = (friendshipId) =>
 export const removeFriendship = (friendshipId) =>
   http.delete(`/friendships/${friendshipId}`).then((r) => r.data)
 
-export const blockFriendship = (friendshipId) =>
-  http.post(`/friendships/block`, { friendshipId }).then((r) => r.data)
+export const cancelFriendRequest = (friendshipId) =>
+  http.delete(`/friendships/${friendshipId}`).then((r) => r.data)
+
+export const getFriendshipStatus = (userId) =>
+  http.get(`/friendships/status/${userId}`).then((r) => r.data.data)
+
+export const blockUser = (userId) =>
+  http.post('/friendships/block', { userId }).then((r) => r.data)
+
+export const unblockUser = (userId) =>
+  http.delete(`/friendships/block/${userId}`).then((r) => r.data)
+
+export const blockFriendship = blockUser
 // Coi là online nếu lastSeenAt trong vòng 5 phút gần nhất
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
 
@@ -57,5 +68,6 @@ export function toContact(friendship) {
     online,
     statusText: online ? 'Đang hoạt động' : formatLastSeen(u.lastSeenAt),
     bio: u.description || '',
+    isFriend: true,
   }
 }

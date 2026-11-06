@@ -52,6 +52,14 @@ export const uploadAvatar = (file) => {
 
 
 /**
+ * Lấy thông tin chi tiết một người dùng theo userId.
+ * @param {string} userId
+ */
+export const getUserById = (userId) => {
+  return http.get(`/users/${userId}`).then((res) => res.data?.data ?? res.data)
+}
+
+/**
  * Tìm kiếm người dùng theo Tên hiển thị, Email hoặc Số điện thoại.
  * @param {string} q Từ khóa tìm kiếm
  * @param {number} page Trang hiện tại (mặc định 0)

@@ -22,6 +22,7 @@ import ChatInput from '@/components/chat/ChatInput.vue'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
+import AddMemberModal from '@/components/chat/AddMemberModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
 import { resolveFileUrl } from '@/api/storage.api';
@@ -48,6 +49,11 @@ const currentSearchKeyword = ref('')
 const isInfoSidebarOpen = ref(false)
 const currentRoomMembers = ref([])
 const isNotificationMuted = ref(false)
+const showAddMemberModal = ref(false)
+
+const handleMemberAdded = () => {
+  fetchCurrentRoomMembers()
+}
 
 const fetchCurrentRoomMembers = async () => {
   if (!chatStore.activeRoomId) {
@@ -913,6 +919,7 @@ watch(
           :media-data="roomMediaData"
           @close="isInfoSidebarOpen = false"
           @toggle-notification="handleMuteNotification"
+          @add-member="showAddMemberModal = true"
         />
       </Transition>
     </div>

@@ -9,7 +9,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['message'])
+const emit = defineEmits(['message', 'add-friend', 'cancel-friend-request', 'unblock'])
 
 const palette = [
   { bg: '#FFE9DC', color: '#D2693B' },
@@ -50,6 +50,18 @@ const statusLabel = computed(() => {
 
 function onSendMessage() {
   emit('message', props.contact)
+}
+
+function onAddFriend() {
+  emit('add-friend', props.contact)
+}
+
+function onCancelFriendRequest() {
+  emit('cancel-friend-request', props.contact)
+}
+
+function onUnblock() {
+  emit('unblock', props.contact)
 }
 </script>
 
@@ -112,10 +124,56 @@ function onSendMessage() {
 
         <!-- Actions Row -->
         <div class="actions-row">
-          <button class="btn-message" @click="onSendMessage">
-            <IconMessageSquare class="btn-icon" :size="18" />
-            <span>Nhắn tin</span>
-          </button>
+          <!-- Nếu người dùng đã bị chặn -->
+          <template v-if="contact.isBlocked">
+            <div class="blocked-badge">
+              <font-awesome-icon icon="ban" class="btn-icon" />
+              <span>Đã chặn người dùng</span>
+            </div>
+            <button
+              type="button"
+              class="btn-unblock"
+              title="Bỏ chặn người dùng này"
+              @click="onUnblock"
+            >
+              <font-awesome-icon icon="unlock" class="btn-icon" />
+              <span>Bỏ chặn</span>
+            </button>
+          </template>
+
+          <template v-else>
+            <button class="btn-message" @click="onSendMessage">
+              <IconMessageSquare class="btn-icon" :size="18" />
+              <span>Nhắn tin</span>
+            </button>
+
+            <!-- Nút Kết bạn nếu chưa là bạn bè và chưa gửi lời mời -->
+            <button
+              v-if="!contact.isMe && !contact.isFriend && !contact.isPending"
+              class="btn-add-friend"
+              @click="onAddFriend"
+            >
+              <font-awesome-icon icon="user-plus" class="btn-icon" />
+              <span>Kết bạn</span>
+            </button>
+
+            <!-- Nút Thu hồi lời mời nếu đã gửi lời mời kết bạn -->
+            <button
+              v-else-if="!contact.isMe && !contact.isFriend && contact.isPending"
+              class="btn-revoke-friend"
+              title="Bấm để thu hồi lời mời kết bạn đã gửi"
+              @click="onCancelFriendRequest"
+            >
+              <font-awesome-icon icon="user-xmark" class="btn-icon" />
+              <span>Thu hồi lời mời</span>
+            </button>
+
+            <!-- Huy hiệu Bạn bè -->
+            <div v-else-if="!contact.isMe && contact.isFriend" class="friend-badge">
+              <font-awesome-icon icon="check" class="check-icon" />
+              <span>Bạn bè</span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -132,7 +190,8 @@ function onSendMessage() {
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   border: 1px solid #eef2f7;
-  width: 80%;
+  width: 100%;
+  max-width: 500px;
 }
 
 /* Banner */
@@ -314,6 +373,124 @@ function onSendMessage() {
 
 .btn-message:active {
   transform: translateY(0);
+}
+
+.btn-add-friend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-friend:hover:not(:disabled) {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn-add-friend:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: default;
+}
+
+.btn-revoke-friend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-revoke-friend:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+}
+
+.btn-revoke-friend:active {
+  transform: translateY(0);
+}
+
+.friend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.blocked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.btn-unblock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-unblock:hover {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn-unblock:active {
+  transform: translateY(0);
+}
+
+.check-icon {
+  font-size: 13px;
 }
 
 .btn-icon {

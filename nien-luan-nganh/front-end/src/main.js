@@ -24,10 +24,12 @@ import { faBars } from '@fortawesome/free-solid-svg-icons'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-solid-svg-icons'
 import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
+import { faUserXmark } from '@fortawesome/free-solid-svg-icons'
 import {
   faChevronDown,
   faChevronUp,
   faChevronRight,
+  faChevronLeft,
   faEllipsisVertical,
   faPen,
   faTrash,
@@ -43,6 +45,10 @@ import {
   faFileLines,
   faPlay,
   faArrowDown,
+  faBan,
+  faUnlock,
+  faUserMinus,
+  faAddressBook,
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
   faHouse,
@@ -63,9 +69,11 @@ library.add(
   faBars,
   faPlus,
   faUserPlus,
+  faUserXmark,
   faChevronDown,
   faChevronUp,
   faChevronRight,
+  faChevronLeft,
   faEllipsisVertical,
   faPen,
   faTrash,
@@ -81,25 +89,10 @@ library.add(
   faFileLines,
   faPlay,
   faArrowDown,
-  faUserPlus,
-  faChevronDown,
-  faChevronUp,
-  faChevronRight,
-  faEllipsisVertical,
-  faPen,
-  faTrash,
-  faClockRotateLeft,
-  faCheck,
-  faReply,
-  faUsers,
-  faBell,
-  faBellSlash,
-  faFolderOpen,
-  faImage,
-  faVideo,
-  faFileLines,
-  faPlay,
-  faArrowDown,
+  faBan,
+  faUnlock,
+  faUserMinus,
+  faAddressBook,
 )
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return

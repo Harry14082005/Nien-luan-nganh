@@ -1,26 +1,39 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
-import { getFriends, toContact } from '@/api/contacts.api'
+import {
+  getFriends,
+  toContact,
+  getFriendshipStatus,
+  sendFriendRequest,
+  cancelFriendRequest,
+  unblockUser
+} from '@/api/contacts.api'
 import { getMe } from '@/api/auth.api'
+import { getUserById } from '@/api/user.api'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
 const startingChat = ref(false) // chặn bấm liên tục tạo phòng 2 lần
 const router = useRouter()
+const route = useRoute()
 
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ContactList from '@/components/contacts/ContactList.vue'
 import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
 
 const contacts = ref([])
+const standaloneContact = ref(null)
 const selectedContactId = ref(null)
 const me = ref(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
 const selectedContact = computed(() => {
+  if (standaloneContact.value && standaloneContact.value.id === selectedContactId.value) {
+    return standaloneContact.value
+  }
   return contacts.value.find((c) => c.id === selectedContactId.value) || contacts.value[0]
 })
 
@@ -41,9 +54,42 @@ async function loadData() {
     contacts.value = list.map(toContact)
     me.value = profile
 
-    // Giữ nguyên người đang chọn khi tải lại (ví dụ sau khi chấp nhận kết bạn)
-    const stillExists = contacts.value.some((c) => c.id === selectedContactId.value)
-    if (!stillExists) selectedContactId.value = contacts.value[0]?.id ?? null
+    const queryUserId = route.query.userId
+    if (queryUserId) {
+      const found = contacts.value.find((c) => c.id === queryUserId)
+      if (found) {
+        selectedContactId.value = found.id
+      } else {
+        try {
+          const [u, rel] = await Promise.all([
+            getUserById(queryUserId),
+            getFriendshipStatus(queryUserId).catch(() => null)
+          ])
+          if (u) {
+            standaloneContact.value = {
+              id: u.userId,
+              friendshipId: rel?.friendshipId || null,
+              name: u.username,
+              role: u.email || u.phoneNumber || 'Người dùng',
+              avatar: u.avatarUrl || '',
+              online: false,
+              statusText: 'Ngoại tuyến',
+              bio: u.description || '',
+              isFriend: rel?.status === 'ACCEPTED',
+              isPending: rel?.status === 'PENDING',
+              isBlocked: rel?.status === 'BLOCKED' && rel?.direction === 'OUTGOING'
+            }
+            selectedContactId.value = u.userId
+          }
+        } catch (e) {
+          console.error('Không tìm thấy thông tin người dùng query:', e)
+        }
+      }
+    } else {
+      // Giữ nguyên người đang chọn khi tải lại (ví dụ sau khi chấp nhận kết bạn)
+      const stillExists = contacts.value.some((c) => c.id === selectedContactId.value)
+      if (!stillExists) selectedContactId.value = contacts.value[0]?.id ?? null
+    }
   } catch (e) {
     console.error('Lỗi tải danh bạ:', e)
     errorMsg.value = e.response?.data?.message || 'Không tải được danh bạ'
@@ -56,6 +102,47 @@ onMounted(loadData)
 
 function onSelectContact(contact) {
   selectedContactId.value = contact.id
+}
+
+//Xly them/huy loi moi/bLock/unblock ban be
+async function handleAddFriend(contact) {
+  if (!contact?.id) return
+  try {
+    const res = await sendFriendRequest(contact.id)
+    if (standaloneContact.value && standaloneContact.value.id === contact.id) {
+      standaloneContact.value.isPending = true
+      standaloneContact.value.friendshipId = res?.friendshipId
+    }
+  } catch (err) {
+    console.error('Lỗi kết bạn:', err)
+  }
+}
+
+async function handleCancelFriendRequest(contact) {
+  if (!contact?.id) return
+  try {
+    if (contact.friendshipId) {
+      await cancelFriendRequest(contact.friendshipId)
+    }
+    if (standaloneContact.value && standaloneContact.value.id === contact.id) {
+      standaloneContact.value.isPending = false
+      standaloneContact.value.friendshipId = null
+    }
+  } catch (err) {
+    console.error('Lỗi thu hồi lời mời:', err)
+  }
+}
+
+async function handleUnblock(contact) {
+  if (!contact?.id) return
+  try {
+    await unblockUser(contact.id)
+    if (standaloneContact.value && standaloneContact.value.id === contact.id) {
+      standaloneContact.value.isBlocked = false
+    }
+  } catch (err) {
+    console.error('Lỗi bỏ chặn:', err)
+  }
 }
 
 async function handleMessageContact(contact) {
@@ -118,6 +205,9 @@ async function handleMessageContact(contact) {
             v-if="selectedContact"
             :contact="selectedContact"
             @message="handleMessageContact"
+            @add-friend="handleAddFriend"
+            @cancel-friend-request="handleCancelFriendRequest"
+            @unblock="handleUnblock"
           />
           <p v-else-if="!loading && !errorMsg" class="state-msg">
             Bạn chưa có liên hệ nào. Bấm dấu + để thêm bạn bè.
