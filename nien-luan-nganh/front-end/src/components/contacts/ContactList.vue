@@ -5,7 +5,7 @@ import Modal_FriendRequests from './Modal_FriendRequests.vue'
 import ContactMenu from './ContactMenu.vue'
 import { removeFriendship, blockFriendship, getPendingFriendships } from '@/api/contacts.api.js'
 
-const emit = defineEmits(['select', 'refresh'])
+const emit = defineEmits(['select', 'refresh', 'block'])
 
 async function handleRemove(contact) {
   if (!confirm(`Xóa ${contact.name} khỏi danh sách bạn bè?`)) return
@@ -19,9 +19,12 @@ async function handleRemove(contact) {
 }
 
 async function handleBlock(contact) {
-  if (!confirm(`Chặn ${contact.name}?`)) return
+  const targetId = contact?.id ?? contact?.userId
+  if (!targetId) return
+  if (!confirm(`Chặn ${contact.name}? Người này sẽ không thể gửi tin nhắn hay gọi cho bạn.`)) return
   try {
-    await blockFriendship(contact.friendshipId)
+    await blockFriendship(targetId)
+    emit('block', contact)
     emit('refresh')
   } catch (e) {
     console.error('Lỗi chặn người dùng:', e)

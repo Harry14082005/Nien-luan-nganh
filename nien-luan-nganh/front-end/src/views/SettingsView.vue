@@ -5,6 +5,9 @@ import { useAuthStore } from '@/stores/auth'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import UserProfileEdit from '@/components/settings/UserProfileEdit.vue'
+import Modal_BlockedList from '@/components/settings/Modal_BlockedList.vue'
+import Modal_AuthCredentials from '@/components/settings/Modal_AuthCredentials.vue'
+import { getBlockedUsers } from '@/api/contacts.api'
 import { getImageUrl } from '@/api/user.api'
 import { http } from '@/api/http'
 
@@ -14,6 +17,11 @@ const authStore = useAuthStore()
 // Tab hiện tại: 'profile' (Hồ sơ cá nhân) hoặc 'general' (Tùy chọn chung)
 const activeTab = ref('profile')
 
+// Modals
+const showBlockedListModal = ref(false)
+const showAuthModal = ref(false)
+const blockedCount = ref(0)
+
 // Thông tin người dùng — load từ API
 const userProfile = ref({
   displayName: '',
@@ -21,8 +29,13 @@ const userProfile = ref({
   initials: '',
   statusText: 'Đang hoạt động',
   bio: '',
+  description: '',
   avatar: '',
   online: true,
+  gender: '',
+  preferredLanguage: 'vi',
+  email: '',
+  phoneNumber: '',
 })
 
 const avatarSrc = computed(() => getImageUrl(userProfile.value.avatar))
@@ -33,9 +46,19 @@ function buildInitials(name = '') {
   return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[words.length - 1][0]).toUpperCase()
 }
 
+async function loadBlockedCount() {
+  try {
+    const res = await getBlockedUsers()
+    const list = Array.isArray(res) ? res : res?.content || []
+    blockedCount.value = list.length
+  } catch {
+    blockedCount.value = 0
+  }
+}
+
 async function loadProfile() {
   try {
-    const me = authStore.user || await authStore.initUser()
+    const me = (await authStore.initUser()) || authStore.user
     if (me) {
       userProfile.value = {
         displayName: me.username || me.displayName || '',
@@ -43,10 +66,16 @@ async function loadProfile() {
         initials: buildInitials(me.username),
         statusText: 'Đang hoạt động',
         bio: me.description || '',
+        description: me.description || '',
         avatar: me.avatarUrl || '',
         online: me.isOnline ?? true,
+        gender: me.gender || '',
+        preferredLanguage: me.preferredLanguage || 'vi',
+        email: me.email || '',
+        phoneNumber: me.phoneNumber || '',
       }
     }
+    loadBlockedCount()
   } catch (e) {
     console.warn('Không tải được hồ sơ:', e)
   }
@@ -55,10 +84,19 @@ async function loadProfile() {
 onMounted(loadProfile)
 
 async function handleProfileSave(updatedUser) {
-  userProfile.value = updatedUser
-  // Nếu avatar thay đổi, cập nhật auth store
+  userProfile.value = {
+    ...userProfile.value,
+    ...updatedUser,
+    displayName: updatedUser.username || updatedUser.displayName,
+    initials: buildInitials(updatedUser.username || updatedUser.displayName),
+  }
+  // Cập nhật auth store
   if (authStore.user) {
-    authStore.user = { ...authStore.user, avatarUrl: updatedUser.avatar }
+    authStore.user = {
+      ...authStore.user,
+      ...updatedUser,
+      avatarUrl: updatedUser.avatar || authStore.user.avatarUrl,
+    }
     localStorage.setItem('currentUser', JSON.stringify(authStore.user))
   }
 }
@@ -92,7 +130,6 @@ async function handleLogout() {
 
       <!-- Sidebar Section Header -->
       <div class="sidebar-header">
-        <span class="sub-label">TÀI KHOẢN CÁ NHÂN</span>
         <div class="title-row">
           <h1 class="page-title">{{ activeTab === 'profile' ? 'Hồ sơ' : 'Cài đặt' }}</h1>
           <button class="settings-action-btn" title="Tùy chọn">
@@ -234,7 +271,6 @@ async function handleLogout() {
         <div class="content-header">
           <span class="tag-label">HỒ SƠ CÁ NHÂN</span>
           <h1 class="heading-title">Xin chào, {{ userProfile.displayName || 'bạn' }}.</h1>
-          <p class="heading-desc">Một chút về bạn, để mọi người hiểu nhau hơn.</p>
         </div>
 
         <!-- Component chỉnh sửa & hiển thị hồ sơ -->
@@ -250,9 +286,7 @@ async function handleLogout() {
       <div v-else-if="activeTab === 'general'" class="tab-pane">
         <!-- Header -->
         <div class="content-header">
-          <span class="tag-label">CÀI ĐẶT</span>
-          <h1 class="heading-title">Theo cách của bạn.</h1>
-          <p class="heading-desc">Tùy chỉnh BlueSpace để mỗi kết nối đều thoải mái hơn.</p>
+          <h2 class="heading-title">CÀI ĐẶT CHUNG</h2>
         </div>
 
         <div class="settings-cards-wrap">
@@ -276,7 +310,6 @@ async function handleLogout() {
               </div>
               <div class="card-title-text">
                 <h3>Thông báo</h3>
-                <p>Chọn cách bạn nhận cập nhật</p>
               </div>
             </div>
 
@@ -317,7 +350,6 @@ async function handleLogout() {
               </div>
               <div class="card-title-text">
                 <h3>Quyền riêng tư & giao diện</h3>
-                <p>Một không gian an toàn, đúng ý bạn</p>
               </div>
             </div>
 
@@ -337,18 +369,52 @@ async function handleLogout() {
                 title="Chế độ tối"
                 description="Chuyển sang giao diện dịu mắt hơn"
               />
+
+              <div class="card-inner-divider"></div>
+
+              <!-- Mục Danh sách chặn -->
+              <div
+                class="settings-clickable-row"
+                role="button"
+                tabindex="0"
+                @click="showBlockedListModal = true"
+                @keydown.enter="showBlockedListModal = true"
+              >
+                <div class="clickable-row-left">
+                  <div class="row-texts">
+                    <span class="row-title">Danh sách chặn</span>
+                    <span class="row-desc">Quản lý những người dùng bạn đã chặn</span>
+                  </div>
+                </div>
+                <div class="clickable-row-right">
+                  <span v-if="blockedCount > 0" class="badge-count">{{ blockedCount }}</span>
+                  <svg
+                    class="chevron-icon"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Quick Navigation Actions -->
           <div class="action-links-group">
-            <!-- Xem và chỉnh sửa hồ sơ -->
+            <!-- Chỉnh sửa thông tin xác thực -->
             <div
               class="action-item"
               role="button"
               tabindex="0"
-              @click="activeTab = 'profile'"
-              @keydown.enter="activeTab = 'profile'"
+              @click="showAuthModal = true"
+              @keydown.enter="showAuthModal = true"
             >
               <div class="action-left">
                 <svg
@@ -361,10 +427,10 @@ async function handleLogout() {
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
-                <span>Xem và chỉnh sửa hồ sơ của bạn</span>
+                <span>Chỉnh sửa thông tin xác thực</span>
               </div>
               <svg
                 width="16"
@@ -403,7 +469,7 @@ async function handleLogout() {
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                <span>Đăng xuất khỏi BlueSpace</span>
+                <span>Đăng xuất khỏi</span>
               </div>
               <svg
                 width="16"
@@ -422,6 +488,21 @@ async function handleLogout() {
         </div>
       </div>
     </div>
+
+    <!-- Modal Danh sách chặn -->
+    <Modal_BlockedList
+      v-if="showBlockedListModal"
+      @close="showBlockedListModal = false"
+      @unblocked="loadBlockedCount"
+    />
+
+    <!-- Modal Chỉnh sửa thông tin xác thực -->
+    <Modal_AuthCredentials
+      v-if="showAuthModal"
+      :email="userProfile.email"
+      :phone-number="userProfile.phoneNumber"
+      @close="showAuthModal = false"
+    />
   </div>
 </template>
 
@@ -484,14 +565,6 @@ async function handleLogout() {
 
 .sidebar-header {
   padding: 10px 24px 14px 24px;
-}
-
-.sub-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #94a3b8;
-  text-transform: uppercase;
 }
 
 .title-row {
@@ -672,26 +745,11 @@ async function handleLogout() {
 .content-header {
   margin-bottom: 30px;
 }
-
-.tag-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #64748b;
-  text-transform: uppercase;
-}
-
 .heading-title {
   font-size: 32px;
   font-weight: 700;
   color: #1e293b;
   margin: 6px 0 8px 0;
-}
-
-.heading-desc {
-  font-size: 15px;
-  color: #64748b;
-  margin: 0;
 }
 
 .profile-component-wrap {
@@ -807,5 +865,60 @@ async function handleLogout() {
 
 .action-item.danger:hover {
   background-color: #fef2f2;
+}
+
+/* Clickable row inside card (Danh sách chặn) */
+.settings-clickable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.settings-clickable-row:hover {
+  background-color: #f8fafc;
+}
+
+.clickable-row-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.row-texts {
+  display: flex;
+  flex-direction: column;
+}
+
+.row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.row-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.clickable-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+}
+
+.badge-count {
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: #fee2e2;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
 }
 </style>

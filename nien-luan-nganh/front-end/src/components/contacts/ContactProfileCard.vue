@@ -9,7 +9,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['message', 'add-friend', 'cancel-friend-request', 'unblock'])
+const emit = defineEmits(['message', 'add-friend', 'cancel-friend-request', 'unblock', 'block'])
 
 const palette = [
   { bg: '#FFE9DC', color: '#D2693B' },
@@ -62,6 +62,10 @@ function onCancelFriendRequest() {
 
 function onUnblock() {
   emit('unblock', props.contact)
+}
+
+function onBlock() {
+  emit('block', props.contact)
 }
 </script>
 
@@ -486,6 +490,34 @@ function onUnblock() {
 }
 
 .btn-unblock:active {
+  transform: translateY(0);
+}
+
+.btn-block-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #ffffff;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-block-action:hover {
+  background-color: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.btn-block-action:active {
   transform: translateY(0);
 }
 
