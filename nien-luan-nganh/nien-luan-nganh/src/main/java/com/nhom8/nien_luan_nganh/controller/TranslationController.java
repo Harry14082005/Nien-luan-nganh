@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -19,13 +20,25 @@ import java.util.UUID;
 public class TranslationController {
     private final TranslationService translationService;
 
+    // @PostMapping("/translate")
+    // public ResponseEntity<ApiResponse<TranslationResponse>> translate(
+    // @PathVariable UUID messageId,
+    // Authentication authentication
+    // ) {
+    // UUID currentUserId = UUID.fromString(authentication.getName());
+    // TranslationResponse response = translationService.translate(messageId,
+    // currentUserId);
+    // return ResponseEntity.ok(ApiResponse.success(response, "Dịch tin nhắn thành
+    // công"));
+    // }
+
     @PostMapping("/translate")
     public ResponseEntity<ApiResponse<TranslationResponse>> translate(
             @PathVariable UUID messageId,
-            Authentication authentication
-    ){
+            @RequestParam(required = false) String targetLanguage,
+            Authentication authentication) {
         UUID currentUserId = UUID.fromString(authentication.getName());
-        TranslationResponse response = translationService.translate(messageId, currentUserId);
+        TranslationResponse response = translationService.translate(messageId, currentUserId, targetLanguage);
         return ResponseEntity.ok(ApiResponse.success(response, "Dịch tin nhắn thành công"));
     }
 }

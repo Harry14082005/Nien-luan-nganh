@@ -8,11 +8,13 @@
  * - Giao diện chỉnh sửa inline đẹp mắt, giữ nguyên hình dạng và màu sắc của bong bóng tin nhắn bình thường.
  * - Hỗ trợ xem lịch sử các lần chỉnh sửa tin nhắn.
  */
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
 import MessageBubble from './MessageBubble.vue';
 import { resolveFileUrl } from '@/api/storage.api'; 
+import { translateMessage } from '@/api/message.api';
+
 const props = defineProps({
     // Mốc thời gian gửi tin nhắn (vd: 14:30)
     Time: {
@@ -127,6 +129,125 @@ let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
 const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
 const editContent = ref(''); // Nội dung văn bản đang sửa
 const editTextareaRef = ref(null); // Ref tới ô textarea sửa
+
+// Lưu trữ trạng thái dịch của tin nhắn này
+const translatedText = ref('');       // Nội dung đã dịch
+const isTranslating = ref(false);     // Trạng thái đang gọi AI dịch (loading)
+const showTranslation = ref(true);    // Trạng thái mở ra hay thu gọn bản dịch
+// Danh sách ngôn ngữ thông dụng
+const ALL_LANGUAGES = [
+    { code: 'vi', label: 'Tiếng Việt' },
+    { code: 'en', label: 'English' },
+    { code: 'zh', label: '中文' },
+    { code: 'ja', label: '日本語' },
+    { code: 'ko', label: '한국어' },
+    { code: 'fr', label: 'Français' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'es', label: 'Español' },
+    { code: 'it', label: 'Italiano' },
+    { code: 'pt', label: 'Português' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'nl', label: 'Nederlands' },
+    { code: 'pl', label: 'Polski' },
+    { code: 'sv', label: 'Svenska' },
+    { code: 'tr', label: 'Türkçe' },
+    { code: 'uk', label: 'Українська' },
+    { code: 'th', label: 'ไทย' },
+    { code: 'id', label: 'Bahasa Indonesia' },
+    { code: 'ms', label: 'Bahasa Melayu' },
+    { code: 'fil', label: 'Filipino' },
+    { code: 'lo', label: 'ພາສາລາວ' },
+    { code: 'km', label: 'ភាសាខ្មែរ' },
+    { code: 'my', label: 'မြန်မာ' },
+    { code: 'hi', label: 'हिन्दी' },
+    { code: 'ar', label: 'العربية' }
+];
+
+const langSearch = ref('');
+const filteredLanguages = computed(() => {
+    if (!langSearch.value.trim()) return ALL_LANGUAGES;
+    const q = langSearch.value.toLowerCase().trim();
+    return ALL_LANGUAGES.filter(item => 
+        item.label.toLowerCase().includes(q) || 
+        item.code.toLowerCase().includes(q)
+    );
+});
+
+const currentTargetLang = ref(authStore.user?.preferredLanguage || 'vi'); // Khởi tạo bằng preferredLanguage của user
+const showLangMenu = ref(false);     // Bật/tắt popup chọn ngôn ngữ
+const dropdownPlacement = ref('bottom'); // Vị trí popup: 'bottom' (dưới) hoặc 'top' (trên)
+
+// Bật/tắt popup chọn ngôn ngữ (tự động đảo vị trí nếu sát đáy)
+const toggleLangMenu = (event) => {
+    if (!showLangMenu.value) {
+        const buttonEl = event?.currentTarget;
+        if (buttonEl) {
+            const rect = buttonEl.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            // Nếu khoảng trống bên dưới < 220px thì lật lên trên, ngược lại mở xuống dưới
+            dropdownPlacement.value = spaceBelow < 220 ? 'top' : 'bottom';
+        }
+        showLangMenu.value = true;
+    } else {
+        showLangMenu.value = false;
+    }
+};
+
+// Hàm khi người dùng bấm chọn một ngôn ngữ từ popup
+const handleSelectLanguage = async (langCode) => {
+    showLangMenu.value = false;
+    currentTargetLang.value = langCode;
+    try {
+        isTranslating.value = true;
+        showTranslation.value = true;
+        const res = await translateMessage(props.messageId, langCode);
+        translatedText.value = res.translatedText;
+        if (res.targetLanguage) {
+            currentTargetLang.value = res.targetLanguage;
+        }
+    } catch (error) {
+        console.error('Lỗi khi dịch ngôn ngữ:', error);
+    } finally {
+        isTranslating.value = false;
+    }
+};
+
+// Hàm xử lý khi bấm nút Dịch
+const handleTranslate = async () => {
+    // Nếu đã dịch rồi thì bấm là BẬT / TẮT 
+    if (translatedText.value) {
+        showTranslation.value = !showTranslation.value;
+        return;
+    }
+    // Nếu chưa dịch thì gọi AI (không truyền targetLanguage để backend tự lấy preferredLanguage của User)
+    try {
+        isTranslating.value = true;
+        showTranslation.value = true; // Mở sẵn khung hiển thị dòng loading
+        const res = await translateMessage(props.messageId, null);
+        translatedText.value = res.translatedText;
+        // Cập nhật targetLanguage trả về từ server để đồng bộ với popup
+        if (res.targetLanguage) {
+            currentTargetLang.value = res.targetLanguage;
+        }
+    } catch (error) {
+        console.error('Lỗi dịch tin nhắn:', error);
+    } finally {
+        isTranslating.value = false;
+    }
+};
+// Nút bấm thu gọn mất tiêu bản dịch
+const handleCloseTranslation = () => {
+    showTranslation.value = false;
+};
+
+// Khi nội dung tin nhắn thay đổi (do chỉnh sửa), tự động xóa bản dịch cũ trên giao diện
+watch(() => props.Content_Message, (newContent, oldContent) => {
+    if (newContent !== oldContent) {
+        translatedText.value = '';
+        showTranslation.value = false;
+    }
+});
+
 
 // Quản lý đóng/mở thanh cảm xúc có độ trễ 250ms
 const handleMouseEnterReaction = () => {
@@ -321,6 +442,7 @@ const handleClickRepliedQuote = () => {
 const handleDocumentClick = () => {
     showMenu.value = false;
     showReactionPicker.value = false;
+    showLangMenu.value = false; 
 };
 
 onMounted(() => {
@@ -460,8 +582,88 @@ onUnmounted(() => {
                     @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
                     :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
                 >
-                    <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
-                    <template v-else>{{ Content_Message }}</template>
+                    <!-- [1] Nội dung tin nhắn gốc -->
+                    <div class="message-original-text">
+                        <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
+                        <template v-else>{{ Content_Message }}</template>
+                    </div>
+
+                    <!-- [2] Dòng hiệu ứng khi đang chờ AI dịch (không bị khựng) -->
+                    <div v-if="isTranslating" class="message-translation-box">
+                        <div class="translation-divider"></div>
+                        <div class="translation-loading">
+                            <font-awesome-icon icon="spinner" spin class="loading-spinner" />
+                            <span>Đang dịch...</span>
+                        </div>
+                    </div>
+
+                    <!-- [3] Bản dịch hoàn chỉnh (khi showTranslation = true) -->
+                    <div v-else-if="translatedText && showTranslation" class="message-translation-box">
+                        <!-- Vạch kẻ phân cách -->
+                        <div class="translation-divider"></div>
+
+                        <!-- Nội dung đã dịch -->
+                        <div class="translation-content">
+                            {{ translatedText }}
+                        </div>
+
+                                <!-- Chân bản dịch: 2 bên -->
+                                <div class="translation-footer">
+                                    <!-- BÊN TRÁI: Vùng thu gọn chiếm nửa trái -->
+                                    <div 
+                                        class="translation-toggle-zone" 
+                                        title="Bấm để thu gọn bản dịch"
+                                        @click.stop="handleCloseTranslation"
+                                    >
+                                        <font-awesome-icon icon="chevron-up" class="chevron-icon" />
+                                    </div>
+
+                                    <!-- BÊN PHẢI: Chỉ có icon chọn ngôn ngữ -->
+                                    <div class="translation-lang-wrapper" @click.stop>
+                                        <button 
+                                            type="button" 
+                                            class="translation-lang-btn" 
+                                            title="Đổi ngôn ngữ dịch"
+                                            @click.stop="toggleLangMenu"
+                                        >
+                                            <font-awesome-icon icon="language" class="lang-icon" />
+                                        </button>
+
+                                        <!-- POPUP CHỌN NGÔN NGỮ (Tự động lật lên hoặc xuống) -->
+                                        <div 
+                                            v-if="showLangMenu" 
+                                            :class="['lang-dropdown', `lang-dropdown--${dropdownPlacement}`]" 
+                                            @click.stop
+                                        >
+                                            <div class="lang-search-box">
+                                                <input 
+                                                    v-model="langSearch" 
+                                                    type="text" 
+                                                    placeholder="Tìm kiếm..." 
+                                                    class="lang-search-input"
+                                                    @click.stop
+                                                />
+                                            </div>
+
+                                            <div class="lang-list-scroll">
+                                                <div 
+                                                    v-for="lang in filteredLanguages" 
+                                                    :key="lang.code"
+                                                    :class="['lang-opt', { 'lang-opt--active': currentTargetLang === lang.code }]"
+                                                    @click.stop="handleSelectLanguage(lang.code)"
+                                                >
+                                                    <span>{{ lang.label }}</span>
+                                                    <font-awesome-icon v-if="currentTargetLang === lang.code" icon="check" class="opt-check" />
+                                                </div>
+
+                                                <div v-if="filteredLanguages.length === 0" class="lang-empty">
+                                                    Không tìm thấy
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                    </div>
                 </div>
 
                 <!-- Reaction Badges gắn trực tiếp ngay mép dưới bong bóng tin nhắn -->
@@ -545,6 +747,18 @@ onUnmounted(() => {
                     <font-awesome-icon icon="thumbtack"/>
                 </span>
 
+                <!-- Nút Dịch (chỉ hiện cho tin nhắn văn bản thông thường) -->
+                <span 
+                    v-if="messageType === 'TEXT' && !isRevoked"
+                    class="action-btn translate-btn" 
+                    :class="{ 'is-loading': isTranslating }"
+                    title="Dịch tin nhắn" 
+                    @click.stop="handleTranslate"
+                >
+                    <!-- Có thể dùng icon 'language' của font-awesome có sẵn trong dự án -->
+                    <font-awesome-icon v-if="!isTranslating" icon="language" />
+                    <font-awesome-icon v-else icon="spinner" spin />
+                </span>
                 <!-- 4. Nút 3 chấm (...) -->
                 <div class="menu-container">
                     <span 
@@ -1520,5 +1734,197 @@ onUnmounted(() => {
 .message-file-card:hover .msg-file-download-icon {
     /* transform: translateY(2px); */
     color: #2563eb;
+}
+
+/* Vạch kẻ ngăn cách */
+.translation-divider {
+    height: 1px;
+    background-color: rgba(0, 0, 0, 0.08);
+    margin: 8px 0;
+}
+.message--SendTo .translation-divider {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Dòng trạng thái đang dịch mượt mà */
+.translation-loading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-style: italic;
+    opacity: 0.8;
+    padding: 2px 0;
+}
+.loading-spinner {
+    font-size: 12px;
+}
+
+/* Nội dung bản dịch */
+.translation-content {
+    font-size: 0.95em;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* Chân bản dịch */
+.translation-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding-top: 6px;
+    padding-bottom: 2px;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+/* Khu vực mũi tên: chiếm nửa trái, click vào là thu gọn */
+.translation-toggle-zone {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2px 4px;
+    cursor: pointer;
+    background-color: transparent; 
+    opacity: 0.45;              
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.translation-toggle-zone:hover {
+    opacity: 1;
+    transform: translateY(-1px); 
+}
+.chevron-icon {
+    font-size: 11px;
+}
+
+/* Khung bọc nút ngôn ngữ bên phải (BẮT BUỘC có position: relative để neo popup) */
+.translation-lang-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Nút icon ngôn ngữ bên phải: rê chuột chỉ sáng icon */
+.translation-lang-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.translation-lang-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.lang-icon {
+    font-size: 13px;
+}
+
+/* Popup chọn ngôn ngữ */
+.lang-dropdown {
+    position: absolute;
+    right: 0;
+    width: 160px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+/* Ưu tiên mở xuống dưới */
+.lang-dropdown--bottom {
+    top: calc(100% + 6px);
+    bottom: auto;
+}
+
+/* Tự động lật ngược lên trên khi sát đáy */
+.lang-dropdown--top {
+    bottom: calc(100% + 6px);
+    top: auto;
+}
+
+/* Nếu là tin nhắn của người khác bên trái: popup bám theo lề trái nếu bong bóng hẹp */
+.message--default .lang-dropdown {
+    left: auto;
+    right: 0;
+}
+
+.lang-search-box {
+    padding: 2px 2px 5px 2px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 3px;
+}
+
+.lang-search-input {
+    width: 100%;
+    padding: 4px 6px;
+    font-size: 11px;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    outline: none;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.lang-search-input:focus {
+    border-color: #6366f1;
+}
+
+.lang-list-scroll {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.lang-opt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    color: #334155;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.lang-opt:hover {
+    background-color: #f1f5f9;
+}
+
+.lang-opt--active {
+    color: #6366f1;
+    font-weight: 600;
+    background-color: #f5f3ff;
+}
+
+.opt-check {
+    font-size: 10px;
+}
+
+.lang-empty {
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: center;
+    padding: 8px 0;
 }
 </style>

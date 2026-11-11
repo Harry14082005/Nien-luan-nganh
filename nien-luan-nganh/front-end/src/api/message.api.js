@@ -221,3 +221,13 @@ export const getRoomMedia = (roomId) => {
     .get(`/rooms/${roomId}/messages/media`)
     .then((res) => res.data?.data ?? res.data)
 }
+
+/**
+ * Dịch nội dung tin nhắn bằng AI
+ * @param {string} messageId UUID của tin nhắn
+ */
+export const translateMessage = (messageId, targetLanguage = null) => {
+  const params = targetLanguage ? { targetLanguage } : {};
+  return http.post(`/messages/${messageId}/translate`, null, { params })
+    .then((res) => res.data?.data ?? res.data);
+};

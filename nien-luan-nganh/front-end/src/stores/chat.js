@@ -1679,7 +1679,7 @@ export const useChatStore = defineStore('chat', {
         if (idx !== -1) {
           this.messages[idx] = {
             ...this.messages[idx],
-            ...(revokedMsg || {}),
+            ...revokedMsg,
             content: 'Tin nhắn đã được thu hồi',
             isRevoked: true,
             isPinned: false,

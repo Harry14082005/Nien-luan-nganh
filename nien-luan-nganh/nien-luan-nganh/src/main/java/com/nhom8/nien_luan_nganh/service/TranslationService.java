@@ -13,6 +13,7 @@ import com.nhom8.nien_luan_nganh.service.ai.AiService.DetectTranslateResult;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -85,13 +86,19 @@ public class TranslationService {
         }
     }
 
-    public TranslationResponse translate(UUID messageId, UUID currentUserId) {
+    @Transactional
+    public TranslationResponse translate(UUID messageId, UUID currentUserId, String targetLangParam) {
 
         // 1. kiểm tra người dùng
         User user = getUserOrThrow(currentUserId);
 
-        // 2. lấy ngôn ngữ ưu tiên
-        String targetLanguage = normalize(user.getPreferredLanguage());
+        // 2. lấy ngôn ngữ: Ưu tiên ngôn ngữ client chọn, nếu không có thì lấy của User
+        String targetLanguage;
+        if (targetLangParam != null && !targetLangParam.isBlank()) {
+            targetLanguage = normalize(targetLangParam);
+        } else {
+            targetLanguage = normalize(user.getPreferredLanguage());
+        }
 
         // 3. lấy tin nhắn
         Message message = messageRepository.findById(messageId).orElseThrow(
@@ -113,13 +120,55 @@ public class TranslationService {
         if (content == null || content.isBlank()) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
-        // 8. kieemr tra bản dịch có lưu rồi hay chưa
+        // 8. kiểm tra bản dịch có lưu rồi hay chưa
         Optional<Translation> cached = translationRepository.findByMessage_MessageIdAndTargetLanguage(messageId,
                 targetLanguage);
 
         if (cached.isPresent()) {
-            log.info("Get translation from cache: messageId={}, lang={}", messageId, targetLanguage);
-            return toResponse(cached.get(), true);
+            Translation t = cached.get();
+            boolean isStale = false;
+            // Nếu tin nhắn đã từng bị chỉnh sửa, kiểm tra xem bản dịch có được tạo TRƯỚC
+            // lần sửa tin nhắn không
+            if (Boolean.TRUE.equals(message.getIsEdited())) {
+                try {
+                    java.util.List<com.nhom8.nien_luan_nganh.entity.MessageHistory> histories = message
+                            .getMessageHistories();
+                    if (histories != null && !histories.isEmpty()) {
+                        LocalDateTime lastEditedAt = histories.stream()
+                                .map(com.nhom8.nien_luan_nganh.entity.MessageHistory::getEditedAt)
+                                .filter(java.util.Objects::nonNull)
+                                .max(LocalDateTime::compareTo)
+                                .orElse(null);
+
+                        if (lastEditedAt != null && t.getCreatedAt() != null
+                                && t.getCreatedAt().isBefore(lastEditedAt)) {
+                            isStale = true;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Lỗi kiểm tra lịch sử sửa tin nhắn: {}", e.getMessage());
+                }
+            }
+
+            if (!isStale) {
+                log.info("Get translation from cache: messageId={}, lang={}", messageId, targetLanguage);
+                return toResponse(t, true);
+            }
+
+            // Nếu bản dịch đã cũ do tin nhắn bị sửa: gọi AI dịch lại và cập nhật đè lên bản
+            // ghi cũ
+            log.info("Bản dịch đã cũ do tin nhắn đã được chỉnh sửa (messageId={}), dịch lại...", messageId);
+            if (!aiService.isAvailable()) {
+                throw new AppException(ErrorCode.TRANSLATION_FAILED);
+            }
+            DetectTranslateResult result = detectAndTranslate(content, targetLanguage);
+            String sourceLanguage = result.source();
+            String translatedText = sourceLanguage.equals(targetLanguage) ? content : result.translation();
+            t.setSourceLanguage(sourceLanguage);
+            t.setTranslatedText(translatedText);
+            t.setCreatedAt(LocalDateTime.now());
+            translationRepository.save(t);
+            return toResponse(t, false);
         }
 
         // xử lý gọi AI

@@ -549,7 +549,8 @@ public class MessageService {
     }
 
     /**
-     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
+     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho
+     * Sidebar Thông tin.
      *
      * @param currentUserId Khóa chính UUID của người yêu cầu
      * @param roomId        Khóa chính UUID của phòng chat
@@ -563,10 +564,8 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                roomId);
 
         List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
         return messageMapper.toMessageResponseList(mediaList);

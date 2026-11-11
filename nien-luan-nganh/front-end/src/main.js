@@ -26,6 +26,7 @@ import { faPlus } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-solid-svg-icons'
 import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
 import { faUserXmark } from '@fortawesome/free-solid-svg-icons'
+
 import {
   faChevronDown,
   faChevronUp,
@@ -50,6 +51,7 @@ import {
   faUnlock,
   faUserMinus,
   faAddressBook,
+  faLanguage
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
   faHouse,
@@ -95,6 +97,7 @@ library.add(
   faUnlock,
   faUserMinus,
   faAddressBook,
+  faLanguage
 )
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return
