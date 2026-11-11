@@ -451,6 +451,8 @@ const getGroupPosition = (idx) => {
   return 'single'
 }
 
+
+
 onMounted(async () => {
   // 1. Tải thông tin tài khoản nếu chưa có
   if (!authStore.user) {

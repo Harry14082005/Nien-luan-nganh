@@ -9,12 +9,16 @@ import com.nhom8.nien_luan_nganh.repository.MessageRepository;
 import com.nhom8.nien_luan_nganh.repository.TranslationRepository;
 import com.nhom8.nien_luan_nganh.service.ai.AiPromptBuilder;
 import com.nhom8.nien_luan_nganh.service.ai.AiService;
+import com.nhom8.nien_luan_nganh.service.ai.AiService.DetectTranslateResult;
+
 import lombok.RequiredArgsConstructor;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.ObjectMapper;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -27,11 +31,12 @@ import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 
-
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class TranslationService {
+    private final ObjectMapper objectMapper;
+
     private final UserRepository userRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final MessageRepository messageRepository;
@@ -39,74 +44,98 @@ public class TranslationService {
     private final TranslationMapper translationMapper;
     private final AiService aiService;
 
-    public TranslationResponse translate(UUID messageId, UUID currentUserId){
-        //1. kiểm tra người dùng
+    public DetectTranslateResult detectAndTranslate(String content, String targetLanguage) {
+        // tạo câu prompt
+        String prompt = AiPromptBuilder.detectAndTranslatePrompt(content, targetLanguage);
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                // gọi AI để trả về định dạng json
+                String json = aiService.generateJson(prompt);
+                DetectTranslateResult r = objectMapper.readValue(cleanJson(json), DetectTranslateResult.class);
+
+                if (r.translation() == null || r.translation().isBlank()) {
+                    throw new IllegalStateException("Empty translation");
+                }
+
+                String source = r.source() == null ? "unknown" : normalize(r.source());
+                return new DetectTranslateResult(source, r.translation().trim());
+
+            } catch (Exception e) {
+                log.warn("detectAndTranslate attempt {} failed: {}", attempt, e.getMessage());
+                if (attempt == 1)
+                    sleepQuietly(700); // để không bị retry liên tục liền
+            }
+        }
+        throw new AppException(ErrorCode.TRANSLATION_FAILED);
+    }
+
+    // phòng khi model bọc ```json ... ```
+    private String cleanJson(String s) {
+        if (s == null)
+            return "";
+        return s.trim().replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "");
+    }
+
+    private void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public TranslationResponse translate(UUID messageId, UUID currentUserId) {
+
+        // 1. kiểm tra người dùng
         User user = getUserOrThrow(currentUserId);
 
-        //2. lấy ngôn ngữ ưu tiên
+        // 2. lấy ngôn ngữ ưu tiên
         String targetLanguage = normalize(user.getPreferredLanguage());
 
-        //3. lấy tin nhắn
+        // 3. lấy tin nhắn
         Message message = messageRepository.findById(messageId).orElseThrow(
-                () -> new AppException(ErrorCode.MESSAGE_NOT_FOUND)
-        );
+                () -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 
-        //4. kiểm tra thành viên có Active hông
+        // 4. kiểm tra thành viên có Active hông
         getActiveMemberOrThrow(message.getRoom().getRoomId(), currentUserId);
 
-        //5. không dịch tin nhắn đã thu ồi
-        if(message.getIsRevoked()){
+        // 5. không dịch tin nhắn đã thu ồi
+        if (message.getIsRevoked()) {
             throw new AppException(ErrorCode.MESSAGE_REVOKED);
         }
-        //6. không dịch poll với reminder
-        if(message.getMessageType() != MessageType.TEXT){
+        // 6. không dịch poll với reminder
+        if (message.getMessageType() != MessageType.TEXT) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
-        //7. kiểm tra nội dung content
+        // 7. kiểm tra nội dung content
         String content = message.getContent();
-        if(content == null || content.isBlank()){
+        if (content == null || content.isBlank()) {
             throw new AppException(ErrorCode.INVALID_INPUT);
         }
-        //8. kieemr tra bản dịch có lưu rồi hay chưa
-        Optional<Translation> cached = translationRepository.findByMessage_MessageIdAndTargetLanguage(messageId, targetLanguage);
+        // 8. kieemr tra bản dịch có lưu rồi hay chưa
+        Optional<Translation> cached = translationRepository.findByMessage_MessageIdAndTargetLanguage(messageId,
+                targetLanguage);
 
-        if(cached.isPresent()){
+        if (cached.isPresent()) {
             log.info("Get translation from cache: messageId={}, lang={}", messageId, targetLanguage);
             return toResponse(cached.get(), true);
         }
 
-        //xử lý gọi AI
-        //9. kiểm tra AI có khả dụng hay không
-        if(!aiService.isAvailable()){
+        // xử lý gọi AI
+        // 9. kiểm tra AI có khả dụng hay không
+        if (!aiService.isAvailable()) {
             throw new AppException(ErrorCode.TRANSLATION_FAILED);
         }
 
-        //10. xử lý lấy ngôn ngữ gốc của người nhắn
-        String sourceLanguage;
-        try{
-            sourceLanguage = aiService.generateText(AiPromptBuilder.detectLanguagePrompt(content))
-                    .trim().toLowerCase();
-            log.info("Detect: {} -> {}", messageId, sourceLanguage);
-        } catch (Exception e){
-            log.warn("Detect failed, use default: {}", e.getMessage());
-            sourceLanguage = "unknown";
-        }
+        // 10. detect + dịch
+        DetectTranslateResult result = detectAndTranslate(content, targetLanguage);
+        String sourceLanguage = result.source();
 
-        //11. xử lý nếu source = target thì thôi
-        if(sourceLanguage.equals(targetLanguage)){
-            Translation t = Translation.builder()
-                    .message(message)
-                    .sourceLanguage(sourceLanguage)
-                    .targetLanguage(targetLanguage)
-                    .translatedText(content)
-                    .build();
-            return toResponse(t, false);
-        }
+        // 11. nếu cùng ngôn ngữ t hì thôi
+        String translatedText = sourceLanguage.equals(targetLanguage) ? content : result.translation();
 
-        //12. gọi AI
-        String translatedText = translatedWithRetry(content, targetLanguage);
-
-        //13. lưu cache
+        // 12. lưu cache
         Translation t = Translation.builder()
                 .message(message)
                 .sourceLanguage(sourceLanguage)
@@ -115,8 +144,8 @@ public class TranslationService {
                 .build();
         try {
             translationRepository.save(t);
-        } catch (DataIntegrityViolationException e){
-            //request khác đã lưu lúc mình đang gọi
+        } catch (DataIntegrityViolationException e) {
+            // request khác đã lưu lúc mình đang gọi
             return translationRepository
                     .findByMessage_MessageIdAndTargetLanguage(messageId, targetLanguage)
                     .map(existing -> toResponse(existing, true))
@@ -126,24 +155,25 @@ public class TranslationService {
         return toResponse(t, false);
     }
 
-    private String normalize(String lang){
-        if (lang == null || lang.isBlank()) return "vi";
+    private String normalize(String lang) {
+        if (lang == null || lang.isBlank())
+            return "vi";
         String l = lang.trim().toLowerCase();
         return l.contains("-") ? l.substring(0, l.indexOf('-')) : l; // vi-VN -> vi
     }
 
-    private String translatedWithRetry(String content, String targetLanguage){
+    private String translatedWithRetry(String content, String targetLanguage) {
         String prompt = AiPromptBuilder.translatePrompt(content, targetLanguage);
 
-        try{
+        try {
             return aiService.generateText(prompt).trim();
-        } catch (Exception e){
+        } catch (Exception e) {
             log.warn("First try failed, retry: {}", e.getMessage());
         }
 
-        try{
+        try {
             return aiService.generateText(prompt).trim();
-        } catch (Exception e){
+        } catch (Exception e) {
             log.warn("Second try failed, retry: {}", e.getMessage());
             throw new AppException(ErrorCode.TRANSLATION_FAILED);
         }
@@ -167,7 +197,7 @@ public class TranslationService {
         return member;
     }
 
-    private TranslationResponse toResponse(Translation t, boolean fromCache){
+    private TranslationResponse toResponse(Translation t, boolean fromCache) {
         TranslationResponse response = translationMapper.toTranslationResponse(t);
         response.setFromCache(fromCache);
         return response;

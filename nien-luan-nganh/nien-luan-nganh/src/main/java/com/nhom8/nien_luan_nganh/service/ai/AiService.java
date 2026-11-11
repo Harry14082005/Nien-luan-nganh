@@ -1,6 +1,9 @@
 package com.nhom8.nien_luan_nganh.service.ai;
 
 public interface AiService {
+    public record DetectTranslateResult(String source, String translation) {
+    }
+
     // Sinh văn bản (cho dịch)
     String generateText(String prompt);
 
