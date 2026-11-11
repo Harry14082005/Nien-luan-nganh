@@ -24,11 +24,24 @@ export const cancelFriendRequest = (friendshipId) =>
 export const getFriendshipStatus = (userId) =>
   http.get(`/friendships/status/${userId}`).then((r) => r.data.data)
 
-export const blockUser = (userId) =>
-  http.post('/friendships/block', { userId }).then((r) => r.data)
+export const blockUser = (userIdOrContact) => {
+  const userId =
+    typeof userIdOrContact === 'object' && userIdOrContact !== null
+      ? userIdOrContact?.id || userIdOrContact?.userId
+      : userIdOrContact
+  return http.post('/friendships/block', { userId }).then((r) => r.data)
+}
 
-export const unblockUser = (userId) =>
-  http.delete(`/friendships/block/${userId}`).then((r) => r.data)
+export const unblockUser = (userIdOrContact) => {
+  const userId =
+    typeof userIdOrContact === 'object' && userIdOrContact !== null
+      ? userIdOrContact?.id || userIdOrContact?.userId
+      : userIdOrContact
+  return http.delete(`/friendships/block/${userId}`).then((r) => r.data)
+}
+
+export const getBlockedUsers = ({ page = 0, size = 50 } = {}) =>
+  http.get('/friendships', { params: { status: 'BLOCKED', page, size } }).then((r) => r.data.data)
 
 export const blockFriendship = blockUser
 // Coi là online nếu lastSeenAt trong vòng 5 phút gần nhất

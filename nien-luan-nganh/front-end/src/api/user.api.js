@@ -50,6 +50,17 @@ export const uploadAvatar = (file) => {
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
 
+/**
+ * Cập nhật thông tin hồ sơ cá nhân (username, gender, description, preferredLanguage, avatarUrl).
+ * @param {Object} data 
+ * @returns {Promise<UserResponse>} Thông tin user sau khi cập nhật
+ */
+export const updateProfile = (data) => {
+  return http
+    .put('/users/me', data)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
 
 /**
  * Lấy thông tin chi tiết một người dùng theo userId.

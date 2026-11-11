@@ -8,6 +8,7 @@ import {
   getFriendshipStatus,
   sendFriendRequest,
   cancelFriendRequest,
+  blockUser,
   unblockUser
 } from '@/api/contacts.api'
 import { getMe } from '@/api/auth.api'
@@ -86,9 +87,13 @@ async function loadData() {
         }
       }
     } else {
-      // Giữ nguyên người đang chọn khi tải lại (ví dụ sau khi chấp nhận kết bạn)
-      const stillExists = contacts.value.some((c) => c.id === selectedContactId.value)
-      if (!stillExists) selectedContactId.value = contacts.value[0]?.id ?? null
+      // Giữ nguyên người đang chọn khi tải lại nếu còn tồn tại hoặc nếu đang ở standaloneContact
+      if (standaloneContact.value && standaloneContact.value.id === selectedContactId.value) {
+        // Giữ nguyên standaloneContact
+      } else {
+        const stillExists = contacts.value.some((c) => c.id === selectedContactId.value)
+        if (!stillExists) selectedContactId.value = contacts.value[0]?.id ?? null
+      }
     }
   } catch (e) {
     console.error('Lỗi tải danh bạ:', e)
@@ -101,10 +106,11 @@ async function loadData() {
 onMounted(loadData)
 
 function onSelectContact(contact) {
+  standaloneContact.value = null
   selectedContactId.value = contact.id
 }
 
-//Xly them/huy loi moi/bLock/unblock ban be
+// Xử lý thêm / hủy lời mời / block / unblock bạn bè
 async function handleAddFriend(contact) {
   if (!contact?.id) return
   try {
@@ -133,15 +139,40 @@ async function handleCancelFriendRequest(contact) {
   }
 }
 
-async function handleUnblock(contact) {
-  if (!contact?.id) return
+async function handleBlock(contact) {
+  const targetId = contact?.id ?? contact?.userId
+  if (!targetId) return
+  if (!confirm(`Chặn ${contact.name || 'người dùng này'}? Người này sẽ không thể gửi tin nhắn hay gọi cho bạn.`)) return
   try {
-    await unblockUser(contact.id)
-    if (standaloneContact.value && standaloneContact.value.id === contact.id) {
-      standaloneContact.value.isBlocked = false
+    await blockUser(targetId)
+    // Cập nhật người đang xem hiển thị trạng thái đã chặn
+    standaloneContact.value = {
+      ...(standaloneContact.value?.id === targetId ? standaloneContact.value : contact),
+      isBlocked: true,
+      isFriend: false,
+      isPending: false,
     }
+    selectedContactId.value = targetId
+    await loadData()
+  } catch (err) {
+    console.error('Lỗi chặn người dùng:', err)
+    alert(err?.response?.data?.message || 'Không chặn được người này')
+  }
+}
+
+async function handleUnblock(contact) {
+  const targetId = contact?.id ?? contact?.userId
+  if (!targetId) return
+  try {
+    await unblockUser(targetId)
+    if (standaloneContact.value && standaloneContact.value.id === targetId) {
+      standaloneContact.value.isBlocked = false
+      standaloneContact.value.isFriend = false
+    }
+    await loadData()
   } catch (err) {
     console.error('Lỗi bỏ chặn:', err)
+    alert(err?.response?.data?.message || 'Không thể bỏ chặn người dùng này')
   }
 }
 
@@ -181,6 +212,7 @@ async function handleMessageContact(contact) {
         :selected-id="selectedContactId"
         @select="onSelectContact"
         @refresh="loadData"
+        @block="handleBlock"
       />
     </div>
 
@@ -208,6 +240,7 @@ async function handleMessageContact(contact) {
             @add-friend="handleAddFriend"
             @cancel-friend-request="handleCancelFriendRequest"
             @unblock="handleUnblock"
+            @block="handleBlock"
           />
           <p v-else-if="!loading && !errorMsg" class="state-msg">
             Bạn chưa có liên hệ nào. Bấm dấu + để thêm bạn bè.

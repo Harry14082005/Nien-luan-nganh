@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import AvatarUploadModal from '@/components/common/AvatarUploadModal.vue'
-import { uploadAvatar, getImageUrl } from '@/api/user.api'
+import { uploadAvatar, updateProfile, getImageUrl } from '@/api/user.api'
 
 const props = defineProps({
   user: {
@@ -91,39 +91,92 @@ async function handleAvatarSave(file) {
 
 // --- Profile edit modal ---
 const isEditing = ref(false)
+const isSaving = ref(false)
+const editError = ref('')
 
 const editForm = reactive({
-  displayName: '',
   username: '',
-  bio: '',
+  gender: 'MALE',
+  description: '',
+  preferredLanguage: 'vi',
 })
 
+function formatGender(val) {
+  if (!val) return 'Chưa cập nhật'
+  const upper = String(val).toUpperCase()
+  if (upper === 'MALE' || upper === 'NAM') return 'Nam'
+  if (upper === 'FEMALE' || upper === 'NU' || upper === 'NỮ') return 'Nữ'
+  if (upper === 'OTHER' || upper === 'KHAC' || upper === 'KHÁC') return 'Khác'
+  return val
+}
+
+function formatLanguage(val) {
+  if (!val || val === 'vi') return 'Tiếng Việt (vi)'
+  if (val === 'en') return 'English (en)'
+  return val
+}
+
 function openEditModal() {
-  editForm.displayName = props.user.displayName || ''
-  editForm.username = (props.user.username || '').replace(/^@/, '')
-  editForm.bio = props.user.bio || ''
+  editForm.username = (props.user.username || props.user.displayName || '').replace(/^@/, '')
+  editForm.gender = props.user.gender || 'MALE'
+  editForm.description = props.user.description || props.user.bio || ''
+  editForm.preferredLanguage = props.user.preferredLanguage || 'vi'
+  editError.value = ''
   isEditing.value = true
 }
 
 function closeEditModal() {
   isEditing.value = false
+  editError.value = ''
 }
 
-function handleSave() {
-  const updated = {
-    ...props.user,
-    displayName: editForm.displayName.trim() || props.user.displayName,
-    username: editForm.username.trim() || props.user.username,
-    bio: editForm.bio.trim(),
+async function handleSave() {
+  const username = editForm.username.trim()
+  if (!username || username.length < 2) {
+    editError.value = 'Tên người dùng phải có từ 2 đến 50 ký tự.'
+    return
   }
-  emit('save', updated)
-  isEditing.value = false
+
+  isSaving.value = true
+  editError.value = ''
+  try {
+    const payload = {
+      username,
+      gender: editForm.gender,
+      description: editForm.description.trim(),
+      preferredLanguage: editForm.preferredLanguage,
+      avatarUrl: props.user.avatar || '',
+    }
+    const updatedUser = await updateProfile(payload)
+
+    const updated = {
+      ...props.user,
+      ...updatedUser,
+      displayName: updatedUser.username || username,
+      username: updatedUser.username || username,
+      description: updatedUser.description ?? editForm.description.trim(),
+      bio: updatedUser.description ?? editForm.description.trim(),
+      gender: updatedUser.gender || editForm.gender,
+      preferredLanguage: updatedUser.preferredLanguage || editForm.preferredLanguage,
+    }
+    emit('save', updated)
+    isEditing.value = false
+  } catch (err) {
+    console.error('Lỗi khi cập nhật hồ sơ:', err)
+    editError.value = err?.response?.data?.message || 'Không thể cập nhật hồ sơ. Vui lòng thử lại.'
+  } finally {
+    isSaving.value = false
+  }
 }
 
 // Đồng bộ lại avatarSrc mỗi khi props.user.avatar thay đổi từ bên ngoài
-watch(() => props.user.avatar, (newAvatar) => {
-  avatarSrc.value = getImageUrl(newAvatar)
-}, { deep: true })
+watch(
+  () => props.user.avatar,
+  (newAvatar) => {
+    avatarSrc.value = getImageUrl(newAvatar)
+  },
+  { deep: true },
+)
 
 </script>
 
@@ -235,14 +288,14 @@ watch(() => props.user.avatar, (newAvatar) => {
       </div>
     </div>
 
-    <!-- Card 2: Thông tin cá nhân (đã bỏ mục Quyền riêng tư theo yêu cầu) -->
+    <!-- Card 2: Thông tin cá nhân -->
     <div class="profile-info-card">
       <div class="info-card-header">
         <h3>Thông tin cá nhân</h3>
       </div>
 
       <div class="info-list">
-        <!-- Tên hiển thị -->
+        <!-- Tên người dùng -->
         <div class="info-row">
           <div class="info-label-group">
             <svg
@@ -259,14 +312,14 @@ watch(() => props.user.avatar, (newAvatar) => {
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
-            <span class="info-label">Tên hiển thị</span>
+            <span class="info-label">Tên người dùng</span>
           </div>
-          <div class="info-value">{{ user.displayName }}</div>
+          <div class="info-value">@{{ (user.username || user.displayName || 'user').replace(/^@/, '') }}</div>
         </div>
 
         <div class="divider"></div>
 
-        <!-- Tên người dùng -->
+        <!-- Giới tính -->
         <div class="info-row">
           <div class="info-label-group">
             <svg
@@ -280,12 +333,65 @@ watch(() => props.user.avatar, (newAvatar) => {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <circle cx="12" cy="12" r="4" />
-              <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
             </svg>
-            <span class="info-label">Tên người dùng</span>
+            <span class="info-label">Giới tính</span>
           </div>
-          <div class="info-value">@{{ (user.username || 'hoangnam').replace(/^@/, '') }}</div>
+          <div class="info-value">{{ formatGender(user.gender) }}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Tiểu sử -->
+        <div class="info-row align-top">
+          <div class="info-label-group">
+            <svg
+              class="info-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            <span class="info-label">Tiểu sử</span>
+          </div>
+          <div class="info-value bio-text">{{ user.description || user.bio || 'Chưa cập nhật' }}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Ngôn ngữ ưa thích -->
+        <div class="info-row">
+          <div class="info-label-group">
+            <svg
+              class="info-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <span class="info-label">Ngôn ngữ ưa thích</span>
+          </div>
+          <div class="info-value">{{ formatLanguage(user.preferredLanguage) }}</div>
         </div>
       </div>
     </div>
@@ -311,18 +417,10 @@ watch(() => props.user.avatar, (newAvatar) => {
         </div>
 
         <div class="modal-body">
-          <div class="form-group">
-            <label>Tên hiển thị</label>
-            <input
-              v-model="editForm.displayName"
-              type="text"
-              placeholder="Nhập tên hiển thị"
-              spellcheck="false"
-            />
-          </div>
+          <div v-if="editError" class="modal-error-banner">{{ editError }}</div>
 
           <div class="form-group">
-            <label>Tên người dùng (Handle)</label>
+            <label>Tên người dùng (Username) <span class="required">*</span></label>
             <div class="input-handle-wrap">
               <span class="prefix">@</span>
               <input
@@ -330,24 +428,45 @@ watch(() => props.user.avatar, (newAvatar) => {
                 type="text"
                 placeholder="hoangnam"
                 spellcheck="false"
+                maxlength="50"
               />
             </div>
+            <span class="field-hint">Từ 2 đến 50 ký tự</span>
           </div>
 
           <div class="form-group">
-            <label>Tiểu sử</label>
+            <label>Giới tính</label>
+            <select v-model="editForm.gender" class="form-select">
+              <option value="MALE">Nam</option>
+              <option value="FEMALE">Nữ</option>
+              <option value="OTHER">Khác</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Tiểu sử (Bio)</label>
             <textarea
-              v-model="editForm.bio"
+              v-model="editForm.description"
               rows="3"
               placeholder="Viết một chút về bản thân bạn..."
               spellcheck="false"
             ></textarea>
           </div>
+
+          <div class="form-group">
+            <label>Ngôn ngữ ưa thích</label>
+            <select v-model="editForm.preferredLanguage" class="form-select">
+              <option value="vi">Tiếng Việt (vi)</option>
+              <option value="en">English (en)</option>
+            </select>
+          </div>
         </div>
 
         <div class="modal-footer">
-          <button class="btn-secondary" @click="closeEditModal">Hủy</button>
-          <button class="btn-primary" @click="handleSave">Lưu thay đổi</button>
+          <button class="btn-secondary" :disabled="isSaving" @click="closeEditModal">Hủy</button>
+          <button class="btn-primary" :disabled="isSaving" @click="handleSave">
+            {{ isSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
+          </button>
         </div>
       </div>
     </div>
@@ -684,7 +803,8 @@ watch(() => props.user.avatar, (newAvatar) => {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-select {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 10px 14px;
@@ -692,15 +812,57 @@ watch(() => props.user.avatar, (newAvatar) => {
   font-size: 14px;
   color: #1e293b;
   outline: none;
+  background-color: #ffffff;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-select:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.modal-error-banner {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background-color: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #fecaca;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.required {
+  color: #dc2626;
+}
+
+.align-top {
+  align-items: flex-start;
+}
+
+.bio-text {
+  max-width: 60%;
+  text-align: right;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .input-handle-wrap {
