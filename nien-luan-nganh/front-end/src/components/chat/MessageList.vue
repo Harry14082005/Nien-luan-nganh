@@ -118,7 +118,15 @@ const props = defineProps({
       }
 });
 
-const emit = defineEmits(['togglePin', 'editMessage', 'revokeMessage', 'viewHistory', 'replyMessage', 'scrollToMessage'])
+const emit = defineEmits([
+    'togglePin',
+    'editMessage',
+    'revokeMessage',
+    'viewHistory',
+    'replyMessage',
+    'scrollToMessage',
+    'preview-media'
+])
 
 const authStore = useAuthStore();
 const chatStore = useChatStore();
@@ -129,6 +137,7 @@ let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
 const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
 const editContent = ref(''); // Nội dung văn bản đang sửa
 const editTextareaRef = ref(null); // Ref tới ô textarea sửa
+const isMediaLoadError = ref(false); // Trạng thái ảnh/video load thất bại
 
 // Lưu trữ trạng thái dịch của tin nhắn này
 const translatedText = ref('');       // Nội dung đã dịch
@@ -542,7 +551,18 @@ onUnmounted(() => {
                     @click="emit('preview-media', { type: 'IMAGE', url: Content_Message })"
                 >
                     <div class="message-media-wrapper">
-                        <img :src="resolveFileUrl(Content_Message)" alt="Hình ảnh đính kèm" class="msg-media-img" />
+                        <!-- Fallback khi ảnh không load được -->
+                        <div v-if="isMediaLoadError" class="msg-media-fallback">
+                            <font-awesome-icon icon="image" class="msg-fallback-icon" />
+                            <span class="msg-fallback-text">Ảnh không tải được</span>
+                        </div>
+                        <img
+                            v-else
+                            :src="resolveFileUrl(Content_Message)"
+                            alt="Hình ảnh đính kèm"
+                            class="msg-media-img"
+                            @error="isMediaLoadError = true"
+                        />
                     </div>
                 </div>
 
@@ -552,8 +572,19 @@ onUnmounted(() => {
                     class="message message--media message--video-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                 >
-                    <div class="message-media-wrapper">
-                        <video :src="resolveFileUrl(Content_Message)" controls class="msg-media-video"></video>
+                    <div class="message-media-wrapper" @click="emit('preview-media', { type: 'VIDEO', url: Content_Message })">
+                        <!-- Fallback khi video không load được -->
+                        <div v-if="isMediaLoadError" class="msg-media-fallback">
+                            <font-awesome-icon icon="video" class="msg-fallback-icon" />
+                            <span class="msg-fallback-text">Video không tải được</span>
+                        </div>
+                        <video
+                            v-else
+                            :src="resolveFileUrl(Content_Message)"
+                            controls
+                            class="msg-media-video"
+                            @error="isMediaLoadError = true"
+                        ></video>
                     </div>
                 </div>
 
@@ -1632,6 +1663,31 @@ onUnmounted(() => {
     height: 100%;
     object-fit: contain; /* để hiển thị đầy đủ hình ảnh không bị cắt */
     display: block;
+}
+
+/* Fallback khi media load thất bại */
+.msg-media-fallback {
+    width: 180px;
+    height: 120px;
+    background-color: #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #94a3b8;
+    user-select: none;
+}
+
+.msg-fallback-icon {
+    font-size: 28px;
+    color: #94a3b8;
+}
+
+.msg-fallback-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
 }
 
 .message-file-standalone {

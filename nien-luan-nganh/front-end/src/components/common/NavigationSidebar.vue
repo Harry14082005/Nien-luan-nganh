@@ -128,7 +128,7 @@ function navigateTo(page, targetPath) {
       @keydown.enter="navigateTo('setting', '/settings')"
     >
       <img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="myInitials" class="account-avatar-img" />
-      <span v-else>{{ myInitials }}</span>
+      <span v-else class="account-avatar-initials">{{ myInitials }}</span>
     </div>
   </div>
 </template>
@@ -247,13 +247,16 @@ function navigateTo(page, targetPath) {
 }
 
 .account {
-  width: 65%;
-  margin-bottom: 10px;
-  /* background-color: #6ba3f5; */
-  background-color: #e6edfd;
-  padding: 2px;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 15px;
+  background-color: #294a86;
   border-radius: 0.9rem;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   transition:
     transform 0.15s ease,
     background-color 0.15s ease;
@@ -261,8 +264,8 @@ function navigateTo(page, targetPath) {
 }
 
 .account:hover {
-  background-color: #5392ee;
-  transform: scale(1.01);
+  background-color: #3b65b0;
+  transform: scale(1.03);
 }
 
 .account-avatar-img {
@@ -271,5 +274,19 @@ function navigateTo(page, targetPath) {
   border-radius: 0.9rem;
   object-fit: cover;
   display: block;
+}
+
+.account-avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border-radius: 0.9rem;
 }
 </style>

@@ -859,9 +859,132 @@ export const useChatStore = defineStore('chat', {
       })
     },
 
+    // 5.1 Cập nhật Avatar người dùng thời gian thực khi có sự kiện USER_AVATAR_UPDATED
+    updateUserAvatar(userId, newAvatarUrl) {
+      if (!userId || !newAvatarUrl) return
+      const targetId = String(userId).toLowerCase()
+
+      // Cập nhật avatar cho các phòng trực tiếp (DIRECT) của người này trong danh sách phòng
+      this.rooms = this.rooms.map((room) => {
+        if (room.roomType === 'DIRECT' && room.peerId && String(room.peerId).toLowerCase() === targetId) {
+          return {
+            ...room,
+            roomAvatarURL: newAvatarUrl,
+            avatarUrl: newAvatarUrl,
+            avatar: newAvatarUrl,
+          }
+        }
+        return room
+      })
+
+      // Nếu đang mở phòng trực tiếp với người này
+      if (
+        this.activeRoom &&
+        this.activeRoom.roomType === 'DIRECT' &&
+        this.activeRoom.peerId &&
+        String(this.activeRoom.peerId).toLowerCase() === targetId
+      ) {
+        this.activeRoom = {
+          ...this.activeRoom,
+          roomAvatarURL: newAvatarUrl,
+          avatarUrl: newAvatarUrl,
+          avatar: newAvatarUrl,
+        }
+      }
+
+      // Cập nhật avatar của sender trong danh sách tin nhắn hiện tại
+      this.messages = this.messages.map((msg) => {
+        if (msg.sender && String(msg.sender.userId).toLowerCase() === targetId) {
+          return {
+            ...msg,
+            sender: {
+              ...msg.sender,
+              avatarUrl: newAvatarUrl,
+              avatar: newAvatarUrl,
+            },
+          }
+        }
+        return msg
+      })
+    },
+
+    // 5.2 Cập nhật Avatar phòng thời gian thực khi có sự kiện ROOM_AVATAR_UPDATED
+    updateRoomAvatar(roomId, newAvatarUrl) {
+      if (!roomId || !newAvatarUrl) return
+      const targetRoomId = String(roomId).toLowerCase()
+
+      // Cập nhật trong danh sách rooms
+      this.rooms = this.rooms.map((room) => {
+        if (String(room.roomId || room.id).toLowerCase() === targetRoomId) {
+          return {
+            ...room,
+            roomAvatarURL: newAvatarUrl,
+            avatarUrl: newAvatarUrl,
+          }
+        }
+        return room
+      })
+
+      // Cập nhật trong activeRoom nếu đang mở phòng này
+      if (
+        this.activeRoom &&
+        String(this.activeRoom.roomId || this.activeRoom.id).toLowerCase() === targetRoomId
+      ) {
+        this.activeRoom = {
+          ...this.activeRoom,
+          roomAvatarURL: newAvatarUrl,
+          avatarUrl: newAvatarUrl,
+        }
+      }
+    },
+
+    // 5.3 Cập nhật Tên phòng thời gian thực khi có sự kiện ROOM_NAME_UPDATED
+    updateRoomName(roomId, newRoomName) {
+      if (!roomId || !newRoomName) return
+      const targetRoomId = String(roomId).toLowerCase()
+
+      // Cập nhật trong danh sách rooms
+      this.rooms = this.rooms.map((room) => {
+        if (String(room.roomId || room.id).toLowerCase() === targetRoomId) {
+          return {
+            ...room,
+            roomName: newRoomName,
+            name: newRoomName,
+          }
+        }
+        return room
+      })
+
+      // Cập nhật trong activeRoom nếu đang mở phòng này
+      if (
+        this.activeRoom &&
+        String(this.activeRoom.roomId || this.activeRoom.id).toLowerCase() === targetRoomId
+      ) {
+        this.activeRoom = {
+          ...this.activeRoom,
+          roomName: newRoomName,
+          name: newRoomName,
+        }
+      }
+    },
+
     // 6. Nhận tin nhắn mới -> Cập nhật khung chat + Cập nhật Sidebar trái & Đưa phòng lên đầu
     handleNewMessage(message) {
-      if (!message || !message.roomId) return
+      if (!message) return
+
+      // Xử lý gói tin broadcast cập nhật avatar phòng
+      if (message.type === 'ROOM_AVATAR_UPDATED' && message.roomId) {
+        this.updateRoomAvatar(message.roomId, message.roomAvatarURL)
+        return
+      }
+
+      // Xử lý gói tin broadcast cập nhật tên phòng
+      if (message.type === 'ROOM_NAME_UPDATED' && message.roomId) {
+        this.updateRoomName(message.roomId, message.roomName)
+        return
+      }
+
+      if (!message.roomId) return
 
       // Bỏ qua tin nhắn log mốc thời gian dạng SYSTEM cũ nếu còn sót lại (FE tự render mốc giờ)
       if (message.messageType === 'SYSTEM' && /^\d{1,2}:\d{2}/.test(String(message.content || '').trim())) {

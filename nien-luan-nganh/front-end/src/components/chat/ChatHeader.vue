@@ -1,10 +1,16 @@
 <script setup>
 import { computed } from 'vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
+import { resolveFileUrl } from '@/api/storage.api'
 
 const props = defineProps({
     RoomName:{
         type:String,
         default:'Tên nhóm'
+    },
+    avatarUrl: {
+        type: String,
+        default: ''
     },
     StatusRoom:{
         type:String,
@@ -40,7 +46,13 @@ const getInitials = (name) => {
 <template>
 <div class="chatheader">
     <div class="left-header">
-    <div class="AvatarRoom">{{ getInitials(RoomName) }}</div>
+    <div class="header-avatar-box">
+        <UserAvatar
+            :name="RoomName"
+            :src="resolveFileUrl(avatarUrl)"
+            :size="40"
+        />
+    </div>
     <div class="info-group">
         <div class="RoomName">{{ RoomName }}</div>
         <div class="status-wrap">
@@ -70,20 +82,11 @@ const getInitials = (name) => {
 </template>
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
-.AvatarRoom{
+.header-avatar-box {
     display: flex;
-    font-family:"Quicksand", sans-serif; 
-    font-size: 100%;
-    font-weight:600;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background-color:rgb(233, 228, 255);
-    color: rgb(115, 104, 210);
-    align-self: center;
-    align-content: center;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 .chatheader{
     display: flex;

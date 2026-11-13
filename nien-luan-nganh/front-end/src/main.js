@@ -51,7 +51,8 @@ import {
   faUnlock,
   faUserMinus,
   faAddressBook,
-  faLanguage
+  faLanguage,
+  faCamera
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
   faHouse,
@@ -97,7 +98,8 @@ library.add(
   faUnlock,
   faUserMinus,
   faAddressBook,
-  faLanguage
+  faLanguage,
+  faCamera
 )
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return

@@ -6,6 +6,7 @@ import SearchBar from '../common/SearchBar.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { initGlobalWebSocket } from '@/services/websocket'
+import { resolveFileUrl } from '@/api/storage.api'
 
 defineProps({
   Label: {
@@ -122,16 +123,29 @@ function getLastMessageText(room) {
 
   // 2. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim (SYSTEM Message hoặc Preview)
   const content = room.lastMessageContent || ''
-  if (content.includes('ghim') || content.includes('gỡ')) {
-    const myUsername = authStore.user?.username
-    const senderName = room.lastMessageSenderName
-    const isMyAction =
-      senderName === 'Bạn' ||
-      (myUsername && (senderName === myUsername || content.startsWith(myUsername)))
+  const myUsername = authStore.user?.username
+  const senderName = room.lastMessageSenderName
+  const isMyAction =
+    senderName === 'Bạn' ||
+    (myUsername && (senderName === myUsername || content.startsWith(myUsername)))
 
+  // 2.1 Tin nhắn hệ thống: Đổi tên nhóm
+  if (content.includes('đã đổi tên nhóm thành')) {
+    if (isMyAction) {
+      return myUsername ? content.replace(new RegExp('^' + myUsername), 'Bạn') : content
+    }
+    return content
+  }
+
+  // 2.2 Tin nhắn hệ thống: Đổi avatar nhóm
+  if (content.includes('đã thay đổi ảnh đại diện nhóm')) {
+    return isMyAction ? 'Bạn đã thay đổi ảnh đại diện nhóm' : content
+  }
+
+  // 2.3 Tin nhắn hệ thống: Ghim hoặc Bỏ ghim tin nhắn
+  if (content.includes('ghim') || content.includes('gỡ') || content.includes('bỏ ghim')) {
     let sender = isMyAction ? 'Bạn' : senderName
     if (!sender || sender === 'Thành viên') {
-      // Nếu senderName chưa có, trích xuất từ nội dung "Username đã ghim..."
       const firstWord = content.split(' ')[0]
       sender =
         firstWord && !firstWord.includes('đã') && !firstWord.includes('ghim')
@@ -143,25 +157,10 @@ function getLastMessageText(room) {
     return `${sender} ${isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'}`
   }
 
-  // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim
-  if (
-    room.lastMessageContent &&
-    (room.lastMessageContent.includes('ghim') || room.lastMessageContent.includes('gỡ'))
-  ) {
-    const isMyAction =
-      (authStore.user?.username && room.lastMessageSenderName === authStore.user.username) ||
-      room.lastMessageSenderName === 'Bạn'
-    const sender = isMyAction ? 'Bạn' : room.lastMessageSenderName || 'Thành viên'
-    const actionText =
-      room.lastMessageContent.includes('bỏ') || room.lastMessageContent.includes('gỡ')
-        ? 'đã bỏ ghim 1 tin nhắn'
-        : 'đã ghim 1 tin nhắn'
-    return `${sender}: ${actionText}`
-  }
-
-  // 4. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
+  // 3. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
   if (room.lastMessageSenderName) {
-    return `${room.lastMessageSenderName}: ${room.lastMessageContent}`
+    const sender = isMyAction ? 'Bạn' : room.lastMessageSenderName
+    return `${sender}: ${room.lastMessageContent}`
   }
   return room.lastMessageContent
 }
@@ -239,7 +238,7 @@ const displayRooms = computed(() => {
         v-for="c in displayRooms"
         :key="c.roomId"
         :name="c.roomName || 'Cuộc trò chuyện'"
-        :avatar="c.roomAvatarURL || ''"
+        :avatar="resolveFileUrl(c.roomAvatarURL || c.avatarUrl || '')"
         :last-message="getLastMessageText(c)"
         :time="formatTime(c.lastMessageAt)"
         :unread="c.unreadCount || 0"

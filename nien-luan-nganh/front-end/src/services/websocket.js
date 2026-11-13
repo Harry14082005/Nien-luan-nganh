@@ -301,12 +301,16 @@ export function initGlobalWebSocket(token) {
   wsService.connect(token, () => {
     const chatStore = useChatStore()
 
-    // 1. Lắng nghe trạng thái Online / Offline của bạn bè từ Broker: /topic/users.presence
+    // 1. Lắng nghe trạng thái Online / Offline & Cập nhật Avatar của bạn bè từ Broker: /topic/users.presence
     wsService.subscribe('/topic/users.presence', (presenceEvent) => {
-      console.log('📡 [Event Online/Offline]:', presenceEvent)
+      console.log('📡 [Event Presence/User]:', presenceEvent)
       if (presenceEvent && presenceEvent.userId) {
-        const isOnline = presenceEvent.isOnline ?? presenceEvent.online ?? false
-        chatStore.updatePresence(presenceEvent.userId, isOnline, presenceEvent.lastSeenAt)
+        if (presenceEvent.type === 'USER_AVATAR_UPDATED' && presenceEvent.avatarUrl) {
+          chatStore.updateUserAvatar(presenceEvent.userId, presenceEvent.avatarUrl)
+        } else {
+          const isOnline = presenceEvent.isOnline ?? presenceEvent.online ?? false
+          chatStore.updatePresence(presenceEvent.userId, isOnline, presenceEvent.lastSeenAt)
+        }
       }
     })
 

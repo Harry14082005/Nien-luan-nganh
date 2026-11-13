@@ -23,6 +23,7 @@ import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
 import AddMemberModal from '@/components/chat/AddMemberModal.vue'
+import MediaLightboxModal from '@/components/chat/MediaLightboxModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
 import { resolveFileUrl } from '@/api/storage.api';
@@ -50,6 +51,45 @@ const isInfoSidebarOpen = ref(false)
 const currentRoomMembers = ref([])
 const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
+
+// Quản lý trình xem ảnh / video toàn màn hình (Media Lightbox)
+const showMediaLightbox = ref(false)
+const lightboxMediaList = ref([])
+const lightboxInitialIndex = ref(0)
+
+/**
+ * Mở xem ảnh / video toàn màn hình
+ * @param {object} targetMedia { type: 'IMAGE'|'VIDEO', url: string }
+ */
+const handleOpenMediaPreview = (targetMedia) => {
+  if (!targetMedia || !targetMedia.url) return
+
+  // Gom toàn bộ ảnh và video trong phòng thành danh sách xem liên tục
+  const allMedia = [
+    ...(roomMediaData.value?.images || []),
+    ...(roomMediaData.value?.videos || []),
+  ]
+
+  // Tìm index của file được click
+  const targetUrl = targetMedia.url
+  let foundIdx = allMedia.findIndex(
+    (m) => m.url === targetUrl || m.content === targetUrl
+  )
+
+  if (foundIdx === -1) {
+    // Nếu chưa có trong danh sách tổng hợp (ví dụ vừa gửi xong), tạo 1 item tạm
+    allMedia.unshift({
+      url: targetUrl,
+      type: targetMedia.type || 'IMAGE',
+      name: 'Phương tiện',
+    })
+    foundIdx = 0
+  }
+
+  lightboxMediaList.value = allMedia
+  lightboxInitialIndex.value = foundIdx
+  showMediaLightbox.value = true
+}
 
 const handleMemberAdded = () => {
   fetchCurrentRoomMembers()
@@ -539,6 +579,12 @@ const formatSystemMessageContent = (msg) => {
     if (content.includes('ghim')) {
       return 'Bạn đã ghim một tin nhắn'
     }
+    if (content.includes('đã đổi tên nhóm thành')) {
+      return content.replace(new RegExp('^' + (myUsername || '')), 'Bạn')
+    }
+    if (content.includes('đã thay đổi ảnh đại diện nhóm')) {
+      return 'Bạn đã thay đổi ảnh đại diện nhóm'
+    }
   }
   return content
 }
@@ -828,6 +874,7 @@ watch(
       <div class="chat-main-area">
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
+          :avatarUrl="chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl"
           :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
           :isOnline="chatStore.activeRoom?.roomType !== 'GROUP' && Boolean(chatStore.activeRoom?.isOnline)"
           :isSearching="showSearchBar"
@@ -923,6 +970,7 @@ watch(
               @viewHistory="handleViewHistory"
               @replyMessage="handleReplyMessage"
               @scrollToMessage="handleScrollToMessage"
+              @preview-media="handleOpenMediaPreview"
             />
           </template>
 
@@ -980,6 +1028,7 @@ watch(
           @close="isInfoSidebarOpen = false"
           @toggle-notification="handleMuteNotification"
           @add-member="showAddMemberModal = true"
+          @preview-media="handleOpenMediaPreview"
         />
       </Transition>
     </div>
@@ -1001,6 +1050,14 @@ watch(
     :currentContent="historyCurrentContent"
     :senderName="historySenderName"
     @close="showHistoryModal = false"
+  />
+
+  <!-- Trình xem ảnh / video toàn màn hình (Media Lightbox) -->
+  <MediaLightboxModal
+    :show="showMediaLightbox"
+    :mediaList="lightboxMediaList"
+    :initialIndex="lightboxInitialIndex"
+    @close="showMediaLightbox = false"
   />
 </template>
 <style scoped>

@@ -52,3 +52,27 @@ export const addRoomMembers = (roomId, memberIds) => {
   return http.post(`/rooms/${roomId}/members`, { memberIds }).then((res) => res.data?.data ?? res.data)
 }
 
+/**
+ * Cập nhật avatar của phòng / nhóm chat.
+ * Backend: POST /api/v1/rooms/{roomId}/avatar — FormData: file
+ * @param {string} roomId
+ * @param {File} file
+ */
+export const uploadRoomAvatar = (roomId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post(`/rooms/${roomId}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Cập nhật tên của phòng / nhóm chat.
+ * Backend: PUT /api/v1/rooms/{roomId}/name — Body: { roomName }
+ * @param {string} roomId
+ * @param {string} roomName
+ */
+export const updateRoomName = (roomId, roomName) => {
+  return http.put(`/rooms/${roomId}/name`, { roomName }).then((res) => res.data?.data ?? res.data)
+}
+

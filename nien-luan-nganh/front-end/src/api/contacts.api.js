@@ -1,4 +1,5 @@
 import { http } from './http'
+import { resolveFileUrl } from './storage.api'
 
 export const getFriends = ({ page = 0, size = 100 } = {}) =>
   http.get('/friendships', { params: { status: 'ACCEPTED', page, size } }).then((r) => r.data.data)
@@ -77,7 +78,7 @@ export function toContact(friendship) {
     friendshipId: friendship.friendshipId,
     name: u.username,
     role: u.email || u.phoneNumber || '', // API không có chức danh nghề nghiệp
-    avatar: u.avatarUrl || '',
+    avatar: resolveFileUrl(u.avatarUrl || ''),
     online,
     statusText: online ? 'Đang hoạt động' : formatLastSeen(u.lastSeenAt),
     bio: u.description || '',

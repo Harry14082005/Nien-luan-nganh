@@ -32,12 +32,88 @@
       <div v-if="currentView === 'INFO'" class="sidebar-scroll-content">
         <!-- 2.1 AVATAR & TÊN PHÒNG -->
         <div class="room-profile-section">
-          <UserAvatar
-            :name="displayRoomName"
-            :src="resolveFileUrl(displayRoomAvatar)"
-            :size="72"
+          <!-- Wrapper avatar: Nếu là phòng nhóm (GROUP) thì cho phép click chọn file ảnh đổi avatar -->
+          <div
+            class="room-avatar-wrapper"
+            :class="{ 'room-avatar-clickable': isGroupRoom }"
+            :title="isGroupRoom ? 'Nhấp để đổi ảnh đại diện nhóm' : ''"
+            @click="handleAvatarClick"
+          >
+            <UserAvatar
+              :name="displayRoomName"
+              :src="resolveFileUrl(displayRoomAvatar)"
+              :size="72"
+            />
+            <!-- Overlay icon máy ảnh khi hover vào avatar nhóm -->
+            <div v-if="isGroupRoom" class="room-avatar-overlay">
+              <font-awesome-icon icon="camera" class="overlay-cam-icon" />
+            </div>
+          </div>
+
+          <!-- Hidden File Input chọn ảnh đổi avatar nhóm -->
+          <input
+            v-if="isGroupRoom"
+            ref="groupAvatarInputRef"
+            type="file"
+            accept="image/*"
+            style="display: none"
+            @change="onGroupAvatarFileSelected"
           />
-          <h4 class="room-title">{{ displayRoomName }}</h4>
+
+          <!-- Tên phòng & Trạng thái chỉnh sửa tên nhóm -->
+          <div v-if="!isEditingRoomName" class="room-title-row">
+            <h4
+              class="room-title"
+              :class="{ 'room-title-interactive': isGroupRoom }"
+              :title="isGroupRoom ? 'Nhấp đúp hoặc nhấp icon để đổi tên nhóm' : ''"
+              @dblclick="startEditRoomName"
+            >
+              {{ displayRoomName }}
+            </h4>
+            <button
+              v-if="isGroupRoom"
+              type="button"
+              class="btn-edit-room-name"
+              title="Chỉnh sửa tên nhóm"
+              @click="startEditRoomName"
+            >
+              <font-awesome-icon icon="pen" />
+            </button>
+          </div>
+
+          <!-- Trạng thái Đang chỉnh sửa inline (như chỉnh sửa tin nhắn) -->
+          <div v-else class="room-title-edit-box">
+            <input
+              ref="editRoomNameInputRef"
+              v-model="editRoomNameValue"
+              type="text"
+              class="room-name-inline-input"
+              maxlength="100"
+              placeholder="Nhập tên nhóm mới..."
+              @keydown.enter.prevent="saveEditRoomName"
+              @keydown.esc="cancelEditRoomName"
+            />
+            <div class="edit-btn-group">
+              <button
+                type="button"
+                class="edit-mini-btn btn-save"
+                title="Lưu (Enter)"
+                :disabled="isSavingRoomName"
+                @click="saveEditRoomName"
+              >
+                <font-awesome-icon icon="check" />
+              </button>
+              <button
+                type="button"
+                class="edit-mini-btn btn-cancel"
+                title="Hủy (Esc)"
+                :disabled="isSavingRoomName"
+                @click="cancelEditRoomName"
+              >
+                <font-awesome-icon icon="x" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 2.2 BẬT / TẮT THÔNG BÁO -->
@@ -186,9 +262,18 @@
                       class="media-thumbnail-card"
                       @click="openMediaPreview(item)"
                     >
-                      <img v-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'" :src="resolveFileUrl(item.url)" alt="media" />
+                      <!-- Fallback khi ảnh/video lỗi không load được -->
+                      <div v-if="isMediaFailed(item)" class="media-fallback-box">
+                        <font-awesome-icon :icon="item.type === 'VIDEO' || currentMediaTab === 'VIDEO' ? 'video' : 'image'" class="media-fallback-icon" />
+                      </div>
+                      <img
+                        v-else-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'"
+                        :src="resolveFileUrl(item.url)"
+                        alt=""
+                        @error="handleMediaError(item)"
+                      />
                       <div v-else class="video-preview-wrapper">
-                        <video :src="resolveFileUrl(item.url)" muted></video>
+                        <video :src="resolveFileUrl(item.url)" muted @error="handleMediaError(item)"></video>
                         <span class="play-overlay-icon">
                           <font-awesome-icon icon="play" />
                         </span>
@@ -291,9 +376,18 @@
               class="media-thumbnail-card"
               @click="openMediaPreview(item)"
             >
-              <img v-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'" :src="resolveFileUrl(item.url)" alt="media" />
+              <!-- Fallback khi ảnh/video lỗi không load được -->
+              <div v-if="isMediaFailed(item)" class="media-fallback-box">
+                <font-awesome-icon :icon="item.type === 'VIDEO' || currentMediaTab === 'VIDEO' ? 'video' : 'image'" class="media-fallback-icon" />
+              </div>
+              <img
+                v-else-if="item.type === 'IMAGE' || currentMediaTab === 'IMAGE'"
+                :src="resolveFileUrl(item.url)"
+                alt=""
+                @error="handleMediaError(item)"
+              />
               <div v-else class="video-preview-wrapper">
-                <video :src="resolveFileUrl(item.url)" muted></video>
+                <video :src="resolveFileUrl(item.url)" muted @error="handleMediaError(item)"></video>
                 <span class="play-overlay-icon">
                   <font-awesome-icon icon="play" />
                 </span>
@@ -418,17 +512,27 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 4. MODAL CẮT VÀ TẢI LÊN AVATAR NHÓM -->
+    <AvatarUploadModal
+      v-if="showGroupAvatarCropModal"
+      :file="selectedGroupAvatarFile"
+      @save="handleSaveGroupAvatar"
+      @cancel="handleCancelGroupAvatarCrop"
+    />
   </aside>
 </template>
 
 <script setup>
 import { resolveFileUrl } from '@/api/storage.api';
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import UserAvatar from '@/components/common/UserAvatar.vue';
+import AvatarUploadModal from '@/components/common/AvatarUploadModal.vue';
 import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue';
 import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
+import { uploadRoomAvatar, updateRoomName } from '@/api/room.api';
 import {
   getFriends,
   getPendingFriendships,
@@ -486,6 +590,110 @@ const isGroupRoom = computed(() => {
   return props.room?.roomType === 'GROUP';
 });
 
+// ==========================================
+// ĐỔI AVATAR PHÒNG NHÓM (GROUP AVATAR UPLOAD)
+// ==========================================
+const groupAvatarInputRef = ref(null);
+const selectedGroupAvatarFile = ref(null);
+const showGroupAvatarCropModal = ref(false);
+const isUploadingGroupAvatar = ref(false);
+
+const handleAvatarClick = () => {
+  if (!isGroupRoom.value) return;
+  // Kích hoạt dialog chọn file của hệ thống
+  groupAvatarInputRef.value?.click();
+};
+
+const onGroupAvatarFileSelected = (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Vui lòng chọn file hình ảnh hợp lệ.');
+    e.target.value = '';
+    return;
+  }
+  selectedGroupAvatarFile.value = file;
+  showGroupAvatarCropModal.value = true;
+  // Reset input để người dùng có thể chọn lại cùng 1 file nếu cần
+  e.target.value = '';
+};
+
+const handleCancelGroupAvatarCrop = () => {
+  showGroupAvatarCropModal.value = false;
+  selectedGroupAvatarFile.value = null;
+};
+
+const handleSaveGroupAvatar = async (croppedFile) => {
+  const roomId = props.room?.roomId || props.room?.id || chatStore.activeRoomId;
+  if (!roomId || !croppedFile) return;
+
+  isUploadingGroupAvatar.value = true;
+  try {
+    const res = await uploadRoomAvatar(roomId, croppedFile);
+    // Backend trả về URL avatar mới (res.roomAvatarURL || res.avatarUrl || res)
+    const newAvatarUrl = res?.roomAvatarURL || res?.avatarUrl || res;
+    if (newAvatarUrl) {
+      chatStore.updateRoomAvatar(roomId, newAvatarUrl);
+    }
+    showGroupAvatarCropModal.value = false;
+    selectedGroupAvatarFile.value = null;
+  } catch (error) {
+    console.error('Lỗi tải lên avatar nhóm:', error);
+    alert('Không thể cập nhật ảnh nhóm. Vui lòng thử lại.');
+  } finally {
+    isUploadingGroupAvatar.value = false;
+  }
+};
+
+// ==========================================
+// CHỈNH SỬA TÊN PHÒNG NHÓM (RENAME GROUP)
+// ==========================================
+const isEditingRoomName = ref(false);
+const editRoomNameValue = ref('');
+const editRoomNameInputRef = ref(null);
+const isSavingRoomName = ref(false);
+
+const startEditRoomName = async () => {
+  if (!isGroupRoom.value) return;
+  editRoomNameValue.value = displayRoomName.value;
+  isEditingRoomName.value = true;
+  await nextTick();
+  editRoomNameInputRef.value?.focus();
+  editRoomNameInputRef.value?.select();
+};
+
+const cancelEditRoomName = () => {
+  isEditingRoomName.value = false;
+  editRoomNameValue.value = '';
+};
+
+const saveEditRoomName = async () => {
+  const roomId = props.room?.roomId || props.room?.id || chatStore.activeRoomId;
+  const trimmed = editRoomNameValue.value.trim();
+
+  if (!trimmed) {
+    alert('Tên nhóm không được để trống.');
+    return;
+  }
+  if (trimmed === displayRoomName.value) {
+    isEditingRoomName.value = false;
+    return;
+  }
+  if (!roomId) return;
+
+  isSavingRoomName.value = true;
+  try {
+    await updateRoomName(roomId, trimmed);
+    chatStore.updateRoomName(roomId, trimmed);
+    isEditingRoomName.value = false;
+  } catch (error) {
+    console.error('Lỗi đổi tên nhóm:', error);
+    alert('Không thể đổi tên nhóm. Vui lòng thử lại.');
+  } finally {
+    isSavingRoomName.value = false;
+  }
+};
+
 // State quản lý Accordion
 const isMembersExpanded = ref(true);
 const isMediaExpanded = ref(true);
@@ -529,6 +737,19 @@ const currentTabMediaList = computed(() => {
 const handleToggleNotification = (e) => {
   isNotificationMuted.value = !e.target.checked;
   emit('toggle-notification', isNotificationMuted.value);
+};
+
+// Quản lý các ảnh/video bị lỗi không load được
+const failedMediaUrls = ref(new Set());
+const handleMediaError = (item) => {
+  const key = item.id || item.url;
+  if (key) {
+    failedMediaUrls.value.add(key);
+  }
+};
+const isMediaFailed = (item) => {
+  const key = item.id || item.url;
+  return key ? failedMediaUrls.value.has(key) : false;
 };
 
 const openMediaPreview = (item) => {
@@ -912,12 +1133,161 @@ const handleDirectMessageWithMember = async (contact) => {
   text-align: center;
 }
 
+.room-avatar-wrapper {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.room-avatar-clickable {
+  cursor: pointer;
+}
+
+.room-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.room-avatar-clickable:hover .room-avatar-overlay {
+  opacity: 1;
+}
+
+.overlay-cam-icon {
+  color: #ffffff;
+  font-size: 22px;
+}
+
+.room-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 0 4px;
+}
+
 .room-title {
-  margin: 8px 0 2px;
+  margin: 0;
   font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100% - 36px);
+}
+
+.room-title-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.btn-edit-room-name {
+  background: none;
+  border: none;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-edit-room-name:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+}
+
+/* Inline Edit Box */
+.room-title-edit-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 240px;
+  margin-top: 8px;
+}
+
+.room-name-inline-input {
+  flex: 1;
+  padding: 5px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 6px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.room-name-inline-input:focus {
+  border-color: #2563eb;
+}
+
+.edit-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.edit-mini-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-mini-btn.btn-save {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.edit-mini-btn.btn-save:hover {
+  background-color: #1d4ed8;
+  transform: scale(1.1);
+}
+
+.edit-mini-btn.btn-cancel {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: #64748b;
+}
+
+.edit-mini-btn.btn-cancel:hover {
+  background-color: rgba(0, 0, 0, 0.15);
+  color: #1e293b;
+  transform: scale(1.1);
+}
+
+.edit-mini-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* 3. Notification Setting */
@@ -1240,6 +1610,21 @@ input:checked + .slider:before {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Fallback khi ảnh/video trong ChatInfoSidebar không tải được */
+.media-fallback-box {
+  width: 100%;
+  height: 100%;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-fallback-icon {
+  font-size: 20px;
+  color: #94a3b8;
 }
 
 .video-preview-wrapper {

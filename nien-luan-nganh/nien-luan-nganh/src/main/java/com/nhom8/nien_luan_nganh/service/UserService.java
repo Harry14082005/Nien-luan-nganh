@@ -49,6 +49,9 @@ public class UserService {
     @Autowired
     private FileStorageService fileStorageService;
 
+    @Autowired
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     /**
      * Nghiệp vụ 1: Lấy thông tin hồ sơ của chính người dùng đang đăng nhập.
      *
@@ -263,7 +266,16 @@ public class UserService {
                 fileStorageService.deleteFile(oldAvatarKey);
             }
 
-            return userMapper.toUserResponse(savedUser);
+            UserResponse userResponse = userMapper.toUserResponse(savedUser);
+
+            // Phát sóng realtime thông báo avatar người dùng đã cập nhật
+            java.util.Map<String, Object> wsPayload = new java.util.HashMap<>();
+            wsPayload.put("type", "USER_AVATAR_UPDATED");
+            wsPayload.put("userId", currentUserId.toString());
+            wsPayload.put("avatarUrl", newAvatarKey);
+            eventPublisher.publishEvent(new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/users.presence", wsPayload));
+
+            return userResponse;
 
         } catch (RuntimeException exception) {
             // Nếu lưu avatar mới thành công nhưng cập nhật DB thất bại,

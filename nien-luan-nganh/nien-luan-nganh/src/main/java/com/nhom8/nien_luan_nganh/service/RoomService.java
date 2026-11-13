@@ -12,6 +12,9 @@ import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
+import com.nhom8.nien_luan_nganh.entity.Message;
+import com.nhom8.nien_luan_nganh.enums.MessageType;
+import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
 import com.nhom8.nien_luan_nganh.mapper.RoomMapper;
 import com.nhom8.nien_luan_nganh.repository.MessageRepository;
 import com.nhom8.nien_luan_nganh.repository.PollRepository;
@@ -37,12 +40,15 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final RoomMapper roomMapper;
+    private final MessageMapper messageMapper;
     private final RoomMemberService roomMemberService;
     private final RoomMemberRepository roomMemberRepository;
     private final MessageRepository messageRepository;
     private final PollRepository pollRepository;
     private final ReminderRepository reminderRepository;
     private final UserPresenceService userPresenceService;
+    private final FileStorageService fileStorageService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     // tạo group
     @Transactional
@@ -167,7 +173,8 @@ public class RoomService {
             if (room.getRoomType() == RoomType.DIRECT) {
                 User peer = peerUserByRoomId.get(roomId);
                 if (peer != null) {
-                    //Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan online hong
+                    // Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan
+                    // online hong
                     item.setPeerId(peer.getUserId());
                     boolean online = userPresenceService.isUserOnline(peer.getUserId());
                     item.setIsOnline(online);
@@ -296,6 +303,152 @@ public class RoomService {
                 }
             }
         }
+        return response;
+    }
+
+    /**
+     * Cập nhật ảnh đại diện của phòng / nhóm chat
+     */
+    @Transactional
+    public RoomDetailResponse updateRoomAvatar(UUID roomId, UUID currentUserId,
+            org.springframework.web.multipart.MultipartFile file) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 1. Kiểm tra người dùng có phải thành viên của phòng không
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                roomId);
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        // NOTE: tạm thời cho phép thành viên Active đổi avatar nhóm.
+        // Khi cần quyền Admin, uncomment đoạn sau:
+        /*
+         * RoomMember member =
+         * roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(
+         * currentUserId, roomId)
+         * .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+         * if (member.getRole() != RoomRole.ADMIN) {
+         * throw new AppException(ErrorCode.UNAUTHORIZED);
+         * }
+         */
+
+        // 2. Lưu ảnh avatar mới thông qua FileStorageService đã có
+        String newAvatarKey = fileStorageService.saveAvatar(file);
+        room.setRoomAvatarURL(newAvatarKey);
+        room.setUpdatedAt(LocalDateTime.now());
+        roomRepository.save(room);
+
+        // 3. Tạo tin nhắn hệ thống (SYSTEM Message) thông báo đổi ảnh nhóm
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        String systemContent = currentUser.getUsername() + " đã thay đổi ảnh đại diện nhóm";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        // Cập nhật hoạt động mới nhất của phòng
+        updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
+
+        RoomDetailResponse response = roomMapper.toRoomDetailResponse(room);
+
+        // 4. Phát sóng realtime tin nhắn hệ thống tới topic phòng
+        eventPublisher.publishEvent(
+                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId,
+                        messageMapper.toMessageResponse(savedSystemMessage)));
+
+        // 5. Phát sóng realtime cập nhật avatar phòng tới toàn bộ thành viên
+        Map<String, Object> wsPayload = new HashMap<>();
+        wsPayload.put("type", "ROOM_AVATAR_UPDATED");
+        wsPayload.put("roomId", roomId.toString());
+        wsPayload.put("roomAvatarURL", newAvatarKey);
+        eventPublisher.publishEvent(
+                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId, wsPayload));
+
+        return response;
+    }
+
+    /**
+     * Cập nhật tên phòng / nhóm chat
+     */
+    @Transactional
+    public RoomDetailResponse updateRoomName(UUID roomId, UUID currentUserId, String newRoomName) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 1. Kiểm tra người dùng có phải thành viên của phòng không
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                roomId);
+        if (!isMember) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        // NOTE: Tạm thời cho phép thành viên Active đổi tên nhóm.
+        // Khi cần kiểm tra quyền Admin, uncomment đoạn sau:
+        /*
+         * RoomMember member =
+         * roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(
+         * currentUserId, roomId)
+         * .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+         * if (member.getRole() != RoomRole.ADMIN) {
+         * throw new AppException(ErrorCode.UNAUTHORIZED);
+         * }
+         */
+
+        String trimmedName = newRoomName != null ? newRoomName.trim() : "";
+        if (trimmedName.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        room.setRoomName(trimmedName);
+        room.setUpdatedAt(LocalDateTime.now());
+        roomRepository.save(room);
+
+        // 2. Tạo tin nhắn hệ thống (SYSTEM Message) thông báo đổi tên nhóm
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        String systemContent = currentUser.getUsername() + " đã đổi tên nhóm thành \"" + trimmedName + "\"";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        // Cập nhật hoạt động mới nhất của phòng
+        updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
+
+        RoomDetailResponse response = roomMapper.toRoomDetailResponse(room);
+
+        // 3. Phát sóng realtime tin nhắn hệ thống tới topic phòng
+        eventPublisher.publishEvent(
+                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId,
+                        messageMapper.toMessageResponse(savedSystemMessage)));
+
+        // 4. Phát sóng realtime cập nhật tên phòng tới toàn bộ thành viên
+        Map<String, Object> wsPayload = new HashMap<>();
+        wsPayload.put("type", "ROOM_NAME_UPDATED");
+        wsPayload.put("roomId", roomId.toString());
+        wsPayload.put("roomName", trimmedName);
+        eventPublisher.publishEvent(
+                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId, wsPayload));
+
         return response;
     }
 }

@@ -23,6 +23,8 @@ const route = useRoute()
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ContactList from '@/components/contacts/ContactList.vue'
 import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
+import { resolveFileUrl } from '@/api/storage.api'
 
 const contacts = ref([])
 const standaloneContact = ref(null)
@@ -72,7 +74,7 @@ async function loadData() {
               friendshipId: rel?.friendshipId || null,
               name: u.username,
               role: u.email || u.phoneNumber || 'Người dùng',
-              avatar: u.avatarUrl || '',
+              avatar: resolveFileUrl(u.avatarUrl || ''),
               online: false,
               statusText: 'Ngoại tuyến',
               bio: u.description || '',
@@ -221,7 +223,7 @@ async function handleMessageContact(contact) {
       <!-- Header / Topbar -->
       <div class="contacts-topbar">
         <div class="topbar-actions">
-          <div class="user-avatar-badge">{{ myInitials }}</div>
+          <UserAvatar :name="me?.username || 'User'" :src="resolveFileUrl(me?.avatarUrl)" :size="38" />
         </div>
       </div>
 
