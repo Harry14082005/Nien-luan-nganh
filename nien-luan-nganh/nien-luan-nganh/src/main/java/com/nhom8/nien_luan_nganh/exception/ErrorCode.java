@@ -13,7 +13,6 @@ public enum ErrorCode {
     INVALID_INPUT(1004, "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST),
     NEW_PASSWORD_SAME_AS_OLD(1005, "Mật khẩu mới không được trùng với mật khẩu hiện tại", HttpStatus.BAD_REQUEST),
 
-
     // --- Phân hệ Người dùng & Xác thực (1010 - 10..) ---
     USER_NOT_EXISTED(1010, "Người dùng không tồn tại", HttpStatus.NOT_FOUND),
     USER_EXISTED(1011, "Tên đăng nhập đã tồn tại trên hệ thống", HttpStatus.BAD_REQUEST),
@@ -69,15 +68,17 @@ public enum ErrorCode {
     INVALID_REMINDER_TIME(1091, "Thời gian bắt đầu phải trước thời gian kết thúc", HttpStatus.BAD_REQUEST),
     CANNOT_CANCEL_REMINDER(1092, "Bạn không có quyền hủy lịch hẹn này", HttpStatus.FORBIDDEN),
     REMINDER_ALREADY_COMPLETED(1093, "Lịch hẹn đã diễn ra hoàn tất, không thể chỉnh sửa", HttpStatus.BAD_REQUEST),
+    REMINDER_ALREADY_CANCELLED(1094, "Lịch hẹn này đã bị hủy trước đó", HttpStatus.BAD_REQUEST),
+    START_TIME_IN_PAST(1095, "Thời gian bắt đầu lịch hẹn không được ở quá khứ", HttpStatus.BAD_REQUEST),
 
     // --- Phân hệ Quan hệ bạn bè (1110 - 1120) ---
     FRIENDSHIP_NOT_FOUND(1110, "Mối quan hệ bạn bè không tồn tại", HttpStatus.NOT_FOUND),
     FRIEND_REQUEST_EXISTED(1111, "Yêu cầu kết bạn đã được gửi trước đó", HttpStatus.BAD_REQUEST),
     CANNOT_ADD_YOURSELF(1112, "Không thể gửi yêu cầu kết bạn cho chính bản thân", HttpStatus.BAD_REQUEST),
-    
+
     ALREADY_FRIENDS(1113, "Hai người đã là bạn bè của nhau", HttpStatus.BAD_REQUEST),
     USER_BLOCKED(1114, "Không thể thực hiện do mối quan hệ đã bị chặn", HttpStatus.FORBIDDEN),
-    
+
     FRIEND_ID_REQUIRED(1115, "ID bạn bè không được để trống", HttpStatus.BAD_REQUEST),
     NOT_FRIEND_REQUEST_RECEIVER(1116, "Bạn không có quyền phản hồi lời mời kết bạn này", HttpStatus.FORBIDDEN),
     USER_ID_REQUIRED(1117, "ID người dùng không được để trống", HttpStatus.BAD_REQUEST),

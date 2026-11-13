@@ -12,7 +12,33 @@
         </button>
       </div>
 
-      <!-- B. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
+      <!-- B. Header Sub-view Quản lý Lịch hẹn & Nhắc nhở -->
+      <div v-else-if="currentView === 'REMINDERS'" class="sidebar-header subview-header">
+        <div class="subview-header-left" @click="backToInfoView">
+          <button class="btn-back" title="Quay lại thông tin">
+            <font-awesome-icon icon="chevron-left" />
+          </button>
+          <div class="header-title subview-title">
+            <h3>Lịch hẹn nhắc nhở</h3>
+          </div>
+        </div>
+        <div class="rem-subview-header-actions">
+          <button
+            type="button"
+            class="btn-header-create-rem"
+            title="Tạo nhắc hẹn mới"
+            @click="$emit('create-reminder')"
+          >
+            <font-awesome-icon icon="plus" />
+            <span>Tạo hẹn</span>
+          </button>
+          <button class="btn-close" title="Đóng (Esc)" @click="$emit('close')">
+            <font-awesome-icon icon="x" />
+          </button>
+        </div>
+      </div>
+
+      <!-- C. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
       <div v-else class="sidebar-header subview-header">
         <div class="subview-header-left" @click="backToInfoView">
           <button class="btn-back" title="Quay lại thông tin">
@@ -124,6 +150,88 @@
 
           <hr class="divider" />
         </template>
+
+        <!-- 2.3.5 LỊCH HẸN & NHẮC NHỞ (ACCORDION + PREVIEW + XEM TẤT CẢ) -->
+        <div class="accordion-section">
+          <div class="accordion-header" @click="isRemindersExpanded = !isRemindersExpanded">
+            <div class="header-left">
+              <font-awesome-icon icon="calendar-days" class="section-icon" />
+              <span class="section-title">
+                Lịch hẹn nhắc nhở ({{ upcomingRemindersList.length }})
+              </span>
+            </div>
+            <font-awesome-icon
+              icon="chevron-right"
+              class="arrow-icon"
+              :class="{ 'arrow--down': isRemindersExpanded }"
+            />
+          </div>
+
+          <div class="accordion-collapse" :class="{ 'is-expanded': isRemindersExpanded }">
+            <div class="accordion-collapse-inner">
+              <div class="accordion-body">
+                <!-- Thanh tạo lịch hẹn mới -->
+                <div class="add-member-action-bar" @click="$emit('create-reminder')">
+                  <div class="add-member-icon-circle">
+                    <font-awesome-icon icon="calendar-plus" />
+                  </div>
+                  <span class="add-member-text">Tạo nhắc hẹn mới</span>
+                </div>
+
+                <!-- Danh sách preview tối đa 3 lịch hẹn sắp tới -->
+                <div v-if="upcomingRemindersList.length === 0" class="empty-members-hint">
+                  Chưa có lịch hẹn nào sắp diễn ra
+                </div>
+
+                <div v-else class="rem-preview-list">
+                  <div
+                    v-for="rem in upcomingRemindersList.slice(0, 3)"
+                    :key="rem.reminderId"
+                    class="rem-preview-card"
+                    @click="rem.messageId ? $emit('jump-to-message', rem.messageId) : openRemindersView('UPCOMING')"
+                  >
+                    <div class="rem-mini-leaf" :class="{ 'is-personal': rem.reminderType === 'PERSONAL' }">
+                      <div class="rem-mini-month">{{ getCalendarLeaf(rem.startAt).month }}</div>
+                      <div class="rem-mini-day">{{ getCalendarLeaf(rem.startAt).day }}</div>
+                    </div>
+
+                    <div class="rem-preview-info">
+                      <div class="rem-preview-top">
+                        <p class="rem-preview-title">{{ rem.title }}</p>
+                        <span v-if="rem.reminderType === 'PERSONAL'" class="rem-personal-tag">
+                          Cá nhân
+                        </span>
+                      </div>
+                      <p class="rem-preview-time">
+                        {{ formatReminderShortTime(rem.startAt, rem.endAt) }}
+                      </p>
+                      <div v-if="rem.reminderType === 'GROUP'" class="rem-preview-meta">
+                        <span>{{ rem.acceptedCount || 0 }} tham gia</span>
+                        <span v-if="rem.myRsvp === 'ACCEPTED'" class="rsvp-tag-ok">✓ Đã nhận</span>
+                        <span v-else-if="rem.myRsvp === 'DECLINED'" class="rsvp-tag-no">✕ Từ chối</span>
+                        <span v-else class="rsvp-tag-wait">Chờ phản hồi</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Nút Xem tất cả lịch hẹn -->
+                <button
+                  v-if="allRemindersList.length > 0"
+                  type="button"
+                  class="btn-open-gallery"
+                  style="margin-top: 8px"
+                  @click="openRemindersView('UPCOMING')"
+                >
+                  <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span>
+                  <font-awesome-icon icon="chevron-right" class="btn-arrow" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="divider" />
 
         <!-- 2.4 FILE PHƯƠNG TIỆN (PREVIEW GỌN GÀNG + NÚT XEM TẤT CẢ) -->
         <div class="accordion-section media-section">
@@ -245,7 +353,153 @@
         </div>
       </div>
 
-      <!-- VIEW 2: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
+      <!-- VIEW 2: SUB-VIEW QUẢN LÝ LỊCH HẸN & NHẮC NHỞ PHÒNG CHAT -->
+      <div v-else-if="currentView === 'REMINDERS'" class="subview-media-content">
+        <div class="subview-tabs-bar">
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentReminderTab === 'UPCOMING' }"
+            @click="currentReminderTab = 'UPCOMING'"
+          >
+            <font-awesome-icon icon="calendar-days" />
+            <span>Sắp tới ({{ upcomingRemindersList.length }})</span>
+          </button>
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentReminderTab === 'PAST' }"
+            @click="currentReminderTab = 'PAST'"
+          >
+            <font-awesome-icon icon="clock-rotate-left" />
+            <span>Đã qua / Hủy ({{ pastRemindersList.length }})</span>
+          </button>
+        </div>
+
+        <div class="subview-gallery-scroll rem-subview-list">
+          <div v-if="currentTabRemindersList.length === 0" class="empty-media-hint">
+            {{
+              currentReminderTab === 'UPCOMING'
+                ? 'Chưa có lịch hẹn nào sắp diễn ra trong phòng này'
+                : 'Chưa có lịch hẹn nào đã kết thúc hoặc bị hủy'
+            }}
+          </div>
+
+          <div
+            v-for="rem in currentTabRemindersList"
+            :key="rem.reminderId"
+            class="rem-subview-card"
+            :class="{ 'is-cancelled': rem.reminderStatus === 'CANCELLED' }"
+          >
+            <!-- Đầu mục: Tờ lịch + Tiêu đề -->
+            <div class="rem-subview-top">
+              <div
+                class="rem-mini-leaf rem-leaf-lg"
+                :class="{
+                  'is-cancelled': rem.reminderStatus === 'CANCELLED',
+                  'is-personal': rem.reminderType === 'PERSONAL',
+                }"
+              >
+                <div class="rem-mini-month">{{ getCalendarLeaf(rem.startAt).month }}</div>
+                <div class="rem-mini-day">{{ getCalendarLeaf(rem.startAt).day }}</div>
+              </div>
+
+              <div class="rem-subview-main">
+                <div class="rem-subview-badges">
+                  <span
+                    class="rem-badge-status"
+                    :class="
+                      rem.reminderStatus === 'CANCELLED'
+                        ? 'st-cancelled'
+                        : isReminderPast(rem) || rem.reminderStatus === 'DONE'
+                          ? 'st-done'
+                          : rem.reminderType === 'PERSONAL'
+                            ? 'st-personal'
+                            : 'st-pending'
+                    "
+                  >
+                    {{
+                      rem.reminderStatus === 'CANCELLED'
+                        ? 'Đã hủy'
+                        : isReminderPast(rem) || rem.reminderStatus === 'DONE'
+                          ? 'Đã kết thúc'
+                          : rem.reminderType === 'PERSONAL'
+                            ? 'Cá nhân'
+                            : 'Lịch nhóm'
+                    }}
+                  </span>
+
+                  <button
+                    v-if="rem.messageId"
+                    type="button"
+                    class="rem-jump-link"
+                    @click="$emit('jump-to-message', rem.messageId)"
+                  >
+                    Xem tin nhắn
+                  </button>
+                </div>
+
+                <h4 class="rem-subview-title">{{ rem.title }}</h4>
+
+                <p class="rem-subview-time">
+                  {{ formatReminderShortTime(rem.startAt, rem.endAt) }}
+                </p>
+
+                <p v-if="rem.description" class="rem-subview-desc">
+                  {{ rem.description }}
+                </p>
+
+                <p class="rem-subview-author">
+                  Tạo bởi <strong>{{ rem.createdByName || rem.createdByUsername || 'Thành viên' }}</strong>
+                  <template v-if="rem.reminderType === 'GROUP'">
+                    · <strong class="rsvp-tag-ok">{{ rem.acceptedCount || 0 }}</strong> tham gia
+                  </template>
+                </p>
+              </div>
+            </div>
+
+            <!-- Thanh nút RSVP & Hủy lịch ngay trên Sidebar (chỉ khi còn hạn) -->
+            <div v-if="rem.reminderStatus === 'PENDING' && !isReminderPast(rem)" class="rem-subview-actions">
+              <template v-if="rem.reminderType === 'GROUP'">
+                <button
+                  type="button"
+                  class="rem-sb-btn btn-sb-accept"
+                  :class="{ active: rem.myRsvp === 'ACCEPTED' }"
+                  @click="handleSidebarRsvp(rem, 'ACCEPTED')"
+                >
+                  {{ rem.myRsvp === 'ACCEPTED' ? '✓ Đã tham gia' : 'Tham gia' }}
+                </button>
+                <button
+                  type="button"
+                  class="rem-sb-btn btn-sb-decline"
+                  :class="{ active: rem.myRsvp === 'DECLINED' }"
+                  @click="handleSidebarRsvp(rem, 'DECLINED')"
+                >
+                  {{ rem.myRsvp === 'DECLINED' ? '✕ Đã từ chối' : 'Từ chối' }}
+                </button>
+              </template>
+
+              <button
+                v-if="canCancelReminder(rem)"
+                type="button"
+                class="rem-sb-cancel-btn"
+                title="Hủy lịch hẹn"
+                @click="handleSidebarCancelReminder(rem)"
+              >
+                <font-awesome-icon icon="trash" />
+              </button>
+            </div>
+
+            <!-- Thông báo khi đã kết thúc hoặc hủy -->
+            <div v-else-if="rem.reminderStatus !== 'CANCELLED'" class="rem-subview-finished-hint">
+              <font-awesome-icon icon="clock-rotate-left" />
+              <span>Lịch hẹn đã kết thúc</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
       <div v-else class="subview-media-content">
         <!-- THANH TAB SEGMENTED CONTROL TO RÕ TRÊN ĐẦU SUBVIEW -->
         <div class="subview-tabs-bar">
@@ -459,14 +713,27 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'toggle-notification', 'preview-media', 'add-member']);
+const emit = defineEmits([
+  'close',
+  'toggle-notification',
+  'preview-media',
+  'add-member',
+  'create-reminder',
+  'jump-to-message',
+]);
 
-// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện)
+// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn)
 const currentView = ref('INFO');
+const currentReminderTab = ref('UPCOMING'); // 'UPCOMING' | 'PAST'
 
 const openMediaView = (tab = 'IMAGE') => {
   currentMediaTab.value = tab;
   currentView.value = 'MEDIA';
+};
+
+const openRemindersView = (tab = 'UPCOMING') => {
+  currentReminderTab.value = tab;
+  currentView.value = 'REMINDERS';
 };
 
 const backToInfoView = () => {
@@ -488,7 +755,96 @@ const isGroupRoom = computed(() => {
 
 // State quản lý Accordion
 const isMembersExpanded = ref(true);
+const isRemindersExpanded = ref(true);
 const isMediaExpanded = ref(true);
+
+// Danh sách lịch hẹn của phòng đang mở từ Pinia Store
+const allRemindersList = computed(() => {
+  return chatStore.roomReminders || [];
+});
+
+const upcomingRemindersList = computed(() => {
+  return chatStore.upcomingRoomReminders || [];
+});
+
+//Hàm kiểm tra lịch hẹn đã qua thời hạn hay chưa
+const isReminderPast = (rem) => {
+  if (!rem) return false;
+  if (rem.reminderStatus === 'DONE' || rem.reminderStatus === 'CANCELLED') return true;
+  const deadline = new Date(rem.endAt || rem.startAt).getTime();
+  return !isNaN(deadline) && deadline <= Date.now();
+};
+
+//Tab "Đã qua / Hủy" tự động gom các lịch hẹn DONE, CANCELLED hoặc đã trôi qua deadline
+const pastRemindersList = computed(() => {
+  return [...allRemindersList.value]
+    .filter((r) => isReminderPast(r))
+    .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+});
+
+
+const currentTabRemindersList = computed(() => {
+  return currentReminderTab.value === 'UPCOMING'
+    ? upcomingRemindersList.value
+    : pastRemindersList.value;
+});
+
+const getCalendarLeaf = (isoStr) => {
+  const d = isoStr ? new Date(isoStr) : new Date();
+  if (Number.isNaN(d.getTime())) return { month: 'TH --', day: '--' };
+  return {
+    month: `TH ${d.getMonth() + 1}`,
+    day: String(d.getDate()).padStart(2, '0'),
+  };
+};
+
+const formatReminderShortTime = (startRaw, endRaw) => {
+  if (!startRaw) return '';
+  const start = new Date(startRaw);
+  if (Number.isNaN(start.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeStr = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+  const dateStr = `${pad(start.getDate())}/${pad(start.getMonth() + 1)}/${start.getFullYear()}`;
+  if (!endRaw) return `${timeStr} · ${dateStr}`;
+  const end = new Date(endRaw);
+  if (Number.isNaN(end.getTime())) return `${timeStr} · ${dateStr}`;
+  const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+  const sameDay =
+    start.getDate() === end.getDate() &&
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear();
+  if (sameDay) return `${timeStr} - ${endTime} · ${dateStr}`;
+  const endDate = `${pad(end.getDate())}/${pad(end.getMonth() + 1)}`;
+  return `${timeStr} ${pad(start.getDate())}/${pad(start.getMonth() + 1)} → ${endTime} ${endDate}`;
+};
+
+const canCancelReminder = (rem) => {
+  if (!rem || rem.reminderStatus !== 'PENDING' || isReminderPast(rem)) return false;
+  const myId = authStore.user?.userId;
+  if (myId && String(rem.createdById) === String(myId)) return true;
+  const myMember = displayMembers.value.find((m) => myId && String(m.userId) === String(myId));
+  const role = myMember?.role || myMember?.roomMemberRole;
+  return role === 'ADMIN' || role === 'OWNER';
+};
+
+const handleSidebarRsvp = async (rem, status) => {
+  if (!rem || rem.myRsvp === status) return;
+  try {
+    await chatStore.respondReminderRsvp(rem.roomId || chatStore.activeRoomId, rem.reminderId, status);
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể cập nhật phản hồi lịch hẹn.');
+  }
+};
+
+const handleSidebarCancelReminder = async (rem) => {
+  if (!rem) return;
+  if (!confirm(`Bạn có chắc chắn muốn hủy lịch hẹn "${rem.title}" không?`)) return;
+  try {
+    await chatStore.cancelRoomReminder(rem.roomId || chatStore.activeRoomId, rem.reminderId);
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể hủy lịch hẹn.');
+  }
+};
 
 // State bật/tắt thông báo
 const isNotificationMuted = ref(false);
@@ -780,15 +1136,17 @@ const handleDirectMessageWithMember = async (contact) => {
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
 
 .chat-info-sidebar {
-  width: 350px;
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
   height: 100%;
   background: #ffffff;
-  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   user-select: text;
   box-sizing: border-box;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .chat-info-sidebar-inner {
@@ -1593,5 +1951,368 @@ input:checked + .slider:before {
   font-size: 14px;
   text-align: center;
   flex-shrink: 0;
+}
+
+/* =========================================================================
+   STYLES CHO MỤC LỊCH HẸN & NHẮC NHỞ TRÊN SIDEBAR
+   ========================================================================= */
+.rem-subview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-header-create-rem {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.btn-header-create-rem:hover {
+  background: #dbeafe;
+}
+
+.rem-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rem-preview-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rem-preview-card:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.rem-mini-leaf {
+  width: 42px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  overflow: hidden;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.06);
+}
+
+.rem-mini-leaf.rem-leaf-lg {
+  width: 50px;
+  border-radius: 11px;
+}
+
+.rem-mini-leaf.is-personal {
+  border-color: #e0e7ff;
+}
+
+.rem-mini-leaf.is-cancelled {
+  border-color: #e2e8f0;
+  opacity: 0.6;
+}
+
+.rem-mini-month {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px;
+  text-transform: uppercase;
+}
+
+.rem-mini-leaf.is-personal .rem-mini-month {
+  background: #4f46e5;
+}
+
+.rem-mini-leaf.is-cancelled .rem-mini-month {
+  background: #94a3b8;
+}
+
+.rem-mini-day {
+  padding: 4px 2px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #2563eb;
+  line-height: 1;
+}
+
+.rem-mini-leaf.rem-leaf-lg .rem-mini-day {
+  padding: 6px 2px;
+  font-size: 18px;
+}
+
+.rem-mini-leaf.is-personal .rem-mini-day {
+  color: #4f46e5;
+}
+
+.rem-mini-leaf.is-cancelled .rem-mini-day {
+  color: #64748b;
+  text-decoration: line-through;
+}
+
+.rem-preview-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rem-preview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.rem-preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rem-personal-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+
+.rem-preview-time {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.rem-preview-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.rsvp-tag-ok {
+  color: #059669;
+  font-weight: 700;
+}
+
+.rsvp-tag-no {
+  color: #e11d48;
+  font-weight: 700;
+}
+
+.rsvp-tag-wait {
+  color: #d97706;
+  font-weight: 700;
+}
+
+/* Sub-view Danh sách lịch hẹn */
+.rem-subview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.rem-subview-card {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rem-subview-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.rem-subview-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rem-subview-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.rem-badge-status {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.rem-badge-status.st-pending {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.rem-badge-status.st-personal {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.rem-badge-status.st-done {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.rem-badge-status.st-cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.rem-jump-link {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rem-jump-link:hover {
+  text-decoration: underline;
+}
+
+.rem-subview-title {
+  margin: 5px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.rem-subview-card.is-cancelled .rem-subview-title {
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.rem-subview-time {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.rem-subview-desc {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: #475569;
+  word-break: break-word;
+}
+
+.rem-subview-author {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.rem-subview-actions {
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rem-sb-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rem-sb-btn.btn-sb-accept:hover {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #059669;
+}
+
+.rem-sb-btn.btn-sb-accept.active {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.rem-sb-btn.btn-sb-decline:hover {
+  background: #fff1f2;
+  border-color: #f43f5e;
+  color: #e11d48;
+}
+
+.rem-sb-btn.btn-sb-decline.active {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #ffffff;
+}
+
+.rem-sb-cancel-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.rem-sb-cancel-btn:hover {
+  background: #fee2e2;
+}
+
+.rem-subview-finished-hint {
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
 }
 </style>

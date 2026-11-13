@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import * as roomApi from '@/api/room.api'
 import * as messageApi from '@/api/message.api'
+import * as reminderApi from '@/api/reminder.api'
 import { wsService, subscribeToRoom } from '@/services/websocket'
 import { useAuthStore } from './auth'
 
@@ -174,7 +175,27 @@ export const getReplySnippet = (msg) => {
   if (msg.isRevoked) return 'Tin nhắn đã bị thu hồi'
   if (msg.messageType === 'IMAGE') return '[Hình ảnh]'
   if (msg.messageType === 'FILE') return '[Tệp đính kèm]'
+  if (msg.messageType === 'REMINDER') return `[Lịch hẹn] ${msg.content || ''}`
   return msg.content || ''
+}
+
+// Chuẩn hóa thông tin ReminderResponse và tính lại myRsvp theo đúng tài khoản đang đăng nhập
+function normalizeReminderForUser(reminder, currentUserId) {
+  if (!reminder) return null
+  const participants = Array.isArray(reminder.participants) ? reminder.participants : []
+  let myRsvp = reminder.myRsvp || null
+  if (currentUserId && participants.length > 0) {
+    const me = participants.find((p) => String(p.userId) === String(currentUserId))
+    myRsvp = me ? me.response : null
+  }
+  return {
+    ...reminder,
+    participants,
+    acceptedCount: participants.filter((p) => p.response === 'ACCEPTED').length,
+    declinedCount: participants.filter((p) => p.response === 'DECLINED').length,
+    pendingCount: participants.filter((p) => p.response === 'PENDING').length,
+    myRsvp,
+  }
 }
 
 // Trích xuất danh sách tin nhắn an toàn từ các cấu trúc phản hồi khác nhau của Backend/Axios
@@ -238,6 +259,7 @@ export const useChatStore = defineStore('chat', {
     hasMoreMessages: false,
     isViewingOlderSegment: false, // Đang xem một đoạn tin nhắn cũ (sau khi bấm tin nhắn ghim)
     isDetachedFromBottom: false, // Cờ đánh dấu đang tách khỏi đáy (đang xem khúc giữa lịch sử quanh tin ghim)
+    isJumpingToContext: false, // Cờ đang tải ngữ cảnh tin nhắn ở xa để không giật khung chat
 
     // Danh sách tin nhắn đã ghim trong phòng đang mở (tối đa 5 tin)
     pinnedMessages: [],
@@ -265,12 +287,18 @@ export const useChatStore = defineStore('chat', {
 
     // Thông tin tin nhắn đang được chọn để Trả lời (Reply)
     replyingMessage: null,
+
+    // Danh sách lịch hẹn & nhắc nhở theo từng phòng: { [roomId]: ReminderResponse[] }
+    remindersByRoom: {},
+    loadingReminders: false,
   }),
 
   getters: {
     // Đoạn text thông báo người đang soạn tin nhắn cho phòng active
     activeTypingText: (state) => {
-      const roomTyping = state.typingMap[String(state.activeRoomId)]
+      if (!state.activeRoomId) return ''
+      const activeKey = String(state.activeRoomId).toLowerCase()
+      const roomTyping = state.typingMap[activeKey] || state.typingMap[String(state.activeRoomId)]
       if (!roomTyping) return ''
       const users = Object.values(roomTyping)
       if (users.length === 0) return ''
@@ -332,6 +360,33 @@ export const useChatStore = defineStore('chat', {
 
       // 2. Nếu không tìm thấy thông báo hệ thống, lấy phần tử ghim mới nhất
       return state.pinnedMessages[state.pinnedMessages.length - 1] || state.pinnedMessages[0]
+    },
+
+    // Danh sách lịch hẹn của phòng đang mở (lọc lịch cá nhân của người khác nếu có)
+    roomReminders: (state) => {
+      if (!state.activeRoomId) return []
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.userId
+      const list = state.remindersByRoom[String(state.activeRoomId)] || []
+      return list.filter(
+        (r) =>
+          r.reminderType !== 'PERSONAL' ||
+          !currentUserId ||
+          String(r.createdById) === String(currentUserId),
+      )
+    },
+
+    // Danh sách lịch hẹn sắp tới (chỉ lấy PENDING, chưa bị hủy và chưa vượt qua mốc endAt/startAt)
+    upcomingRoomReminders() {
+      const now = Date.now()
+      return [...this.roomReminders]
+        .filter((r) => {
+          if (r.reminderStatus !== 'PENDING') return false
+          // Tính mốc hết hạn: ưu tiên endAt, nếu không có lấy startAt
+          const deadline = new Date(r.endAt || r.startAt).getTime()
+          return !isNaN(deadline) && deadline > now
+        })
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
     },
   },
 
@@ -473,17 +528,21 @@ export const useChatStore = defineStore('chat', {
       // Đăng ký nhận tin nhắn WebSocket cho phòng này
       subscribeToRoom(roomId)
 
-      // Tải tin nhắn, tin nhắn ghim và toàn bộ file phương tiện của phòng
+      // Tải tin nhắn, tin nhắn ghim, lịch hẹn và toàn bộ file phương tiện của phòng
       if (!isSameRoom || this.messages.length === 0) {
         await Promise.all([
           this.fetchMessages(roomId),
           this.fetchPinnedMessages(roomId),
           this.fetchRoomMedia(roomId),
+          this.fetchRoomReminders(roomId),
         ])
       } else {
-        await this.fetchPinnedMessages(roomId)
-        await this.fetchRoomMedia(roomId)
-        await this.markRoomAsRead(roomId)
+        await Promise.all([
+          this.fetchPinnedMessages(roomId),
+          this.fetchRoomMedia(roomId),
+          this.fetchRoomReminders(roomId),
+          this.markRoomAsRead(roomId),
+        ])
       }
     },
 
@@ -702,7 +761,7 @@ export const useChatStore = defineStore('chat', {
         return false
       }
 
-      this.loadingMessages = true
+      this.isJumpingToContext = true
       try {
         const res = await messageApi.getMessages(this.activeRoomId, {
           around: messageId,
@@ -710,7 +769,6 @@ export const useChatStore = defineStore('chat', {
         })
         const rawList = extractMessageList(res)
         const list = [...rawList].reverse()
-        this.messages = list
         const cursorInfo = extractCursorInfo(res)
         this.nextCursor = cursorInfo.nextCursor
         this.hasMoreOlder = Boolean(cursorInfo.hasMore && this.nextCursor)
@@ -718,12 +776,13 @@ export const useChatStore = defineStore('chat', {
         this.hasMoreMessages = this.hasMoreOlder
         this.isViewingOlderSegment = true
         this.isDetachedFromBottom = true
+        this.messages = list
         return true
       } catch (err) {
         console.error('Lỗi tải tin nhắn xung quanh tin ghim:', err)
         return false
       } finally {
-        this.loadingMessages = false
+        this.isJumpingToContext = false
       }
     },
 
@@ -735,13 +794,21 @@ export const useChatStore = defineStore('chat', {
         return false
       }
 
-      this.loadingMessages = true
+      this.isJumpingToContext = true
       try {
         const res = await messageApi.getMessageContext(this.activeRoomId, messageId)
-        const list = extractMessageList(res)
+        const rawList = extractMessageList(res)
+        // Khử trùng lặp theo messageId nếu có hai tin trùng mốc thời gian
+        const seen = new Set()
+        const list = (Array.isArray(rawList) ? rawList : []).filter((m) => {
+          if (!m?.messageId) return false
+          const id = String(m.messageId)
+          if (seen.has(id)) return false
+          seen.add(id)
+          return true
+        })
         if (list.length > 0) {
-          this.messages = list
-          // Bật cờ phân trang 2 chiều vì đang đứng ở khúc giữa lịch sử quanh tin ghim
+          // Bật cờ phân trang 2 chiều TRƯỚC khi gán messages để watcher không tự cuộn về đáy
           this.hasMoreOlder = true
           this.hasMoreNewer = true
           this.hasMoreMessages = true
@@ -749,6 +816,7 @@ export const useChatStore = defineStore('chat', {
           this.isViewingOlderSegment = true
           // nextCursor là ID của tin nhắn cũ nhất (phần tử đầu tiên trong list theo thứ tự ASC)
           this.nextCursor = list[0]?.messageId || null
+          this.messages = list
           return true
         }
         return false
@@ -756,7 +824,7 @@ export const useChatStore = defineStore('chat', {
         console.error('Lỗi lấy cửa sổ ngữ cảnh tin nhắn ghim:', err)
         return false
       } finally {
-        this.loadingMessages = false
+        this.isJumpingToContext = false
       }
     },
 
@@ -777,13 +845,13 @@ export const useChatStore = defineStore('chat', {
     },
 
     // 4. Gửi tin nhắn mới
-    async sendChatMessage(content) {
+    async sendChatMessage(content, explicitRepliedMessageId = null) {
       if (!this.activeRoomId || !content || !content.trim()) return
       const text = content.trim()
       const authStore = useAuthStore()
       const roomKey = String(this.activeRoomId)
 
-      const repliedMessageId = this.replyingMessage?.messageId || null
+      const repliedMessageId = explicitRepliedMessageId || this.replyingMessage?.messageId || null
       const replyingSnapshot = this.replyingMessage
         ? {
           messageId: this.replyingMessage.messageId,
@@ -1023,6 +1091,19 @@ export const useChatStore = defineStore('chat', {
             this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== msgId)
           }
         }
+
+        // Nếu nhận được tin nhắn REMINDER mới mà chưa có dữ liệu chi tiết lịch hẹn trong store -> tải bổ sung
+        if (message.messageType === 'REMINDER') {
+          const roomRemList = this.remindersByRoom[msgRoomId] || []
+          const hasRem = roomRemList.some(
+            (r) =>
+              (message.reminderId && String(r.reminderId) === String(message.reminderId)) ||
+              String(r.messageId) === msgId,
+          )
+          if (!hasRem) {
+            this.fetchRoomReminders(msgRoomId)
+          }
+        }
       }
 
       // 6.2. Cập nhật thông tin phòng trên Sidebar bên trái và đưa phòng lên vị trí đầu tiên
@@ -1037,6 +1118,10 @@ export const useChatStore = defineStore('chat', {
           displayContent = 'đã ghim 1 tin nhắn'
         } else if (isUnpinAction) {
           displayContent = 'đã bỏ ghim 1 tin nhắn'
+        } else if (message.messageType === 'REMINDER') {
+          displayContent = message.content?.startsWith('[Lịch')
+            ? message.content
+            : `[Lịch hẹn] ${message.content || ''}`
         }
 
         const senderDisplayName = isPinOrUnpin
@@ -1119,51 +1204,62 @@ export const useChatStore = defineStore('chat', {
       if (!event || !event.roomId) return
       const authStore = useAuthStore()
 
-      // Bỏ qua nếu event xuất phát từ chính tài khoản đang đăng nhập
-      if (
-        event.userId &&
-        authStore.user?.userId &&
-        String(event.userId) === String(authStore.user.userId)
-      ) {
+      // Bỏ qua nếu event xuất phát từ chính tài khoản đang đăng nhập (chỉ hiện trên giao diện đối phương)
+      const isMe = Boolean(
+        (event.userId &&
+          authStore.user?.userId &&
+          String(event.userId).toLowerCase() === String(authStore.user.userId).toLowerCase()) ||
+        (event.username &&
+          authStore.user?.username &&
+          event.username.toLowerCase() === authStore.user.username.toLowerCase())
+      )
+
+      if (isMe) {
         return
       }
 
-      const rId = String(event.roomId)
-      if (!this.typingMap[rId]) {
-        this.typingMap[rId] = {}
-      }
+      const isTyping = event.isTyping !== undefined ? Boolean(event.isTyping) : Boolean(event.typing)
+      const rId = String(event.roomId).toLowerCase()
+      const uId = String(event.userId || event.username || 'unknown').toLowerCase()
 
-      const uId = String(event.userId || event.username)
+      const currentRoomTyping = { ...(this.typingMap[rId] || {}) }
 
-      if (event.isTyping) {
+      if (isTyping) {
         // Xóa bộ đếm thời gian cũ nếu còn
-        if (this.typingMap[rId][uId]?.timer) {
-          clearTimeout(this.typingMap[rId][uId].timer)
+        if (currentRoomTyping[uId]?.timer) {
+          clearTimeout(currentRoomTyping[uId].timer)
         }
 
-        // Tự động hủy trạng thái sau 3.5 giây nếu đối phương ngừng gõ hoặc rớt mạng
+        // Tự động hủy trạng thái sau 2giây nếu đối phương ngừng gõ hoặc rớt mạng
         const timer = setTimeout(() => {
-          if (this.typingMap[rId]?.[uId]) {
-            delete this.typingMap[rId][uId]
-            this.typingMap = { ...this.typingMap }
+          const nextRoom = { ...(this.typingMap[rId] || {}) }
+          delete nextRoom[uId]
+          this.typingMap = {
+            ...this.typingMap,
+            [rId]: nextRoom,
           }
-        }, 3500)
+        }, 2000)
 
-        this.typingMap[rId][uId] = {
+        currentRoomTyping[uId] = {
           username: event.username || 'Thành viên',
           avatarUrl: event.avatarUrl,
           timer,
         }
+        this.typingMap = {
+          ...this.typingMap,
+          [rId]: currentRoomTyping,
+        }
       } else {
         // Đối phương đã ngừng gõ hoặc đã bấm gửi tin nhắn
-        if (this.typingMap[rId]?.[uId]) {
-          clearTimeout(this.typingMap[rId][uId].timer)
-          delete this.typingMap[rId][uId]
+        if (currentRoomTyping[uId]?.timer) {
+          clearTimeout(currentRoomTyping[uId].timer)
+        }
+        delete currentRoomTyping[uId]
+        this.typingMap = {
+          ...this.typingMap,
+          [rId]: currentRoomTyping,
         }
       }
-
-      // Kích hoạt tính phản ứng của Vue (Reactivity)
-      this.typingMap = { ...this.typingMap }
     },
 
     // 8.1. Nhận sự kiện thả/gỡ cảm xúc trên tin nhắn từ WebSocket
@@ -1365,42 +1461,42 @@ export const useChatStore = defineStore('chat', {
         ...files.map((f) => String(f.id)),
       ])
 
-      ;(this.messages || []).forEach((m) => {
-        if (m.isRevoked || seenIds.has(String(m.messageId))) return
-        const content = m.content || ''
-        const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-        const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+        ; (this.messages || []).forEach((m) => {
+          if (m.isRevoked || seenIds.has(String(m.messageId))) return
+          const content = m.content || ''
+          const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
 
-        if (isImg) {
-          images.unshift({
-            id: m.messageId,
-            url: m.content,
-            name: 'Hình ảnh',
-            type: 'IMAGE',
-            createdAt: m.createdAt,
-          })
-          seenIds.add(String(m.messageId))
-        } else if (isVid) {
-          videos.unshift({
-            id: m.messageId,
-            url: m.content,
-            name: 'Video',
-            type: 'VIDEO',
-            createdAt: m.createdAt,
-          })
-          seenIds.add(String(m.messageId))
-        } else if (m.messageType === 'FILE' || m.messageType === 'DOCUMENT') {
-          files.unshift({
-            id: m.messageId,
-            url: m.content,
-            name: m.content?.split('/').pop() || 'Tài liệu',
-            size: 'Đính kèm',
-            type: 'FILE',
-            createdAt: m.createdAt,
-          })
-          seenIds.add(String(m.messageId))
-        }
-      })
+          if (isImg) {
+            images.unshift({
+              id: m.messageId,
+              url: m.content,
+              name: 'Hình ảnh',
+              type: 'IMAGE',
+              createdAt: m.createdAt,
+            })
+            seenIds.add(String(m.messageId))
+          } else if (isVid) {
+            videos.unshift({
+              id: m.messageId,
+              url: m.content,
+              name: 'Video',
+              type: 'VIDEO',
+              createdAt: m.createdAt,
+            })
+            seenIds.add(String(m.messageId))
+          } else if (m.messageType === 'FILE' || m.messageType === 'DOCUMENT') {
+            files.unshift({
+              id: m.messageId,
+              url: m.content,
+              name: m.content?.split('/').pop() || 'Tài liệu',
+              size: 'Đính kèm',
+              type: 'FILE',
+              createdAt: m.createdAt,
+            })
+            seenIds.add(String(m.messageId))
+          }
+        })
 
       const sortByDateDesc = (a, b) => {
         const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
@@ -1847,6 +1943,191 @@ export const useChatStore = defineStore('chat', {
 
     setSearchQuery(query) {
       this.searchQuery = query
+    },
+
+    // =========================================================================
+    // 16. PHÂN HỆ LỊCH HẸN & NHẮC NHỞ (REMINDERS MODULE)
+    // =========================================================================
+
+    // Tìm thông tin chi tiết Reminder ứng với một tin nhắn REMINDER trên dòng chat
+    getReminderForMessage(message) {
+      if (!message) return null
+      const rId = String(message.roomId || this.activeRoomId || '')
+      const list = this.remindersByRoom[rId] || []
+      return (
+        list.find(
+          (r) =>
+            (message.reminderId && String(r.reminderId) === String(message.reminderId)) ||
+            (message.messageId && String(r.messageId) === String(message.messageId)),
+        ) || null
+      )
+    },
+
+    // 16.1. Tải danh sách lịch hẹn của phòng chat
+    async fetchRoomReminders(roomId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return []
+      const rKey = String(targetRoomId)
+      if (['1', '2', '3'].includes(rKey)) {
+        if (!this.remindersByRoom[rKey]) {
+          this.remindersByRoom = { ...this.remindersByRoom, [rKey]: [] }
+        }
+        return this.remindersByRoom[rKey]
+      }
+
+      this.loadingReminders = true
+      try {
+        const authStore = useAuthStore()
+        const currentUserId = authStore.user?.userId
+        const res = await reminderApi.getRoomReminders(targetRoomId)
+        const rawList = Array.isArray(res) ? res : Array.isArray(res?.result) ? res.result : []
+        const normalized = rawList
+          .map((item) => normalizeReminderForUser(item, currentUserId))
+          .filter(Boolean)
+
+        this.remindersByRoom = {
+          ...this.remindersByRoom,
+          [rKey]: normalized,
+        }
+        return normalized
+      } catch (err) {
+        console.warn('Lỗi tải danh sách lịch hẹn phòng chat:', err)
+        return this.remindersByRoom[rKey] || []
+      } finally {
+        this.loadingReminders = false
+      }
+    },
+
+    // 16.2. Tạo mới lịch hẹn / nhắc nhở trong phòng chat
+    async createRoomReminder(roomId, payload) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return null
+      const rKey = String(targetRoomId)
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.userId
+
+      const created = await reminderApi.createReminder(targetRoomId, payload)
+      if (created) {
+        const normalized = normalizeReminderForUser(created, currentUserId)
+        const existing = this.remindersByRoom[rKey] || []
+        const filtered = existing.filter((r) => String(r.reminderId) !== String(normalized.reminderId))
+        this.remindersByRoom = {
+          ...this.remindersByRoom,
+          [rKey]: [normalized, ...filtered],
+        }
+        return normalized
+      }
+      return null
+    },
+
+    // 16.3. Phản hồi Tham gia (ACCEPTED) hoặc Từ chối (DECLINED) với Optimistic UI
+    async respondReminderRsvp(roomId, reminderId, responseStatus) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !reminderId || !responseStatus) return null
+      const rKey = String(targetRoomId)
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.userId
+      const currentUsername = authStore.user?.username || 'Bạn'
+      const currentAvatar = authStore.user?.avatarUrl || null
+
+      const list = [...(this.remindersByRoom[rKey] || [])]
+      const idx = list.findIndex((r) => String(r.reminderId) === String(reminderId))
+      const snapshot = idx !== -1 ? JSON.parse(JSON.stringify(list[idx])) : null
+
+      // Optimistic UI Update (0ms)
+      if (idx !== -1 && currentUserId) {
+        const item = { ...list[idx] }
+        const participants = Array.isArray(item.participants) ? [...item.participants] : []
+        const pIdx = participants.findIndex((p) => String(p.userId) === String(currentUserId))
+        if (pIdx !== -1) {
+          participants[pIdx] = { ...participants[pIdx], response: responseStatus }
+        } else {
+          participants.push({
+            userId: currentUserId,
+            username: currentUsername,
+            avatarUrl: currentAvatar,
+            response: responseStatus,
+          })
+        }
+        item.participants = participants
+        list[idx] = normalizeReminderForUser(item, currentUserId)
+        this.remindersByRoom = { ...this.remindersByRoom, [rKey]: list }
+      }
+
+      try {
+        const updated = await reminderApi.respondRsvp(targetRoomId, reminderId, responseStatus)
+        if (updated) {
+          const normalized = normalizeReminderForUser(updated, currentUserId)
+          const latestList = [...(this.remindersByRoom[rKey] || [])]
+          const targetIdx = latestList.findIndex((r) => String(r.reminderId) === String(reminderId))
+          if (targetIdx !== -1) {
+            latestList[targetIdx] = normalized
+          } else {
+            latestList.unshift(normalized)
+          }
+          this.remindersByRoom = { ...this.remindersByRoom, [rKey]: latestList }
+          return normalized
+        }
+      } catch (err) {
+        // Hoàn tác nếu lỗi
+        if (snapshot && idx !== -1) {
+          const revertList = [...(this.remindersByRoom[rKey] || [])]
+          revertList[idx] = snapshot
+          this.remindersByRoom = { ...this.remindersByRoom, [rKey]: revertList }
+        }
+        throw err
+      }
+      return null
+    },
+
+    // 16.4. Hủy lịch hẹn
+    async cancelRoomReminder(roomId, reminderId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !reminderId) return false
+      const rKey = String(targetRoomId)
+
+      await reminderApi.cancelReminder(targetRoomId, reminderId)
+
+      const list = [...(this.remindersByRoom[rKey] || [])]
+      const idx = list.findIndex((r) => String(r.reminderId) === String(reminderId))
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          reminderStatus: 'CANCELLED',
+        }
+        this.remindersByRoom = { ...this.remindersByRoom, [rKey]: list }
+      }
+      return true
+    },
+
+    // 16.5. Xử lý sự kiện Realtime từ WebSocket (/topic/room.{roomId}.reminder)
+    handleReminderEvent(event) {
+      if (!event || !event.roomId || !event.reminder) return
+      const rKey = String(event.roomId)
+      const authStore = useAuthStore()
+      const currentUserId = authStore.user?.userId
+
+      const normalized = normalizeReminderForUser(event.reminder, currentUserId)
+      if (!normalized) return
+
+      const currentList = [...(this.remindersByRoom[rKey] || [])]
+      const existingIdx = currentList.findIndex(
+        (r) => String(r.reminderId) === String(normalized.reminderId),
+      )
+
+      if (existingIdx !== -1) {
+        currentList[existingIdx] = {
+          ...currentList[existingIdx],
+          ...normalized,
+        }
+      } else {
+        currentList.unshift(normalized)
+      }
+
+      this.remindersByRoom = {
+        ...this.remindersByRoom,
+        [rKey]: currentList,
+      }
     },
   },
 })

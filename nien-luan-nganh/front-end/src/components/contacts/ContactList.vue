@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import ChatItem from '@/components/chat/ChatItem.vue'
 import Modal_AddFriend from './Modal_AddFriend.vue'
 import Modal_FriendRequests from './Modal_FriendRequests.vue'
 import ContactMenu from './ContactMenu.vue'
@@ -81,32 +82,6 @@ const filteredContacts = computed(() => {
   )
 })
 
-const palette = [
-  { bg: '#FFE9DC', color: '#D2693B' },
-  { bg: '#DDF5EA', color: '#2E9A6B' },
-  { bg: '#FFF3D6', color: '#B8860B' },
-  { bg: '#E3EDFF', color: '#3B6FD2' },
-  { bg: '#ECE9FF', color: '#6B5BD2' },
-  { bg: '#DCE7FE', color: '#2563EB' },
-]
-
-function getAvatarStyle(contact) {
-  if (contact.bgColor && contact.color) {
-    return { backgroundColor: contact.bgColor, color: contact.color }
-  }
-  let hash = 0
-  for (const ch of contact.name || '') hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
-  const c = palette[hash % palette.length]
-  return { backgroundColor: c.bg, color: c.color }
-}
-
-function getInitials(contact) {
-  if (contact.initials) return contact.initials.slice(0, 2).toUpperCase()
-  const words = (contact.name || '').trim().split(/\s+/).filter(Boolean)
-  if (!words.length) return '?'
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
 </script>
 
 <template>
@@ -167,40 +142,24 @@ function getInitials(contact) {
 
     <!-- Contact Items List -->
     <div class="contacts-scroll-area">
-      <div
+      <ChatItem
         v-for="contact in filteredContacts"
         :key="contact.id"
-        class="contact-item"
-        :class="{ active: contact.id === selectedId }"
-        role="button"
-        tabindex="0"
-        @click="emit('select', contact)"
-        @keydown.enter="emit('select', contact)"
+        :name="contact.name"
+        :avatar="contact.avatar"
+        :subtitle="contact.role"
+        :online="contact.online"
+        :active="contact.id === selectedId"
+        :avatar-size="44"
+        avatar-radius="12px"
+        @select="emit('select', contact)"
       >
-        <!-- Avatar -->
-        <div class="avatar-wrap">
-          <img
-            v-if="contact.avatar"
-            :src="contact.avatar"
-            :alt="contact.name"
-            class="avatar avatar-img"
-          />
-          <div v-else class="avatar avatar-text" :style="getAvatarStyle(contact)">
-            {{ getInitials(contact) }}
+        <template #right>
+          <div class="right-icon-wrap" @click.stop>
+            <ContactMenu @block="handleBlock(contact)" @remove="handleRemove(contact)" />
           </div>
-          <span v-if="contact.online" class="online-indicator"></span>
-        </div>
-
-        <!-- Contact Info -->
-        <div class="contact-info">
-          <span class="contact-name">{{ contact.name }}</span>
-          <span class="contact-role">{{ contact.role }}</span>
-        </div>
-
-        <div class="right-icon-wrap">
-          <ContactMenu @block="handleBlock(contact)" @remove="handleRemove(contact)" />
-        </div>
-      </div>
+        </template>
+      </ChatItem>
 
       <div v-if="filteredContacts.length === 0" class="empty-search">
         <span>Không tìm thấy liên hệ phù hợp</span>
@@ -427,90 +386,6 @@ function getInitials(contact) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-/* Contact Item */
-.contact-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 14px;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.contact-item:hover {
-  background-color: #f8fafd;
-}
-
-.contact-item.active {
-  background-color: #edf3ff;
-}
-
-/* Avatar */
-.avatar-wrap {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  margin-right: 14px;
-}
-
-.avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.avatar-img {
-  object-fit: cover;
-}
-
-.avatar-text {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.online-indicator {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 10px;
-  height: 10px;
-  background-color: #10b981;
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-}
-
-/* Contact Info */
-.contact-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.contact-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 2px;
-}
-
-.contact-role {
-  font-size: 13px;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Arrow Right */

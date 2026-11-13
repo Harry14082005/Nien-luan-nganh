@@ -17,13 +17,14 @@ import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
+import com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -60,7 +61,7 @@ public class MessageService {
     private final MessageMapper messageMapper;
     private final RoomService roomService;
     private final FileStorageService fileStorageService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
@@ -136,8 +137,10 @@ public class MessageService {
                 : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
         roomService.updateLastActivity(room, savedMessage.getMessageId(), preview, sender, savedMessage.getCreatedAt());
 
-        // 9. Chuyển đổi sang MessageResponse và trả về cho Controller
-        return messageMapper.toMessageResponse(savedMessage);
+        // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả về cho Controller
+        MessageResponse response = messageMapper.toMessageResponse(savedMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
     }
 
     /**
@@ -225,7 +228,9 @@ public class MessageService {
             roomService.updateLastActivityContentIfMatch(message.getRoom(), message.getMessageId(), newContent);
         }
 
-        return messageMapper.toMessageResponse(message);
+        MessageResponse response = messageMapper.toMessageResponse(message);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
     }
 
     /**
@@ -300,6 +305,7 @@ public class MessageService {
         Message savedMessage = messageRepository.save(message);
         MessageResponse response = messageMapper.toMessageResponse(savedMessage);
         response.setReactions(Collections.emptyList());
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
         return response;
     }
 
@@ -438,7 +444,9 @@ public class MessageService {
         }
         roomMemberRepository.saveAll(members);
 
-        return messageMapper.toMessageResponse(savedSystemMessage);
+        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
     }
 
     /**
@@ -510,7 +518,9 @@ public class MessageService {
         }
         roomMemberRepository.saveAll(members);
 
-        return messageMapper.toMessageResponse(savedSystemMessage);
+        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
     }
 
     /**
@@ -643,7 +653,9 @@ public class MessageService {
                         .build());
 
         MessageReaction savedReaction = messageReactionRepository.save(reaction);
-        return messageMapper.toReactionResponse(savedReaction);
+        ReactionResponse response = messageMapper.toReactionResponse(savedReaction);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", response));
+        return response;
     }
 
     /**
@@ -695,6 +707,15 @@ public class MessageService {
                 .build();
 
         messageReactionRepository.deleteById(reactionId);
+
+        // 8. Broadcast sự kiện gỡ cảm xúc qua WebSocket STOMP
+        ReactionResponse removedEvent = ReactionResponse.builder()
+                .messageId(messageId)
+                .userId(currentUserId)
+                .reactionType(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", removedEvent));
     }
 
     /**
@@ -1024,7 +1045,9 @@ public class MessageService {
                     savedMessage.getCreatedAt());
             log.info("6. Đã cập nhật room");
 
-            return messageMapper.toMessageResponse(savedMessage);
+            MessageResponse response = messageMapper.toMessageResponse(savedMessage);
+            eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+            return response;
         } catch (RuntimeException e) {
             // nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
             log.error("Lỗi khi gửi attachment", e);

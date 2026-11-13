@@ -51,7 +51,15 @@ import {
   faUnlock,
   faUserMinus,
   faAddressBook,
-  faLanguage
+  faLanguage,
+  faCalendarDays,
+  faCalendarPlus,
+  faCalendarCheck,
+  faClock,
+  faCircleCheck,
+  faCircleXmark,
+  faLock,
+  faLocationDot,
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
   faHouse,
@@ -97,7 +105,15 @@ library.add(
   faUnlock,
   faUserMinus,
   faAddressBook,
-  faLanguage
+  faLanguage,
+  faCalendarDays,
+  faCalendarPlus,
+  faCalendarCheck,
+  faClock,
+  faCircleCheck,
+  faCircleXmark,
+  faLock,
+  faLocationDot,
 )
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return

@@ -351,10 +351,17 @@ export function subscribeToRoom(roomId) {
     chatStore.handleReactionEvent(reactionEvent)
   })
 
+  // 4. Lắng nghe sự kiện lịch hẹn & nhắc nhở (Reminders: tạo mới, RSVP, hủy lịch, đến giờ hẹn)
+  const unsubReminder = wsService.subscribe(`/topic/room.${key}.reminder`, (reminderEvent) => {
+    console.log(`📅 [Reminder event phòng ${key}]:`, reminderEvent)
+    chatStore.handleReminderEvent(reminderEvent)
+  })
+
   // Lưu lại hàm unsubscribe để dọn dẹp khi rời phòng hoặc đổi tài khoản
   roomUnsubscribers.set(key, () => {
     unsubMsg()
     unsubTyping()
     unsubReaction()
+    unsubReminder()
   })
 }

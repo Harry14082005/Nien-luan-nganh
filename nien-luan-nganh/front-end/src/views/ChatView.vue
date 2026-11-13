@@ -23,6 +23,7 @@ import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
 import AddMemberModal from '@/components/chat/AddMemberModal.vue'
+import CreateReminderModal from '@/components/chat/CreateReminderModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
 import { resolveFileUrl } from '@/api/storage.api';
@@ -32,8 +33,10 @@ const authStore = useAuthStore()
 const chatBodyRef = ref(null) // Tham chiếu tới vùng cuộn tin nhắn (.chat-body)
 const isLoadingOlder = ref(false) // Cờ chặn scrollToBottom khi tải tin nhắn cũ
 const showScrollBottomBtn = ref(false) // Trạng thái hiển thị nút cuộn xuống đáy
+const isSmoothScrollingToBottom = ref(false) // Cờ hiệu ứng cuộn mượt về đáy tin nhắn mới nhất
 const ticker = ref(Date.now()) // Bộ đếm thời gian cập nhật lại thời gian offline mỗi 30 giây
 let tickerTimer = null
+let previousLastMessageId = null // Lưu id của tin nhắn cuối cùng để phân biệt tải tin cũ vs tin nhắn mới
 
 // Quản lý popup lịch sử chỉnh sửa tin nhắn
 const showHistoryModal = ref(false)
@@ -50,6 +53,24 @@ const isInfoSidebarOpen = ref(false)
 const currentRoomMembers = ref([])
 const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
+const showCreateReminderModal = ref(false)
+
+// Kiểm tra quyền Admin/Owner của người dùng hiện tại trong phòng đang mở
+const canManageCurrentRoom = computed(() => {
+  const myId = authStore.user?.userId
+  if (!myId || !Array.isArray(currentRoomMembers.value)) return false
+  const me = currentRoomMembers.value.find((m) => String(m.userId) === String(myId))
+  const role = me?.role || me?.roomMemberRole
+  return role === 'ADMIN' || role === 'OWNER'
+})
+
+const handleOpenCreateReminder = async () => {
+  if (!chatStore.activeRoomId) return
+  if (chatStore.activeRoom?.roomType === 'GROUP' && currentRoomMembers.value.length === 0) {
+    await fetchCurrentRoomMembers()
+  }
+  showCreateReminderModal.value = true
+}
 
 const handleMemberAdded = () => {
   fetchCurrentRoomMembers()
@@ -94,6 +115,13 @@ const handleToggleInfo = () => {
     }
   }
 }
+
+const handleCloseInfo = () => {
+  isInfoSidebarOpen.value = false
+}
+
+// Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
+const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value))
 
 const handleMuteNotification = (isMuted) => {
   isNotificationMuted.value = isMuted
@@ -169,6 +197,12 @@ const handleGlobalKeyDown = (e) => {
     e.preventDefault()
     isInfoSidebarOpen.value = false
     showSearchBar.value = true
+  } else if (e.key === 'Escape') {
+    if (showSearchBar.value) {
+      handleCloseSearch()
+    } else if (isInfoSidebarOpen.value) {
+      handleCloseInfo()
+    }
   }
 }
 
@@ -214,22 +248,61 @@ const formatPresenceStatus = (room) => {
   return `Đã offline ${diffDays} ngày trước`
 }
 
+let scrollToBottomTimer1 = null
+let scrollToBottomTimer2 = null
+const isJumpingToMessage = ref(false) // Khóa cuộn tự động khi đang nhảy tới tin nhắn ghim/reply/reminder
+const isJumpingContextBadge = ref(false) // Hiển thị badge nhỏ khi đang tải ngữ cảnh tin nhắn ở xa
+let jumpLockTimer = null
+let jumpRecenterTimer = null
+
 /**
  * Cuộn khung chat xuống sát đáy mượt mà và chuẩn xác sau khi DOM cập nhật
  * (Có nhịp chờ dự phòng 60ms và 180ms để đảm bảo các badge thông báo hệ thống và avatar render xong vẫn chạm sát đáy)
  */
 const scrollToBottom = async () => {
+  //Chan ngay neu dang trong qua trinh tai tin nhan cu hoac dang nhay toi tin nhan ghim
+  if (
+    isLoadingOlder.value ||
+    chatStore.isLoadingOlder ||
+    isJumpingToMessage.value ||
+    chatStore.isJumpingToContext
+  ) {
+    return
+  }
+  
+  //uy timer cu con dang xep hang cho chay => Ngan xung dot cac lan goi cuon
+  if (scrollToBottomTimer1) clearTimeout(scrollToBottomTimer1)
+  if (scrollToBottomTimer2) clearTimeout(scrollToBottomTimer2)
+
   await nextTick()
-  if (chatBodyRef.value) {
+  if (
+    chatBodyRef.value &&
+    !isLoadingOlder.value &&
+    !chatStore.isLoadingOlder &&
+    !isJumpingToMessage.value &&
+    !chatStore.isJumpingToContext
+  ) {
     chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
   }
-  setTimeout(() => {
-    if (chatBodyRef.value) {
+  scrollToBottomTimer1 = setTimeout(() => {
+    if (
+      chatBodyRef.value &&
+      !isLoadingOlder.value &&
+      !chatStore.isLoadingOlder &&
+      !isJumpingToMessage.value &&
+      !chatStore.isJumpingToContext
+    ) {
       chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
     }
   }, 60)
-  setTimeout(() => {
-    if (chatBodyRef.value) {
+  scrollToBottomTimer2 = setTimeout(() => {
+    if (
+      chatBodyRef.value &&
+      !isLoadingOlder.value &&
+      !chatStore.isLoadingOlder &&
+      !isJumpingToMessage.value &&
+      !chatStore.isJumpingToContext
+    ) {
       chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
     }
   }, 180)
@@ -463,7 +536,7 @@ onMounted(async () => {
   if (token) {
     initGlobalWebSocket(token)
   }
-  // 3. Tải tin nhắn, tin ghim và toàn bộ file phương tiện của phòng đang mở
+  // 3. Tải tin nhắn, tin ghim, lịch hẹn và toàn bộ file phương tiện của phòng đang mở
   if (chatStore.activeRoomId) {
     if (chatStore.messages.length === 0) {
       await chatStore.fetchMessages(chatStore.activeRoomId)
@@ -471,6 +544,7 @@ onMounted(async () => {
     await Promise.all([
       chatStore.fetchPinnedMessages(chatStore.activeRoomId),
       chatStore.fetchRoomMedia(chatStore.activeRoomId),
+      chatStore.fetchRoomReminders(chatStore.activeRoomId),
     ])
     await chatStore.markRoomAsRead(chatStore.activeRoomId)
   }
@@ -583,42 +657,109 @@ const handleReplyMessage = (message) => {
   chatStore.setReplyingMessage(message)
 }
 
-const highlightedMessageId = ref(null) // ID tin nhắn đang được nhấp nháy sáng (2s)
+const highlightedMessageId = ref(null) // ID tin nhắn đang được nhấp nháy sáng
+let highlightTimer = null
 
 /**
- * Cuộn mượt tới phần tử tin nhắn trong DOM và tạo hiệu ứng nhấp nháy sáng 2 giây
+ * Căn giữa phần tử tin nhắn trong vùng cuộn .chat-body
  */
-const scrollToElement = (messageId) => {
-  const el = document.getElementById(`msg-${messageId}`)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    highlightedMessageId.value = String(messageId)
-    el.classList.add('highlight-msg')
-    setTimeout(() => {
-      highlightedMessageId.value = null
-      el.classList.remove('highlight-msg')
-    }, 2000)
+const centerElementInChatBody = (el, smooth = false) => {
+  const container = chatBodyRef.value
+  if (!container || !el) return
+  const containerRect = container.getBoundingClientRect()
+  const elRect = el.getBoundingClientRect()
+  const currentScrollTop = container.scrollTop
+  const offsetWithinContainer = elRect.top - containerRect.top + currentScrollTop
+  const targetScrollTop = Math.max(
+    0,
+    offsetWithinContainer - container.clientHeight / 2 + elRect.height / 2,
+  )
+
+  if (smooth) {
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth',
+    })
+  } else {
+    container.scrollTop = targetScrollTop
   }
 }
 
 /**
- * Nhảy tới tin nhắn ghim:
- * 1. Nếu đã có trong danh sách hiển thị 
- * 2. Nếu chưa có -> Gọi API lấy Cửa sổ ngữ cảnh 20 tin bao quanh tin ghim (10 trước + target + 10 sau)
- *    và thay thế danh sách hiển thị, bật cờ isDetachedFromBottom = true
+ * Cuộn mượt tới phần tử tin nhắn trong DOM và tạo hiệu ứng tô sáng hàng + nhún bong bóng (2.6 giây)
+ */
+const scrollToElement = (messageId, { instantCenter = false } = {}) => {
+  const el = document.getElementById(`msg-${messageId}`)
+  if (el) {
+    if (instantCenter) {
+      centerElementInChatBody(el, false)
+      requestAnimationFrame(() => {
+        const currentEl = document.getElementById(`msg-${messageId}`)
+        if (currentEl) centerElementInChatBody(currentEl, false)
+      })
+      if (jumpRecenterTimer) clearTimeout(jumpRecenterTimer)
+      jumpRecenterTimer = setTimeout(() => {
+        const currentEl = document.getElementById(`msg-${messageId}`)
+        if (currentEl) centerElementInChatBody(currentEl, false)
+      }, 70)
+    } else {
+      centerElementInChatBody(el, true)
+    }
+
+    highlightedMessageId.value = String(messageId)
+
+    // Reset animation nếu bấm liên tiếp vào cùng 1 tin nhắn
+    el.classList.remove('highlight-msg')
+    void el.offsetWidth
+    el.classList.add('highlight-msg')
+
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = setTimeout(() => {
+      highlightedMessageId.value = null
+      const currentEl = document.getElementById(`msg-${messageId}`)
+      if (currentEl) currentEl.classList.remove('highlight-msg')
+    }, 1500)
+  }
+}
+
+/**
+ * Nhảy tới tin nhắn ghim / reply / lịch hẹn:
+ * 1. Nếu đã có trong danh sách hiển thị -> cuộn mượt tới vị trí chính giữa và nháy sáng
+ * 2. Nếu chưa có (>20 tin đã tải) -> Gọi API lấy Cửa sổ ngữ cảnh 20 tin bao quanh tin đích,
+ *    khóa sự kiện cuộn tự động để không bị khựng, căn giữa ngay lập tức và nháy sáng
  */
 const handleScrollToMessage = async (pinnedId) => {
   if (!pinnedId) return
+
+  // Hủy mọi timer cuộn xuống đáy đang chờ để tránh kéo ngược khung chat
+  if (scrollToBottomTimer1) clearTimeout(scrollToBottomTimer1)
+  if (scrollToBottomTimer2) clearTimeout(scrollToBottomTimer2)
+  if (jumpLockTimer) clearTimeout(jumpLockTimer)
+  if (jumpRecenterTimer) clearTimeout(jumpRecenterTimer)
+
+  isJumpingToMessage.value = true
   const exists = chatStore.messages.some((m) => String(m.messageId) === String(pinnedId))
 
   if (exists) {
-    scrollToElement(pinnedId)
+    await nextTick()
+    scrollToElement(pinnedId, { instantCenter: false })
+    jumpLockTimer = setTimeout(() => {
+      isJumpingToMessage.value = false
+    }, 550)
   } else {
-    const ok = await chatStore.jumpToPinnedMessageContext(pinnedId)
-    if (ok) {
-      await nextTick()
-      scrollToElement(pinnedId)
-      showScrollBottomBtn.value = true
+    isJumpingContextBadge.value = true
+    try {
+      const ok = await chatStore.jumpToPinnedMessageContext(pinnedId)
+      if (ok) {
+        await nextTick()
+        scrollToElement(pinnedId, { instantCenter: true })
+        showScrollBottomBtn.value = true
+      }
+    } finally {
+      isJumpingContextBadge.value = false
+      jumpLockTimer = setTimeout(() => {
+        isJumpingToMessage.value = false
+      }, 450)
     }
   }
 }
@@ -646,13 +787,18 @@ const handleChatBodyScroll = async () => {
   const { scrollTop, scrollHeight, clientHeight } = el
   const distanceFromBottom = scrollHeight - (scrollTop + clientHeight)
 
-  // Cách đáy hơn 150px HOẶC đang xem đoạn cắt khúc quanh tin ghim
-  showScrollBottomBtn.value = Boolean(
-    chatStore.hasMoreNewer || chatStore.isDetachedFromBottom || distanceFromBottom > 150,
-  )
+  // 1. Chỉ cập nhật nút cuộn nếu không đang trong quá trình cuộn mượt về đáy (tránh nhấp nháy nút)
+  if (!isSmoothScrollingToBottom.value) {
+    showScrollBottomBtn.value = Boolean(
+      chatStore.hasMoreNewer || chatStore.isDetachedFromBottom || distanceFromBottom > 150,
+    )
+  }
 
-  // 1. Cuộn sát đỉnh (còn cách mép trên <= 120px) -> Tải tin cũ hơn
+  // 2. Cuộn sát đỉnh (còn cách mép trên <= 120px) -> Tải tin cũ hơn (không chạy khi đang lướt về đáy hoặc đang nhảy tới tin ghim)
   if (
+    !isSmoothScrollingToBottom.value &&
+    !isJumpingToMessage.value &&
+    !chatStore.isJumpingToContext &&
     scrollTop <= 120 &&
     chatStore.hasMoreOlder &&
     !chatStore.isLoadingOlder &&
@@ -662,8 +808,11 @@ const handleChatBodyScroll = async () => {
     await loadMoreOlder()
   }
 
-  // 2. Cuộn sát đáy (còn cách mép dưới <= 60px) VÀ đang còn tin mới hơn -> Tải tiếp tin mới
+  // 3. Cuộn sát đáy (còn cách mép dưới <= 60px) VÀ đang còn tin mới hơn -> Tải tiếp tin mới
   if (
+    !isSmoothScrollingToBottom.value &&
+    !isJumpingToMessage.value &&
+    !chatStore.isJumpingToContext &&
     distanceFromBottom <= 60 &&
     chatStore.hasMoreNewer &&
     !chatStore.isLoadingNewer &&
@@ -681,20 +830,26 @@ const loadMoreOlder = async () => {
   const el = chatBodyRef.value
   if (!el || chatStore.isLoadingOlder || !chatStore.hasMoreOlder) return
 
-  const prevScrollHeight = el.scrollHeight
-  const prevScrollTop = el.scrollTop
+  const prevScrollHeight = el.scrollHeight // chieu cao khun chat truoc khi nap tin cu
+  const prevScrollTop = el.scrollTop // Vi tri cuon hien tai cua nguoi dung
   isLoadingOlder.value = true
 
   const success = await chatStore.loadOlderMessages()
   if (success) {
     await nextTick()
     // Giữ nguyên vị trí cuộn hiện tại của người dùng sau khi prepend dữ liệu
-    el.scrollTop = el.scrollHeight - prevScrollHeight + prevScrollTop
+    const scrollDiff = el.scrollHeight - prevScrollHeight
+    el.scrollTop = prevScrollTop + scrollDiff
+    requestAnimationFrame(() => {
+      if (el) {
+        el.scrollTop = prevScrollTop + (el.scrollHeight - prevScrollHeight)
+      }
+    })
   }
 
   setTimeout(() => {
     isLoadingOlder.value = false
-  }, 150)
+  }, 250)
 }
 
 /**
@@ -715,15 +870,53 @@ const loadMoreNewer = async () => {
 
 /**
  * Bấm nút cuộn về mới nhất:
- * Nếu đang ở khúc giữa lịch sử (isDetachedFromBottom hoặc hasMoreNewer) -> Tải lại 20 tin nhắn mới nhất rồi cuộn sát đáy
+ * - Nếu đang ở khúc giữa lịch sử (isDetachedFromBottom hoặc hasMoreNewer) -> Tải lại 20 tin nhắn mới nhất
+ * - Thực hiện cuộn lướt mượt mà (Smooth scroll), không bị nhảy bùm/đột ngột
  */
 const scrollToLatestMessages = async () => {
+  const el = chatBodyRef.value
+  if (!el) return
+
+  // 1. Kích hoạt cờ cuộn mượt và ẩn nút ngay để giao diện phản hồi tức thì
+  isSmoothScrollingToBottom.value = true
+  showScrollBottomBtn.value = false
+
+  if (scrollToBottomTimer1) clearTimeout(scrollToBottomTimer1)
+  if (scrollToBottomTimer2) clearTimeout(scrollToBottomTimer2)
+
+  // 2. Nếu đang xem đoạn ngắt quãng (tin ghim từ xa) -> Tải lại ngữ cảnh mới nhất
   if (chatStore.isDetachedFromBottom || chatStore.hasMoreNewer) {
+    chatStore.isDetachedFromBottom = false
+    chatStore.hasMoreNewer = false
     await chatStore.fetchMessages(chatStore.activeRoomId)
     await nextTick()
   }
-  scrollToBottom()
-  showScrollBottomBtn.value = false
+
+  // 3. Nếu khoảng cách cuộn quá xa (> 1800px), nhảy nhanh một nhịp lại gần đáy (cách đáy ~700px)
+  // rồi cuộn lướt mượt mà nốt đoạn cuối để hiệu ứng cực kỳ êm ái, thanh thoát mà không phải chờ lâu
+  const currentDistance = el.scrollHeight - (el.scrollTop + el.clientHeight)
+  if (currentDistance > 1800) {
+    el.scrollTop = el.scrollHeight - el.clientHeight - 700
+  }
+
+  // 4. Lướt mượt mà xuống chạm đáy
+  el.scrollTo({
+    top: el.scrollHeight,
+    behavior: 'smooth',
+  })
+
+  // 5. Kết thúc hiệu ứng cuộn mượt sau 450ms và kiểm tra lại vị trí
+  setTimeout(() => {
+    isSmoothScrollingToBottom.value = false
+    if (el) {
+      const dist = el.scrollHeight - (el.scrollTop + el.clientHeight)
+      showScrollBottomBtn.value = dist > 150
+      // Đảm bảo chạm sát đáy 100% nếu có ảnh hoặc badge hệ thống nở ra
+      if (dist > 0 && dist <= 150) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      }
+    }
+  }, 450)
 }
 
 /**
@@ -752,33 +945,69 @@ const handleMessageSent = async () => {
 
 // Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
-  () => chatStore.messages.length,
-  async (newLen, oldLen) => {
-    // Nếu tin nhắn mới nhất là do chính mình gửi đi -> LUÔN LUÔN cuộn xuống sát đáy
-    const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-    if (lastMsg && isMyMessage(lastMsg)) {
+  () => chatStore.messages,
+  async (newMessages) => {
+    if (!newMessages || newMessages.length === 0) {
+      previousLastMessageId = null
+      return
+    }
+
+    const currentLastMsg = newMessages[newMessages.length - 1]
+    const currentLastMsgId = currentLastMsg?.messageId ? String(currentLastMsg.messageId) : null
+
+    // 1. Lần đầu nạp danh sách tin nhắn phòng (từ 0 -> 20 tin dau tien) -> cuon xuong đáy
+    if (!previousLastMessageId) {
+      previousLastMessageId = currentLastMsgId
+      await scrollOrJumpToLatestActivity()
+      return
+    }
+
+    // 2. Kiểm tra xem tin nhắn ở đáy mảng có thực sự thay đổi không (có tin nhắn MỚI được thêm vào cuối)
+    const isNewMessageAtBottom = currentLastMsgId && currentLastMsgId !== previousLastMessageId
+    previousLastMessageId = currentLastMsgId
+
+    // Nếu đang nhảy tới ngữ cảnh tin nhắn ghim/reply ở xa hoặc đang xem khúc giữa lịch sử -> TUYỆT ĐỐI KHÔNG tự cuộn xuống đáy!
+    if (
+      isJumpingToMessage.value ||
+      chatStore.isJumpingToContext ||
+      chatStore.isDetachedFromBottom ||
+      chatStore.isViewingOlderSegment ||
+      isLoadingNewer.value ||
+      chatStore.isLoadingNewer
+    ) {
+      return
+    }
+
+    // Nếu KHÔNG có tin nhắn mới ở đáy (tức là tin cũ được nạp thêm ở đỉnh hoặc cập nhật tin nhắn) HOẶC đang tải tin cũ -> TUYỆT ĐỐI KHÔNG cuộn xuống đáy!
+    if (!isNewMessageAtBottom || isLoadingOlder.value || chatStore.isLoadingOlder) {
+      return
+    }
+
+    // 3. Nếu tin nhắn mới nhất là do chính mình gửi đi -> LUÔN LUÔN cuộn xuống sát đáy
+    if (currentLastMsg && isMyMessage(currentLastMsg)) {
       scrollToBottom()
       showScrollBottomBtn.value = false
       return
     }
 
-    // Khi vừa tải danh sách tin nhắn phòng (từ 0 lên N tin) -> tự kiểm tra nhảy tới tin ghim nếu cập nhật mới nhất là ghim
-    if (oldLen === 0 && newLen > 0) {
-      await scrollOrJumpToLatestActivity()
-      return
-    }
+    // 4. Nếu là tin nhắn mới do người khác gửi đến:
+    const el = chatBodyRef.value
+    const isUserNearBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight <= 150 : true
 
+    //neu dang o đáy (cách <=150px) thì cuộn xuống
     if (
-      !isLoadingOlder.value &&
+      isUserNearBottom &&
       !isLoadingNewer.value &&
-      !chatStore.isLoadingOlder &&
       !chatStore.isLoadingNewer &&
       !chatStore.isDetachedFromBottom &&
       !chatStore.hasMoreNewer
     ) {
       scrollToBottom()
+    } else {
+      showScrollBottomBtn.value = true
     }
   },
+  { deep: false },
 )
 
 /**
@@ -796,26 +1025,20 @@ const getImageUrl = (path) => {
 watch(
   () => chatStore.activeRoomId,
   async (newRoomId) => {
+    previousLastMessageId = null
     showScrollBottomBtn.value = false
     if (newRoomId) {
       await Promise.all([
         chatStore.fetchPinnedMessages(newRoomId),
         chatStore.fetchRoomMedia(newRoomId),
+        chatStore.fetchRoomReminders(newRoomId),
       ])
     }
     await scrollOrJumpToLatestActivity()
   },
 )
 
-// Tự động cuộn xuống đáy khi đối phương bắt đầu soạn tin nhắn
-watch(
-  () => chatStore.activeTypingText,
-  (newVal) => {
-    if (newVal) {
-      scrollToBottom()
-    }
-  },
-)
+// Không tự động cuộn khi người khác đang soạn tin nhắn để giữ nguyên vị trí đọc
 </script>
 
 <template>
@@ -828,7 +1051,7 @@ watch(
       <div class="chat-main-area">
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
-          :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
+          :StatusRoom="chatStore.activeTypingText || formatPresenceStatus(chatStore.activeRoom)"
           :isOnline="chatStore.activeRoom?.roomType !== 'GROUP' && Boolean(chatStore.activeRoom?.isOnline)"
           :isSearching="showSearchBar"
           :isInfoOpen="isInfoSidebarOpen"
@@ -836,6 +1059,17 @@ watch(
           @toggleInfo="handleToggleInfo"
         />
         <PinnedMessage @scrollToMessage="handleScrollToMessage" />
+
+        <!-- Badge nổi thông báo khi đang tải ngữ cảnh tin nhắn ở xa (>20 tin) -->
+        <Transition name="fade">
+          <div
+            v-if="isJumpingContextBadge || chatStore.isJumpingToContext"
+            class="jumping-context-badge"
+          >
+            <div class="spinner-small jumping-spinner"></div>
+            <span>Đang di chuyển tới tin nhắn...</span>
+          </div>
+        </Transition>
 
         <div class="chat-body" ref="chatBodyRef" @scroll="handleChatBodyScroll">
           <!-- 0. Thanh tải thêm tin nhắn cũ (Cursor-based Pagination limit: 20) -->
@@ -917,6 +1151,7 @@ watch(
                 isMyMessage(msg) ? '' : getImageUrl(msg.sender?.avatar || msg.sender?.avatarUrl)
               "
               :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
+              :canManageRoom="canManageCurrentRoom"
               @togglePin="handleTogglePin"
               @editMessage="handleEditMessage"
               @revokeMessage="handleRevokeMessage"
@@ -956,34 +1191,66 @@ watch(
           </button>
         </transition>
 
-        <ChatInput @messageSent="handleMessageSent"></ChatInput>
+        <!-- Thanh chỉ báo soạn tin nhắn nổi ngay trên ô nhập liệu (luôn nhìn thấy được dù cuộn tới đâu) -->
+        <transition name="fade">
+          <div v-if="chatStore.activeTypingText" class="floating-typing-bar">
+            <span class="typing-text">{{ chatStore.activeTypingText }}</span>
+            <span class="dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </span>
+          </div>
+        </transition>
+
+        <ChatInput
+          @messageSent="handleMessageSent"
+          @openCreateReminder="handleOpenCreateReminder"
+        ></ChatInput>
       </div>
 
-      <!-- Sidebar tìm kiếm tin nhắn bên phải (Search Drawer phong cách Telegram / Discord / Zalo) -->
-      <Transition name="search-drawer">
-        <MessageSearchSidebar
-          v-if="showSearchBar"
-          :room-id="chatStore.activeRoomId"
-          @close="handleCloseSearch"
-          @jump-to-message="handleScrollToMessage"
-          @update-keyword="handleUpdateSearchKeyword"
-        />
-      </Transition>
-
-      <!-- Sidebar Thông tin phòng chat bên phải (Chat Info Sidebar phong cách Zalo PC / Telegram) -->
-      <Transition name="search-drawer">
-        <ChatInfoSidebar
-          v-if="isInfoSidebarOpen"
-          :room="chatStore.activeRoom || {}"
-          :members="currentRoomMembers"
-          :media-data="roomMediaData"
-          @close="isInfoSidebarOpen = false"
-          @toggle-notification="handleMuteNotification"
-          @add-member="showAddMemberModal = true"
-        />
-      </Transition>
+      <!-- Sidebar bên phải (Tìm kiếm tin nhắn & Thông tin hội thoại) - Push Drawer chuẩn Zalo PC -->
+      <aside
+        class="right-drawer-container"
+        :class="{ 'right-drawer-container--open': isRightDrawerOpen }"
+      >
+        <Transition name="sidebar-fade" mode="out-in">
+          <MessageSearchSidebar
+            v-if="showSearchBar"
+            key="search-sidebar"
+            :room-id="chatStore.activeRoomId"
+            @close="handleCloseSearch"
+            @jump-to-message="handleScrollToMessage"
+            @update-keyword="handleUpdateSearchKeyword"
+          />
+          <ChatInfoSidebar
+            v-else-if="isInfoSidebarOpen"
+            key="info-sidebar"
+            :room="chatStore.activeRoom || {}"
+            :members="currentRoomMembers"
+            :media-data="roomMediaData"
+            @close="handleCloseInfo"
+            @toggle-notification="handleMuteNotification"
+            @add-member="showAddMemberModal = true"
+            @create-reminder="handleOpenCreateReminder"
+            @jump-to-message="handleScrollToMessage"
+          />
+        </Transition>
+      </aside>
     </div>
   </div>
+
+  <!-- Popup Modal tạo lịch hẹn / nhắc nhở mới -->
+  <CreateReminderModal
+    :is-open="showCreateReminderModal"
+    :room-id="String(chatStore.activeRoomId || '')"
+    :room-type="chatStore.activeRoom?.roomType || 'DIRECT'"
+    :room-name="chatStore.activeRoom?.roomName || ''"
+    :members="currentRoomMembers"
+    :current-user-id="authStore.user?.userId"
+    @close="showCreateReminderModal = false"
+    @created="handleMessageSent"
+  />
 
   <!-- Popup Modal thêm thành viên vào nhóm chat -->
   <AddMemberModal
@@ -1126,6 +1393,24 @@ watch(
   font-size: 11px;
 }
 
+.floating-typing-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  margin: 0 0 4px 24px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12px;
+  color: #4b7bec;
+  font-weight: 600;
+  width: fit-content;
+  align-self: flex-start;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
 .typing-indicator {
   display: inline-flex;
   align-items: center;
@@ -1186,36 +1471,52 @@ watch(
   overflow: hidden;
 }
 
-/* Animation mở/đóng mượt mà chuẩn Drawer Telegram / Slack Desktop */
-.search-drawer-enter-active {
+/* =========================================================================
+   RIGHT DRAWER CONTAINER (PUSH DRAWER - CHUẨN ZALO PC)
+   - Trượt đẩy mượt mà từ 0 -> 340px, khung chat co lại nhịp nhàng
+   - Chuyển đổi nội dung giữa Tìm kiếm và Thông tin ngay tại chỗ (Cross-fade)
+   ========================================================================= */
+.right-drawer-container {
+  display: flex;
+  height: 100%;
+  width: 0;
+  min-width: 0;
+  max-width: 340px;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border-left: 1px solid transparent;
+  overflow: hidden;
   transition:
-    width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.25s ease;
-  will-change: width, opacity;
-  overflow: hidden !important;
+    width 0.28s cubic-bezier(0.2, 0, 0, 1),
+    border-color 0.2s ease;
+  will-change: width;
+  z-index: 25;
 }
 
-.search-drawer-leave-active {
+.right-drawer-container--open {
+  width: 340px;
+  min-width: 340px;
+  border-left-color: #e2e8f0;
+}
+
+/* Cross-fade mượt mà khi hoán đổi giữa Tìm kiếm và Thông tin hội thoại */
+.sidebar-fade-enter-active,
+.sidebar-fade-leave-active {
   transition:
-    width 0.24s cubic-bezier(0.2, 0, 0, 1),
-    opacity 0.2s ease;
-  will-change: width, opacity;
-  overflow: hidden !important;
+    opacity 0.18s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+  width: 340px;
+  flex-shrink: 0;
 }
 
-.search-drawer-enter-from,
-.search-drawer-leave-to {
-  width: 0 !important;
+.sidebar-fade-enter-from {
   opacity: 0;
-  border-left-color: transparent !important;
+  transform: translateX(14px);
 }
 
-.search-drawer-enter-from :deep(.search-sidebar-inner),
-.search-drawer-leave-to :deep(.search-sidebar-inner),
-.search-drawer-enter-from :deep(.chat-info-sidebar-inner),
-.search-drawer-leave-to :deep(.chat-info-sidebar-inner) {
-  transform: translateX(40px);
+.sidebar-fade-leave-to {
   opacity: 0;
+  transform: translateX(-14px);
 }
 
 .chat-body {
@@ -1352,5 +1653,30 @@ watch(
 .fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(10px);
+}
+
+.jumping-context-badge {
+  position: absolute;
+  top: 118px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.92);
+  color: #ffffff;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32);
+  pointer-events: none;
+}
+
+.jumping-spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
 }
 </style>

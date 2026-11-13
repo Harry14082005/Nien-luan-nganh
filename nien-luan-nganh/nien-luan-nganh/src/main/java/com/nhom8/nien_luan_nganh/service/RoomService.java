@@ -167,7 +167,8 @@ public class RoomService {
             if (room.getRoomType() == RoomType.DIRECT) {
                 User peer = peerUserByRoomId.get(roomId);
                 if (peer != null) {
-                    //Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan online hong
+                    // Tu dong kiem tra RAM cache xem Friend co dang mo tab/socket hay hong de gan
+                    // online hong
                     item.setPeerId(peer.getUserId());
                     boolean online = userPresenceService.isUserOnline(peer.getUserId());
                     item.setIsOnline(online);

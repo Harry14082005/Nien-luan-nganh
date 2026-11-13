@@ -143,23 +143,7 @@ function getLastMessageText(room) {
     return `${sender} ${isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'}`
   }
 
-  // 3. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim
-  if (
-    room.lastMessageContent &&
-    (room.lastMessageContent.includes('ghim') || room.lastMessageContent.includes('gỡ'))
-  ) {
-    const isMyAction =
-      (authStore.user?.username && room.lastMessageSenderName === authStore.user.username) ||
-      room.lastMessageSenderName === 'Bạn'
-    const sender = isMyAction ? 'Bạn' : room.lastMessageSenderName || 'Thành viên'
-    const actionText =
-      room.lastMessageContent.includes('bỏ') || room.lastMessageContent.includes('gỡ')
-        ? 'đã bỏ ghim 1 tin nhắn'
-        : 'đã ghim 1 tin nhắn'
-    return `${sender}: ${actionText}`
-  }
-
-  // 4. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
+  // 3. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
   if (room.lastMessageSenderName) {
     return `${room.lastMessageSenderName}: ${room.lastMessageContent}`
   }

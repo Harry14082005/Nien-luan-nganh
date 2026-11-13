@@ -5,6 +5,13 @@ const props = defineProps({
   name: { type: String, default: '' },
   src: { type: String, default: '' },
   size: { type: Number, default: 36 },
+  shape: {
+    type: String,
+    default: 'circle',
+    validator: (v) => ['circle', 'squircle', 'rounded'].includes(v),
+  },
+  radius: { type: String, default: '' },
+  initials: { type: String, default: '' },
 });
 
 const imgError = ref(false);
@@ -12,7 +19,16 @@ watch(() => props.src, () => (imgError.value = false));
 
 const showImage = computed(() => !!props.src && !imgError.value);
 
+const borderRadius = computed(() => {
+  if (props.radius) return props.radius;
+  if (props.shape === 'squircle' || props.shape === 'rounded') {
+    return `${Math.max(8, Math.round(props.size * 0.28))}px`;
+  }
+  return '50%';
+});
+
 const avatarText = computed(() => {
+  if (props.initials) return props.initials.slice(0, 2).toUpperCase();
   const trimmed = (props.name || '').trim();
   if (!trimmed) return '?';
   const words = trimmed.split(/\s+/).filter(Boolean);
@@ -37,6 +53,7 @@ const avatarStyle = computed(() => {
   return {
     width: `${props.size}px`,
     height: `${props.size}px`,
+    borderRadius: borderRadius.value,
     fontSize: `${Math.max(11, Math.round(props.size * 0.38))}px`,
     backgroundColor: c.bg,
     color: c.color,
@@ -51,7 +68,7 @@ const avatarStyle = computed(() => {
       :src="src"
       :alt="name"
       class="avatar-img"
-      :style="{ width: `${size}px`, height: `${size}px` }"
+      :style="{ width: `${size}px`, height: `${size}px`, borderRadius }"
       @error="imgError = true"
     />
     <div
@@ -73,13 +90,11 @@ const avatarStyle = computed(() => {
 }
 
 .avatar-img {
-  border-radius: 50%;
   object-fit: cover;
   display: block;
 }
 
 .avatar-initials {
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
