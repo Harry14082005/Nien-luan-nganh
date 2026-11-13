@@ -1098,7 +1098,7 @@ watch(
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
           :avatarUrl="chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl"
-          :StatusRoom="formatPresenceStatus(chatStore.activeRoom)"
+          :StatusRoom="chatStore.activeTypingText || formatPresenceStatus(chatStore.activeRoom)"
           :isOnline="chatStore.activeRoom?.roomType !== 'GROUP' && Boolean(chatStore.activeRoom?.isOnline)"
           :isSearching="showSearchBar"
           :isInfoOpen="isInfoSidebarOpen"
