@@ -42,7 +42,7 @@
 
 ### **Cơ sở dữ liệu & Tích hợp AI**
 - **Database:** MySQL Server 8.0 (kết nối qua HikariCP, tự động sinh schema với Hibernate DDL)
-- **AI Engine:** Google Gemini API (Model: `gemini-1.5-flash`) / gpt-oss-120b
+- **AI Engine:** Groq Cloud API (Model: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`) & Google Gemini API
 
 ---
 

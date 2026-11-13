@@ -17,7 +17,7 @@ import { useAuthStore } from '@/stores/auth';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
-const emit = defineEmits(['messageSent']);
+const emit = defineEmits(['messageSent', 'openCreateReminder']);
 const text = ref(''); // Nội dung văn bản đang soạn trong ô textarea
 const drafts = ref({}); // Lưu trữ nội dung nháp riêng cho từng phòng chat: { [roomId]: string }
 const textareaRef = ref(null); // Ref tới ô textarea để tự động focus
@@ -186,11 +186,10 @@ const handleSend = async () => {
 
     if (!roomId) return;
 
-    // Reset trạng thái
+    // Reset trạng thái ô nhập & file
     text.value = '';
     const filesToSend = [...selectedFiles.value];
     selectedFiles.value = [];
-    chatStore.clearReplyingMessage();
 
     if (chatStore.activeRoomId) {
         delete drafts.value[String(chatStore.activeRoomId)];
@@ -204,9 +203,9 @@ const handleSend = async () => {
 
     emit('messageSent');
 
-    // Gửi text trước nếu có
+    // Gửi text trước nếu có (truyền rõ ràng repliedMessageId)
     if (content) {
-        await chatStore.sendChatMessage(content);
+        await chatStore.sendChatMessage(content, repliedMessageId);
     }
 
     // Gửi lần lượt các file/ảnh trong hàng đợi
@@ -221,6 +220,9 @@ const handleSend = async () => {
             console.error('Gửi file thất bại:', item.name, err);
         }
     }
+
+    // Đảm bảo dọn sạch trạng thái reply sau khi gửi
+    chatStore.clearReplyingMessage();
 };
 
 </script>
@@ -280,7 +282,16 @@ const handleSend = async () => {
           class="icon_input" 
           id="paperClip" 
           icon="paperclip" 
+          title="Đính kèm tệp"
           @click="openFilePicker" 
+      />
+
+      <font-awesome-icon 
+          class="icon_input" 
+          id="createReminderBtn" 
+          icon="calendar-plus" 
+          title="Tạo lịch hẹn / nhắc nhở"
+          @click="emit('openCreateReminder')" 
       />
       
       <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint" title="Chọn biểu cảm" />

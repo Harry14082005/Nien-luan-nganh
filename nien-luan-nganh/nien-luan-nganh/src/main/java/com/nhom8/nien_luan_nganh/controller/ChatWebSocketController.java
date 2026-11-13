@@ -70,10 +70,8 @@ public class ChatWebSocketController {
                 .build();
 
         // 1. Lưu tin nhắn vào CSDL và cập nhật phòng chat thông qua MessageService
-        MessageResponse response = messageService.sendMessage(currentUserId, payload.getRoomId(), request);
-
-        // 2. Broadcast tức thì tới Topic của phòng chat cho tất cả thành viên đang lắng nghe
-        messagingTemplate.convertAndSend("/topic/room." + payload.getRoomId(), response);
+        // (MessageService tự động phát BroadcastEvent tới /topic/room.{roomId} sau khi commit transaction)
+        messageService.sendMessage(currentUserId, payload.getRoomId(), request);
     }
 
     /**

@@ -43,28 +43,20 @@
 
       <!-- Danh sách tin nhắn khớp -->
       <div class="search-results-list">
-        <div
+        <ChatItem
           v-for="item in results"
           :key="item.messageId"
-          class="search-item-card"
-          @click="selectMessage(item.messageId)"
+          :name="item.senderUsername"
+          :avatar="item.senderAvatarUrl"
+          :avatar-size="38"
+          avatar-radius="10px"
+          :time="formatTime(item.createdAt)"
+          @select="selectMessage(item.messageId)"
         >
-          <!-- Avatar người gửi -->
-          <UserAvatar
-            :name="item.senderUsername"
-            :src="item.senderAvatarUrl"
-            :size="36"
-          />
-
-          <div class="item-body">
-            <div class="item-header">
-              <span class="sender-name">{{ item.senderUsername }}</span>
-              <span class="send-time">{{ formatTime(item.createdAt) }}</span>
-            </div>
-            <!-- Bôi vàng từ khóa trùng khớp an toàn -->
+          <template #subtitle>
             <p class="snippet-content" v-html="highlightKeyword(item.content, keyword)"></p>
-          </div>
-        </div>
+          </template>
+        </ChatItem>
 
         <!-- Trạng thái trống -->
         <div v-if="hasSearched && !isSearching && results.length === 0" class="empty-state">
@@ -79,7 +71,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { searchMessagesSidebar } from '@/api/message.api';
-import UserAvatar from '@/components/common/UserAvatar.vue';
+import ChatItem from '@/components/chat/ChatItem.vue';
 
 const props = defineProps({
   roomId: {
@@ -205,12 +197,11 @@ watch(
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
 
 .search-sidebar {
-  width: 330px;
-  min-width: 330px;
-  max-width: 330px;
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
   height: 100%;
   background: #ffffff;
-  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -375,51 +366,6 @@ watch(
 .search-results-list::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
   border-radius: 4px;
-}
-
-.search-item-card {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  margin-bottom: 6px;
-  border: 1px solid transparent;
-}
-
-.search-item-card:hover {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  transform: translateY(-1px);
-}
-
-.item-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 3px;
-}
-
-.sender-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1e293b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.send-time {
-  font-size: 11px;
-  color: #94a3b8;
-  white-space: nowrap;
-  font-weight: 500;
 }
 
 .snippet-content {

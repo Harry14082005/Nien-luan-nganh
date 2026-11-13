@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { getFriends } from '@/api/contacts.api'
 import { useChatStore } from '@/stores/chat'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const emit = defineEmits(['close'])
 const chatStore = useChatStore()
@@ -79,13 +80,6 @@ watch(searchKeyword, (newVal) => {
 onMounted(() => {
   loadInitialFriends()
 })
-
-const getInitials = (name) => {
-  if (!name) return 'U'
-  const words = name.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
 
 // Bắt đầu chat 1-1
 const handleStartDirect = async (user) => {
@@ -224,13 +218,13 @@ const handleCreateGroup = async () => {
             @click="activeTab === 'direct' ? handleStartDirect(user) : toggleSelectUser(user)"
           >
             <div class="user-avatar-wrap">
-              <img
-                v-if="user.avatarUrl"
+              <UserAvatar
+                :name="user.username || user.email"
                 :src="user.avatarUrl"
-                class="user-avatar-img"
-                alt=""
+                :size="42"
+                shape="squircle"
+                radius="12px"
               />
-              <div v-else class="user-avatar">{{ getInitials(user.username || user.email) }}</div>
               <span v-if="user.isOnline" class="online-dot"></span>
             </div>
 
@@ -453,28 +447,8 @@ const handleCreateGroup = async () => {
 .user-avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  display: inline-flex;
 }
-
-.user-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: #ece9ff;
-  color: #6b5bd2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.user-avatar-img {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  object-fit: cover;
-}
-
 
 .user-info {
   flex: 1;

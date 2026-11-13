@@ -41,6 +41,10 @@ public class Reminder {
     @Builder.Default
     private ReminderStatus reminderStatus = ReminderStatus.PENDING;
 
+    @Column(name = "is_notified")
+    @Builder.Default
+    private Boolean isNotified = false;
+
     @Column(name = "title", nullable = false)
     private String title;
 

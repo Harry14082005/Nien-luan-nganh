@@ -20,7 +20,7 @@ public class BroadcastEventListener {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT) // phải lưu dữ liệu trước rồi mới phát thông báo
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true) // phải lưu dữ liệu trước rồi mới phát thông báo
     public void onBroadcastEvent(BroadcastEvent event) {
         log.info("[BROADCAST to {}]", event.getDestination());
         messagingTemplate.convertAndSend(event.getDestination(), event.getPayload());

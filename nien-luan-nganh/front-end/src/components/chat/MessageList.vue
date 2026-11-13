@@ -11,10 +11,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
-import MessageBubble from './MessageBubble.vue';
 import { resolveFileUrl } from '@/api/storage.api'; 
-import { translateMessage } from '@/api/message.api';
-
 const props = defineProps({
     // Mốc thời gian gửi tin nhắn (vd: 14:30)
     Time: {
@@ -115,6 +112,10 @@ const props = defineProps({
       fileSize: {
           type: String,
           default: ''
+      },
+      canManageRoom: {
+          type: Boolean,
+          default: false
       }
 });
 
@@ -317,6 +318,21 @@ const fileStorageKey = computed(() => {
     return props.mediaUrl || '';
 });
 
+const displayFileName = computed(() => {
+    return props.fileName || fileStorageKey.value.split('/').pop() || 'Tài liệu đính kèm';
+});
+
+// Dữ liệu chi tiết Lịch hẹn tương ứng với tin nhắn REMINDER
+const reminderData = computed(() => {
+    if (props.messageType !== 'REMINDER') return null;
+    return chatStore.getReminderForMessage(
+        props.rawMessage || {
+            messageId: props.messageId,
+            roomId: chatStore.activeRoomId,
+        }
+    );
+});
+
 
 // Kiểm tra nội dung tin nhắn có chứa từ khóa tìm kiếm hay không
 const hasKeywordMatch = computed(() => {
@@ -416,8 +432,8 @@ const repliedSenderDisplayName = computed(() => {
     if (!props.repliedMessage) return '';
     const currentUserId = authStore.user?.userId;
     const currentUsername = authStore.user?.username;
-    const senderId = props.repliedMessage.senderId;
-    const senderUsername = props.repliedMessage.senderUsername;
+    const senderId = props.repliedMessage.senderId || props.repliedMessage.sender?.userId;
+    const senderUsername = props.repliedMessage.senderUsername || props.repliedMessage.sender?.username;
     const isMe = (currentUserId && senderId && String(senderId) === String(currentUserId)) ||
                  (currentUsername && senderUsername && currentUsername === senderUsername);
     return isMe ? 'Bạn' : (senderUsername ? `@${senderUsername}` : 'Thành viên');
@@ -548,7 +564,7 @@ onUnmounted(() => {
                     v-else-if="messageType === 'IMAGE'" 
                     class="message message--media message--img-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
-                    @click="emit('preview-media', { type: 'IMAGE', url: Content_Message })"
+                    @click="emit('preview-media', { type: 'IMAGE', url: fileStorageKey || Content_Message })"
                 >
                     <div class="message-media-wrapper">
                         <!-- Fallback khi ảnh không load được -->
@@ -558,7 +574,7 @@ onUnmounted(() => {
                         </div>
                         <img
                             v-else
-                            :src="resolveFileUrl(Content_Message)"
+                            :src="resolveFileUrl(fileStorageKey || Content_Message)"
                             alt="Hình ảnh đính kèm"
                             class="msg-media-img"
                             @error="isMediaLoadError = true"
@@ -572,7 +588,7 @@ onUnmounted(() => {
                     class="message message--media message--video-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                 >
-                    <div class="message-media-wrapper" @click="emit('preview-media', { type: 'VIDEO', url: Content_Message })">
+                    <div class="message-media-wrapper" @click="emit('preview-media', { type: 'VIDEO', url: fileStorageKey || Content_Message })">
                         <!-- Fallback khi video không load được -->
                         <div v-if="isMediaLoadError" class="msg-media-fallback">
                             <font-awesome-icon icon="video" class="msg-fallback-icon" />
@@ -580,7 +596,7 @@ onUnmounted(() => {
                         </div>
                         <video
                             v-else
-                            :src="resolveFileUrl(Content_Message)"
+                            :src="resolveFileUrl(fileStorageKey || Content_Message)"
                             controls
                             class="msg-media-video"
                             @error="isMediaLoadError = true"
@@ -593,16 +609,29 @@ onUnmounted(() => {
                     v-else-if="messageType === 'FILE'" 
                     class="message-file-standalone"
                 >
-                    <a :href="resolveFileUrl(Content_Message)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
+                    <a :href="resolveFileUrl(fileStorageKey)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
                         <div class="msg-file-icon-box">
                             <font-awesome-icon icon="file-lines" />
                         </div>
                         <div class="msg-file-meta">
-                            <span class="msg-file-name" :title="Content_Message.split('/').pop()">{{ Content_Message.split('/').pop() || 'Tài liệu đính kèm' }}</span>
+                            <span class="msg-file-name" :title="displayFileName">{{ displayFileName }}</span>
                             <span class="msg-file-size">Tệp tải xuống</span>
                         </div>
                         <font-awesome-icon icon="arrow-down" class="msg-file-download-icon" />
                     </a>
+                </div>
+
+                <!-- 5.5. Tin nhắn dạng Thẻ Lịch hẹn / Nhắc nhở (REMINDER) -->
+                <div
+                    v-else-if="messageType === 'REMINDER'"
+                    class="message-reminder-standalone"
+                >
+                    <ReminderMessageCard
+                        :message="rawMessage || { messageId, content: Content_Message, roomId: chatStore.activeRoomId }"
+                        :reminder="reminderData"
+                        :current-user-id="authStore.user?.userId"
+                        :can-manage-room="canManageRoom"
+                    />
                 </div>
 
                 <!-- 6. Tin nhắn Văn bản (TEXT) thông thường -->
@@ -806,7 +835,7 @@ onUnmounted(() => {
                             <font-awesome-icon icon="reply" class="opt-icon"/>
                             <span>Trả lời</span>
                         </div>
-                        <div v-if="variant === 'SendTo'" class="dropdown-opt" @click="handleStartEdit">
+                        <div v-if="variant === 'SendTo' && messageType === 'TEXT'" class="dropdown-opt" @click="handleStartEdit">
                             <font-awesome-icon icon="pen" class="opt-icon"/>
                             <span>Chỉnh sửa</span>
                         </div>
@@ -1526,8 +1555,33 @@ onUnmounted(() => {
   margin-bottom: 2px;
 }
 
-.highlight-msg .message {
-  animation: flashMessage 1.5s ease-out;
+/* =========================================================================
+   HIỆU ỨNG LÀM NỔI BẬT TIN NHẮN KHI NHẢY TỚI (GHIM / REPLY / TÌM KIẾM / LỊCH HẸN)
+   - Kết hợp: Tô sáng toàn hàng ngang (Electric Blue) + Nhún nhẹ 1 nhịp êm ái duy nhất trong ~1.5s
+   ========================================================================= */
+.container.highlight-msg {
+  position: relative;
+  z-index: 15;
+  border-radius: 16px;
+  animation: rowElectricHighlight 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Thanh vạch sáng chỉ điểm bên lề hàng tin nhắn */
+
+
+.container--default.highlight-msg::after {
+  left: -8px;
+}
+
+.container--SendTo.highlight-msg::after {
+  right: -8px;
+}
+
+/* Nhún nhẹ 1 lần duy nhất + Viền đôi phát sáng cho mọi loại tin nhắn: Văn bản, Ảnh/Video, File và Thẻ Lịch Hẹn */
+.highlight-msg .message,
+.highlight-msg .message-file-card,
+.highlight-msg :deep(.rem-card) {
+  animation: bubbleElectricBounce 1.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :deep(.chat-search-mark) {
@@ -1539,14 +1593,61 @@ onUnmounted(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
-@keyframes flashMessage {
-  0%,
-  100% {
-    filter: brightness(1);
+@keyframes rowElectricHighlight {
+  0% {
+    background-color: rgba(37, 99, 235, 0);
   }
-  30% {
-    filter: brightness(1.25);
-    box-shadow: 0 0 12px rgba(75, 123, 236, 0.5);
+  20% {
+    background-color: rgba(37, 99, 235, 0.16);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.16);
+  }
+  50% {
+    background-color: rgba(37, 99, 235, 0.08);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08);
+  }
+  100% {
+    background-color: rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes bubbleElectricBounce {
+  0% {
+    transform: scale(1);
+  }
+  22% {
+    transform: scale(1.035) translateY(-2px);
+    box-shadow:
+      0 0 0 2.5px #ffffff,
+      0 0 0 5px #2563eb,
+      0 10px 24px rgba(37, 99, 235, 0.42);
+  }
+  60% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 2px #ffffff,
+      0 0 0 3.5px rgba(37, 99, 235, 0.35),
+      0 4px 14px rgba(37, 99, 235, 0.18);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+}
+
+@keyframes accentBarFade {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  15%,
+  70% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0.6);
   }
 }
 

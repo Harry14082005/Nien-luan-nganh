@@ -90,44 +90,49 @@
 | 29 | `POST` | `/rooms/{roomId}/messages` | Gửi tin nhắn (text, image, file, reply) | 7, 8, 9, 10 | Đăng nhập | Đã hoàn thành | Tự động phát realtime qua `/topic/room.{roomId}` |
 | 30 | `PUT` | `/rooms/{roomId}/messages/{messageId}` | Chỉnh sửa tin nhắn | 11 | Đăng nhập (Chính chủ) | Đã hoàn thành | Lưu `MessageHistory` + phát realtime qua `/topic/room.{roomId}` |
 | 31 | `DELETE` | `/rooms/{roomId}/messages/{messageId}` | Thu hồi tin nhắn (xóa mềm `isRevoked = true`) | 12 | Chính chủ / Admin / Owner | Đã hoàn thành | Ẩn nội dung gốc + phát realtime qua `/topic/room.{roomId}` |
-| 32 | `GET` | `/rooms/{roomId}/messages/{messageId}/translate` | Dịch tin nhắn (cache hoặc gọi AI) | 29 | Đăng nhập | Đã có trong spec |  |
-| 33 | `GET` | `/rooms/{roomId}/messages/search` | Tìm kiếm tin nhắn trong phòng | 19 | Đăng nhập | Đã có trong spec |  |
+| 32 | `POST` | `/messages/{messageId}/translate` | Dịch tin nhắn (gọi Groq LLaMA AI, tự động lưu cache vào DB translations) | 29 | Đăng nhập | Đã hoàn thành | Nhận diện ngôn ngữ gốc và dịch sang `preferredLanguage` |
+| 33 | `GET` | `/rooms/{roomId}/messages/search` | Tìm kiếm tin nhắn trong phòng cho Drawer Search Preview (`?q=...`) | 19 | Đăng nhập | Đã hoàn thành | Hỗ trợ alias `/search/sidebar` |
 | 34 | `GET` | `/rooms/{roomId}/messages/{messageId}/history` | Xem lịch sử chỉnh sửa của tin nhắn | 11 | Đăng nhập | Đã hoàn thành | Dựa trên bảng `message_histories` |
 | 35 | `DELETE` | `/rooms/{roomId}/messages` | Xóa lịch sử chat (phía mình) | 21 | Đăng nhập | Cần bổ sung |  |
 | 36 | `POST` | `/rooms/{roomId}/messages/{messageId}/pins` | Ghim tin nhắn (`isPinned = true`) | 20 | Đăng nhập | Đã hoàn thành | Phát realtime `MessageResponse` qua `/topic/room.{roomId}` |
 | 37 | `DELETE` | `/rooms/{roomId}/messages/{messageId}/pins` | Bỏ ghim tin nhắn (`isPinned = false`) | 20 | Đăng nhập | Đã hoàn thành | Phát realtime `MessageResponse` qua `/topic/room.{roomId}` |
 | 38 | `GET` | `/rooms/{roomId}/messages/pins` | Danh sách tin nhắn đã ghim | 20 | Đăng nhập | Đã hoàn thành | Gom về `MessageController` |
+| — | `GET` | `/rooms/{roomId}/messages/media` | Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat | — | Đăng nhập | Đã hoàn thành | Dùng cho Sidebar thông tin phòng chat, sắp xếp mới nhất (DESC) |
 | — | `POST` | `/rooms/{roomId}/messages/{messageId}/reactions` | Thả hoặc cập nhật cảm xúc tin nhắn | — | Đăng nhập | Đã hoàn thành | Phát realtime `ReactionResponse` qua `/topic/room.{roomId}.reactions` |
 | — | `DELETE` | `/rooms/{roomId}/messages/{messageId}/reactions` | Gỡ cảm xúc đã thả | — | Đăng nhập | Đã hoàn thành | Phát realtime `ReactionResponse` (`reactionType = null`) qua `/topic/room.{roomId}.reactions` |
 | — | `GET` | `/rooms/{roomId}/messages/{messageId}/reactions` | Xem danh sách cảm xúc trên tin nhắn | — | Đăng nhập | Đã hoàn thành |  |
 
-## Uploads
+## Uploads & File Storage
 
 | STT | Method | Endpoint | Mô tả | STT CN | Quyền | Tình trạng | Ghi chú |
 |---|---|---|---|---|---|---|---|
-| 39 | `POST` | `/uploads` | Upload ảnh, file, avatar (multipart); trả url, fileName, size, mimeType | 4, 8, 9 | Đăng nhập | Cần bổ sung |  |
+| 39 | `POST` | `/users/me/avatar` | Upload cập nhật ảnh đại diện người dùng (multipart) | 4 | Đăng nhập | Đã hoàn thành | Lưu file vào `uploads/avatars` |
+| — | `POST` | `/rooms/{roomId}/messages/images` | Gửi tin nhắn hình ảnh đính kèm (multipart) | 8 | Đăng nhập | Đã hoàn thành | Hỗ trợ cả trả lời tin nhắn (`repliedMessageId`) |
+| — | `POST` | `/rooms/{roomId}/messages/files` | Gửi tin nhắn tệp tin đính kèm (multipart) | 9 | Đăng nhập | Đã hoàn thành | Hỗ trợ cả trả lời tin nhắn (`repliedMessageId`) |
+| — | `GET` | `/files` | Tải và xem file đính kèm (`?storageKey=...`) | — | Đăng nhập | Đã hoàn thành | Trả `Resource` với MediaType và Content-Disposition inline |
+| — | `GET` | `/files/{fileName}` | Xem ảnh đại diện người dùng (`/files/{fileName}`) | — | Công khai | Đã hoàn thành | Trả `Resource` từ `uploads/avatars` |
 
 ## Polls
 
 | STT | Method | Endpoint | Mô tả | STT CN | Quyền | Tình trạng | Ghi chú |
 |---|---|---|---|---|---|---|---|
-| — | `GET` | `/polls` | Lấy tất cả danh sách poll trong các room mà người dùng tham gia | — | — | — |  |
-| 40 | `GET` | `/rooms/{roomId}/polls` | Danh sách poll trong phòng | 27 | Đăng nhập | Đã có trong spec |  |
-| 41 | `POST` | `/rooms/{roomId}/polls` | Tạo poll thủ công hoặc xác nhận poll do AI gợi ý | 27, 31 | Đăng nhập | Đã có trong spec |  |
-| 42 | `GET` | `/rooms/{roomId}/polls/{pollId}` | Xem chi tiết 1 poll | 28 | Đăng nhập | Nên có thêm |  |
-| 43 | `POST` | `/rooms/{roomId}/polls/{pollId}/vote` | Bình chọn | 28 | Đăng nhập | Đã có trong spec |  |
-| 44 | `PUT` | `/rooms/{roomId}/polls/{pollId}/close` | Đóng poll | — | Người tạo hoặc Admin phòng | Đã có trong spec |  |
+| 40 | `GET` | `/room/{roomId}/polls` | Danh sách cuộc bình chọn trong phòng | 27 | Đăng nhập | Đã hoàn thành | Hỗ trợ cả `/room/{roomId}/poll` |
+| 41 | `POST` | `/room/{roomId}/polls` | Tạo cuộc bình chọn mới trong nhóm chat | 27, 31 | Đăng nhập | Đã hoàn thành | Nhận tiêu đề, câu hỏi, danh sách lựa chọn ban đầu |
+| 42 | `GET` | `/room/{roomId}/polls/{pollId}` | Xem thông tin chi tiết 1 cuộc bình chọn | 28 | Đăng nhập | Đã hoàn thành | Trả kèm chi tiết số vote và người vote từng phương án |
+| — | `POST` | `/room/{roomId}/polls/{pollId}/options` | Thêm phương án lựa chọn mới vào cuộc bình chọn | — | Đăng nhập | Đã hoàn thành |  |
+| 43 | `PUT` | `/room/{roomId}/polls/{pollId}/vote` | Bỏ phiếu hoặc đổi phiếu bầu cho lựa chọn | 28 | Đăng nhập | Đã hoàn thành | Broadcast cập nhật realtime qua `/topic/room.{roomId}.poll` |
+| 44 | `PUT` | `/room/{roomId}/polls/{pollId}/close` | Đóng / Kết thúc cuộc bình chọn (`isActive = false`) | — | Người tạo hoặc Admin | Đã hoàn thành | Broadcast cập nhật realtime qua WebSocket |
 
 ## Reminders
 
 | STT | Method | Endpoint | Mô tả | STT CN | Quyền | Tình trạng | Ghi chú |
 |---|---|---|---|---|---|---|---|
 | — | `GET` | `/reminders` | Lấy tất cả lời nhắc trong các room mà người dùng tham gia | — | — | — |  |
-| 45 | `GET` | `/rooms/{roomId}/reminders` | Danh sách lịch hẹn trong phòng | 25 | Đăng nhập | Đã có trong spec |  |
-| 46 | `POST` | `/rooms/{roomId}/reminders` | Tạo lịch hẹn thủ công hoặc xác nhận từ AI | 25, 30 | Đăng nhập | Đã có trong spec |  |
-| 47 | `GET` | `/rooms/{roomId}/reminders/{reminderId}` | Xem chi tiết 1 lịch hẹn | 25 | Đăng nhập | Nên có thêm |  |
-| 48 | `PUT` | `/rooms/{roomId}/reminders/{reminderId}` | Sửa hoặc hủy lịch hẹn (status pending, done, cancelled) | 25 | Đăng nhập | Nên có thêm |  |
-| 49 | `PUT` | `/rooms/{roomId}/reminders/{reminderId}/rsvp` | Phản hồi lịch hẹn (accepted, declined) | 26 | Đăng nhập | Đã có trong spec |  |
+| 45 | `GET` | `/rooms/{roomId}/reminders` | Danh sách lịch hẹn trong phòng (Tối ưu chống N+1) | 25 | Đăng nhập | Đã hoàn thành | Batching 3 câu SQL, map RAM $O(1)$ |
+| 46 | `POST` | `/rooms/{roomId}/reminders` | Tạo lịch hẹn cá nhân hoặc nhóm (thủ công hoặc AI) | 25, 30 | Đăng nhập | Đã hoàn thành | 2-step persist, đồng bộ `Message` và `ReminderResource` |
+| 47 | `GET` | `/rooms/{roomId}/reminders/{reminderId}` | Xem chi tiết 1 lịch hẹn | 25 | Đăng nhập | Đã hoàn thành | Trả kèm chi tiết người tham gia và thống kê RSVP |
+| 48 | `DELETE`/`PUT` | `/rooms/{roomId}/reminders/{reminderId}` | Hủy lịch hẹn (`CANCELLED`) | 25 | Chính chủ / Admin / Owner | Đã hoàn thành | Chặn hủy lịch đã kết thúc `DONE`, phát realtime |
+| 49 | `PUT`/`PATCH` | `/rooms/{roomId}/reminders/{reminderId}/rsvp` | Phản hồi lịch hẹn (`ACCEPTED`, `DECLINED`) | 26 | Đăng nhập | Đã hoàn thành | Bảo vệ lịch cá nhân, phát realtime `/topic/room.{roomId}.reminder` |
 
 ## Notifications
 
