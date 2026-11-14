@@ -512,8 +512,8 @@ watch(
   flex-direction: column;
   gap: 24px;
   font-family: 'Quicksand', sans-serif;
-  width: 100%;
-  max-width: 780px;
+  width: 80%;
+  align-self: center;
 }
 
 /* Card 1: Main Profile Card */

@@ -17,7 +17,6 @@ defineProps({
     default: 'blue', // 'blue' | 'purple' | 'teal'
   },
 })
-
 const emit = defineEmits(['action'])
 </script>
 
@@ -77,7 +76,7 @@ const emit = defineEmits(['action'])
     </div>
 
     <!-- Stat Count -->
-    <div class="stat-count">{{ count }}</div>
+    <div class="stat-count">{{ count}}</div>
 
     <!-- Stat Label -->
     <div class="stat-label">{{ label }}</div>

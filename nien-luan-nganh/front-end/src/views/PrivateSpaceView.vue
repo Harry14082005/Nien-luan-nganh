@@ -1,19 +1,106 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import StatCard from '@/components/privatespace/StatCard.vue'
 import UpcomingEventCard from '@/components/privatespace/UpcomingEventCard.vue'
-import GroupPollCard from '@/components/privatespace/GroupPollCard.vue'
+import UpcomingEventList from '@/components/privatespace/UpcomingEventList.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
+import { getAllMyReminders } from '@/api/reminder.api'
+
+const chatStore = useChatStore()
+const formattedTotalUnreadCount = computed(() =>
+  String(chatStore.totalUnreadCount).padStart(2, '0'),
+)
 
 const router = useRouter()
+const authStore = useAuthStore()
 
-// Tab khám phá đang chọn trong Sidebar: 'overview' | 'calendar' | 'polls'
+// Tab khám phá: 'overview' | 'calendar'
+// 'polls' bị ẩn tạm thời (chức năng tích hợp sau)
 const activeSubTab = ref('overview')
+
+const userProfile = ref({ displayName: '' })
+
+// Lịch hẹn hôm nay dùng cho StatCard tổng quan
+const todayReminders = ref([])
+const isLoadingToday = ref(false)
+const todayReminderCount = computed(() =>
+  String(todayReminders.value.length).padStart(2, '0'),
+)
+// Lịch hẹn gần nhất (1 cái) để hiển thị card preview
+const nextReminder = computed(() => todayReminders.value[0] ?? null)
+
+function getShortName(name = '') {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return ''
+  return words[words.length - 1]
+}
+
+async function loadName() {
+  try {
+    const me = (await authStore.initUser()) || authStore.user
+    if (me) {
+      userProfile.value = { displayName: getShortName(me.username || '') }
+    }
+  } catch (e) {
+    console.warn('Không tải tên người dùng', e)
+  }
+}
+
+async function loadTodayReminders() {
+  isLoadingToday.value = true
+  try {
+    todayReminders.value = await getAllMyReminders({ filterToday: true })
+  } catch (e) {
+    console.warn('Không tải được lịch hẹn hôm nay:', e)
+  } finally {
+    isLoadingToday.value = false
+  }
+}
+
+function formatTimeRange(startAt, endAt) {
+  if (!startAt) return '—'
+  const s = new Date(startAt)
+  const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+  const dow = days[s.getDay()]
+  const hh1 = String(s.getHours()).padStart(2, '0')
+  const mm1 = String(s.getMinutes()).padStart(2, '0')
+  if (!endAt) return `${dow} · ${hh1}:${mm1}`
+  const e = new Date(endAt)
+  const hh2 = String(e.getHours()).padStart(2, '0')
+  const mm2 = String(e.getMinutes()).padStart(2, '0')
+  return `${dow} · ${hh1}:${mm1} - ${hh2}:${mm2}`
+}
+
+function getParticipantMembers(reminder) {
+  if (!reminder?.participants?.length) return []
+  return reminder.participants.slice(0, 3).map((p, i) => {
+    const bgPalette = ['#ffe8d6', '#dcfce7', '#e0f2fe']
+    const colorPalette = ['#d97736', '#0d9488', '#0284c7']
+    const name = p.username ?? ''
+    const words = name.trim().split(/\s+/)
+    const initials =
+      words.length >= 2
+        ? (words[0][0] + words[1][0]).toUpperCase()
+        : name.slice(0, 2).toUpperCase()
+    return { initials, bg: bgPalette[i % bgPalette.length], color: colorPalette[i % colorPalette.length] }
+  })
+}
 
 function goToChat() {
   router.push('/chat')
 }
+
+function goToCalendar() {
+  activeSubTab.value = 'calendar'
+}
+
+onMounted(async () => {
+  await loadName()
+  loadTodayReminders()
+})
 </script>
 
 <template>
@@ -31,20 +118,10 @@ function goToChat() {
 
       <!-- Section Title -->
       <div class="sidebar-header">
-        <span class="sub-label">HÔM NAY</span>
         <div class="title-row">
           <h1 class="page-title">Trang chủ</h1>
           <div class="home-icon-box" title="Trang chủ">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
@@ -69,34 +146,12 @@ function goToChat() {
           @keydown.enter="activeSubTab = 'overview'"
         >
           <div class="item-left">
-            <svg
-              class="item-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z"
-              />
+            <svg class="item-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z" />
             </svg>
             <span class="item-text">Tổng quan</span>
           </div>
-          <svg
-            class="chevron-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
+          <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </div>
@@ -111,17 +166,7 @@ function goToChat() {
           @keydown.enter="activeSubTab = 'calendar'"
         >
           <div class="item-left">
-            <svg
-              class="item-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg class="item-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
               <line x1="8" y1="2" x2="8" y2="6" />
@@ -129,106 +174,29 @@ function goToChat() {
             </svg>
             <span class="item-text">Lịch sắp tới</span>
           </div>
-          <svg
-            class="chevron-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
+          <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </div>
 
-        <!-- Mục 3: Bình chọn -->
-        <div
-          class="menu-item"
-          :class="{ active: activeSubTab === 'polls' }"
-          role="button"
-          tabindex="0"
-          @click="activeSubTab = 'polls'"
-          @keydown.enter="activeSubTab = 'polls'"
-        >
-          <div class="item-left">
-            <svg
-              class="item-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="4" y1="21" x2="4" y2="14" />
-              <line x1="4" y1="10" x2="4" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12" y2="3" />
-              <line x1="20" y1="21" x2="20" y2="16" />
-              <line x1="20" y1="12" x2="20" y2="3" />
-            </svg>
-            <span class="item-text">Bình chọn</span>
-          </div>
-          <svg
-            class="chevron-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </div>
+        <!--  Bình chọn ẩn tạm thời  -->
       </div>
-      <!-- Đã loại bỏ khung màu xanh "Mọi thứ trong tầm tay..." và phần user ở dưới theo yêu cầu -->
     </div>
 
-    <!-- Cột 3: Nội dung chính của Trang chủ -->
+    <!-- Cột 3: Nội dung chính -->
     <div class="private-space-main">
       <!-- Topbar -->
       <div class="topbar">
-        <div class="breadcrumb-area">
-          <span class="live-dot"></span>
-          <span class="breadcrumb-text">Không gian làm việc của bạn</span>
-        </div>
-
         <div class="topbar-actions">
           <button class="icon-btn" title="Tìm kiếm">
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </button>
 
           <button class="icon-btn" title="Thông báo">
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
@@ -238,130 +206,120 @@ function goToChat() {
         </div>
       </div>
 
-      <!-- Main Body Container -->
+      <!-- Main Body Scroll -->
       <div class="main-body-scroll">
         <div class="content-wrapper">
-          <!-- 1. Hero Banner -->
-          <div class="hero-banner">
-            <div class="hero-text-side">
-              <div class="hero-tag">
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z" />
-                </svg>
-                <span>NGÀY MỚI, KẾT NỐI MỚI</span>
-              </div>
-              <h1 class="hero-title">
-                Chào bạn, Nam
-                <span class="sparkle-icon">✨</span>
-              </h1>
-              <p class="hero-subtitle">
-                Mọi điều quan trọng từ các cuộc trò chuyện của bạn, ngay tại đây.
-              </p>
-              <button class="btn-to-chat" @click="goToChat">
-                <span>Đến tin nhắn</span>
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </button>
-            </div>
 
-            <!-- Floating 3D Cards Illustration -->
-            <div class="hero-visual-side">
-              <div class="floating-bubble-card small">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#3b82f6"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
+          <!-- ==================== TAB: TỔNG QUAN ==================== -->
+          <template v-if="activeSubTab === 'overview'">
+            <!-- 1. Hero Banner -->
+            <div class="hero-banner">
+              <div class="hero-text-side">
+                <div class="hero-tag">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6-6.3 4.6 2.3-7.4-6-4.6h7.6z" />
+                  </svg>
+                  <span>NGÀY MỚI, KẾT NỐI MỚI</span>
+                </div>
+                <h1 class="hero-title">
+                  Chào bạn, {{ userProfile.displayName }}
+                  <span class="sparkle-icon">✨</span>
+                </h1>
+                <p class="hero-subtitle">
+                  Xem nhanh tin nhắn mới và nhắc hẹn trong các nhóm của bạn.
+                </p>
+                <button class="btn-to-chat" @click="goToChat">
+                  <span>Đến tin nhắn</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
               </div>
 
-              <div class="floating-bubble-card large">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="#2563eb"
-                  stroke="#2563eb"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
+              <!-- Floating 3D Cards Illustration -->
+              <div class="hero-visual-side">
+                <div class="floating-bubble-card small">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div class="floating-bubble-card large">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="#2563eb" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div class="decorative-star star-1">✦</div>
+                <div class="decorative-star star-2">✦</div>
+                <div class="decorative-star star-3">✦</div>
+              </div>
+            </div>
+
+            <!-- 2. Section BẢNG TIN CỦA BẠN -->
+            <div class="section-container">
+              <span class="sub-section-tag">BẢNG TIN CỦA BẠN</span>
+              <div class="section-title-row">
+                <h2 class="section-title">Cập nhật gần đây</h2>
+                <span class="date-tag">Hôm nay</span>
               </div>
 
-              <div class="decorative-star star-1">✦</div>
-              <div class="decorative-star star-2">✦</div>
-              <div class="decorative-star star-3">✦</div>
+              <!-- 2 Stat Cards: Tin nhắn + Lịch hẹn hôm nay (bỏ Bình chọn) -->
+              <div class="stat-cards-grid">
+                <StatCard
+                  :count="formattedTotalUnreadCount"
+                  label="Tin nhắn chưa đọc"
+                  action-text="Xem tin nhắn"
+                  variant="blue"
+                  @action="goToChat"
+                />
+
+                <StatCard
+                  :count="isLoadingToday ? '...' : todayReminderCount"
+                  label="Lịch hẹn hôm nay"
+                  action-text="Xem lịch hẹn"
+                  variant="purple"
+                  @action="goToCalendar"
+                />
+              </div>
             </div>
-          </div>
 
-          <!-- 2. Section BẢNG TIN CỦA BẠN -->
-          <div class="section-container">
-            <span class="sub-section-tag">BẢNG TIN CỦA BẠN</span>
-            <div class="section-title-row">
-              <h2 class="section-title">Cập nhật gần đây</h2>
-              <span class="date-tag">Hôm nay</span>
-            </div>
-
-            <!-- 3 Stat Cards Grid -->
-            <div class="stat-cards-grid">
-              <StatCard
-                count="02"
-                label="Tin nhắn chưa đọc"
-                action-text="Xem tin nhắn"
-                variant="blue"
-                @action="goToChat"
-              />
-
-              <StatCard
-                count="01"
-                label="Lịch hẹn sắp tới"
-                action-text="Xem lịch hẹn"
-                variant="purple"
-              />
-
-              <StatCard
-                count="01"
-                label="Bình chọn đang mở"
-                action-text="Tham gia ngay"
-                variant="teal"
+            <!-- 3. Card lịch hẹn gần nhất (nếu có) -->
+            <div v-if="nextReminder" class="interactive-grid">
+              <UpcomingEventCard
+                badge-text="HÔM NAY"
+                :title="nextReminder.title ?? '(Không có tiêu đề)'"
+                :description="nextReminder.description ?? ''"
+                :time-text="formatTimeRange(nextReminder.startAt, nextReminder.endAt)"
+                :group-name="nextReminder.roomName ?? 'Nhóm'"
+                :members="getParticipantMembers(nextReminder)"
+                @click="goToCalendar"
               />
             </div>
-          </div>
 
-          <!-- 3. Interactive Cards Grid (Lịch sắp tới & Bình chọn) -->
-          <div class="interactive-grid">
-            <UpcomingEventCard />
-            <GroupPollCard />
-          </div>
+            <!-- Không có lịch hẹn hôm nay -->
+            <div v-else-if="!isLoadingToday" class="no-event-hint">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span>Hôm nay không có lịch hẹn nào.</span>
+              <button class="link-btn" @click="goToCalendar">Xem tất cả lịch →</button>
+            </div>
+          </template>
 
-          <!-- Đã loại bỏ phần banner dưới "Ý tưởng và tệp quan trọng..." theo yêu cầu -->
+          <!-- ==================== TAB: LỊCH SẮP TỚI ==================== -->
+          <template v-else-if="activeSubTab === 'calendar'">
+            <UpcomingEventList />
+          </template>
+
+          <!-- ==================== TAB: BÌNH CHỌN (ẩn) ==================== -->
+          <!-- Bình chọn bị ẩn tạm thời — sẽ tích hợp sau -->
+
         </div>
       </div>
     </div>
@@ -400,14 +358,7 @@ function goToChat() {
 .logo-title {
   font-size: 26px;
   font-weight: 700;
-  background: linear-gradient(
-    to right,
-    #0a192f 0%,
-    #1e3a8a 25%,
-    #2563eb 50%,
-    #3b82f6 75%,
-    #60a5fa 100%
-  );
+  background: linear-gradient(to right, #0a192f 0%, #1e3a8a 25%, #2563eb 50%, #3b82f6 75%, #60a5fa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -427,14 +378,6 @@ function goToChat() {
 
 .sidebar-header {
   padding: 10px 24px 14px 24px;
-}
-
-.sub-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #94a3b8;
-  text-transform: uppercase;
 }
 
 .title-row {
@@ -545,31 +488,12 @@ function goToChat() {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 40px;
   height: 70px;
   background-color: #ffffff;
   border-bottom: 1px solid #e6eaf2;
   flex-shrink: 0;
-}
-
-.breadcrumb-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.live-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #10b981;
-  border-radius: 50%;
-}
-
-.breadcrumb-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #475569;
 }
 
 .topbar-actions {
@@ -627,6 +551,8 @@ function goToChat() {
   flex-direction: column;
   gap: 32px;
   max-width: 1080px;
+  align-self: center;
+  justify-self: center;
 }
 
 /* 1. Hero Banner */
@@ -740,12 +666,8 @@ function goToChat() {
 }
 
 @keyframes floatAnim {
-  0% {
-    transform: translateY(0) rotate(-6deg);
-  }
-  100% {
-    transform: translateY(-8px) rotate(-3deg);
-  }
+  0% { transform: translateY(0) rotate(-6deg); }
+  100% { transform: translateY(-8px) rotate(-3deg); }
 }
 
 .decorative-star {
@@ -754,22 +676,9 @@ function goToChat() {
   font-size: 16px;
 }
 
-.star-1 {
-  top: 0;
-  right: 140px;
-}
-
-.star-2 {
-  bottom: 10px;
-  right: 110px;
-  font-size: 12px;
-}
-
-.star-3 {
-  top: 15px;
-  right: 5px;
-  font-size: 20px;
-}
+.star-1 { top: 0; right: 140px; }
+.star-2 { bottom: 10px; right: 110px; font-size: 12px; }
+.star-3 { top: 15px; right: 5px; font-size: 20px; }
 
 /* 2. Section BẢNG TIN */
 .section-container {
@@ -806,9 +715,10 @@ function goToChat() {
   color: #94a3b8;
 }
 
+/* Stat cards: 2 cột thay vì 3 (đã bỏ Bình chọn) */
 .stat-cards-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
@@ -817,5 +727,36 @@ function goToChat() {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
+}
+
+/* Hint khi không có lịch hẹn */
+.no-event-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.link-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.link-btn:hover {
+  color: #1d4ed8;
 }
 </style>
