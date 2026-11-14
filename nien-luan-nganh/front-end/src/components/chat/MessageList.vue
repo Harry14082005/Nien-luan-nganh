@@ -12,6 +12,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
 import { resolveFileUrl } from '@/api/storage.api'; 
+import { translateMessage } from '@/api/message.api';
 import ReminderMessageCard from '@/components/chat/ReminderMessageCard.vue'; 
 const props = defineProps({
     // Mốc thời gian gửi tin nhắn (vd: 14:30)
