@@ -8,6 +8,7 @@ import UpcomingEventList from '@/components/privatespace/UpcomingEventList.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { getAllMyReminders } from '@/api/reminder.api'
+import { resolveFileUrl } from '@/api/storage.api'
 
 const chatStore = useChatStore()
 const formattedTotalUnreadCount = computed(() =>
@@ -76,21 +77,40 @@ function formatTimeRange(startAt, endAt) {
 
 function getParticipantMembers(reminder) {
   if (!reminder?.participants?.length) return []
-  return reminder.participants.slice(0, 3).map((p, i) => {
-    const bgPalette = ['#ffe8d6', '#dcfce7', '#e0f2fe']
-    const colorPalette = ['#d97736', '#0d9488', '#0284c7']
+  return reminder.participants.slice(0, 4).map((p, i) => {
+    const bgPalette = ['#ffe8d6', '#dcfce7', '#e0f2fe', '#fef9c3', '#f5f3ff']
+    const colorPalette = ['#d97736', '#0d9488', '#0284c7', '#ca8a04', '#7c3aed']
     const name = p.username ?? ''
-    const words = name.trim().split(/\s+/)
+    const words = name.trim().split(/\s+/).filter(Boolean)
     const initials =
       words.length >= 2
-        ? (words[0][0] + words[1][0]).toUpperCase()
+        ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
         : name.slice(0, 2).toUpperCase()
-    return { initials, bg: bgPalette[i % bgPalette.length], color: colorPalette[i % colorPalette.length] }
+    return {
+      userId: p.userId,
+      username: name,
+      avatarUrl: p.avatarUrl ? resolveFileUrl(p.avatarUrl) : null,
+      initials,
+      bg: bgPalette[i % bgPalette.length],
+      color: colorPalette[i % colorPalette.length],
+    }
   })
 }
 
 function goToChat() {
   router.push('/chat')
+}
+
+function goToChatWithReminder(item) {
+  if (!item?.roomId) return
+  router.push({
+    path: '/chat',
+    query: {
+      roomId: item.roomId,
+      messageId: item.messageId || undefined,
+      reminderId: item.reminderId || undefined,
+    },
+  })
 }
 
 function goToCalendar() {
@@ -286,16 +306,18 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- 3. Card lịch hẹn gần nhất (nếu có) -->
-            <div v-if="nextReminder" class="interactive-grid">
+            <!-- 3. Tất cả lịch hẹn hôm nay (bố cục 1 hàng 2 card) -->
+            <div v-if="todayReminders.length > 0" class="today-reminders-grid">
               <UpcomingEventCard
+                v-for="(item, idx) in todayReminders"
+                :key="item.reminderId ?? idx"
                 badge-text="HÔM NAY"
-                :title="nextReminder.title ?? '(Không có tiêu đề)'"
-                :description="nextReminder.description ?? ''"
-                :time-text="formatTimeRange(nextReminder.startAt, nextReminder.endAt)"
-                :group-name="nextReminder.roomName ?? 'Nhóm'"
-                :members="getParticipantMembers(nextReminder)"
-                @click="goToCalendar"
+                :title="item.title ?? '(Không có tiêu đề)'"
+                :description="item.description ?? ''"
+                :time-text="formatTimeRange(item.startAt, item.endAt)"
+                :group-name="item.roomName ?? 'Nhóm'"
+                :members="getParticipantMembers(item)"
+                @click="goToChatWithReminder(item)"
               />
             </div>
 
@@ -727,6 +749,18 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
+}
+
+.today-reminders-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 860px) {
+  .today-reminders-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Hint khi không có lịch hẹn */

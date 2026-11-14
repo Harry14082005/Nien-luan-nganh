@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue'
+
 defineProps({
   badgeText: {
     type: String,
@@ -31,6 +33,7 @@ defineProps({
 })
 
 const emit = defineEmits(['click'])
+const avatarErrors = ref({})
 </script>
 
 <template>
@@ -103,8 +106,16 @@ const emit = defineEmits(['click'])
             :key="i"
             class="stacked-avatar"
             :style="{ backgroundColor: m.bg, color: m.color, zIndex: members.length - i }"
+            :title="m.username || ''"
           >
-            {{ m.initials }}
+            <img
+              v-if="m.avatarUrl && !avatarErrors[i]"
+              :src="m.avatarUrl"
+              class="avatar-img"
+              alt=""
+              @error="avatarErrors[i] = true"
+            />
+            <span v-else>{{ m.initials }}</span>
           </div>
         </div>
         <span class="group-name">{{ groupName }}</span>
@@ -253,6 +264,16 @@ const emit = defineEmits(['click'])
   font-size: 10px;
   font-weight: 700;
   margin-left: -6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .stacked-avatar:first-child {

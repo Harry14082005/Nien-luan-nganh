@@ -1,10 +1,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getAllMyReminders } from '@/api/reminder.api'
+import { resolveFileUrl } from '@/api/storage.api'
 
+const router = useRouter()
 const reminders = ref([])
 const isLoading = ref(true)
 const error = ref(null)
+const avatarErrorMap = ref({})
 
 onMounted(async () => {
   try {
@@ -30,20 +34,6 @@ function formatDateTime(isoString) {
   return `${dow}, ${dd}/${mo}/${yyyy} · ${hh}:${mm}`
 }
 
-function formatTimeRange(startAt, endAt) {
-  if (!startAt) return '—'
-  const s = new Date(startAt)
-  const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
-  const dow = days[s.getDay()]
-  const hh1 = String(s.getHours()).padStart(2, '0')
-  const mm1 = String(s.getMinutes()).padStart(2, '0')
-  if (!endAt) return `${dow} · ${hh1}:${mm1}`
-  const e = new Date(endAt)
-  const hh2 = String(e.getHours()).padStart(2, '0')
-  const mm2 = String(e.getMinutes()).padStart(2, '0')
-  return `${dow} · ${hh1}:${mm1} - ${hh2}:${mm2}`
-}
-
 function getStatusLabel(status) {
   if (status === 'PENDING') return 'Sắp diễn ra'
   if (status === 'DONE') return 'Đã xong'
@@ -63,8 +53,8 @@ function getReminderTypeLabel(type) {
 }
 
 function getInitials(name = '') {
-  const words = name.trim().split(/\s+/)
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase()
   return name.slice(0, 2).toUpperCase()
 }
 
@@ -72,6 +62,18 @@ const bgPalette = ['#ffe8d6', '#dcfce7', '#e0f2fe', '#fef9c3', '#f5f3ff']
 const colorPalette = ['#d97736', '#0d9488', '#0284c7', '#ca8a04', '#7c3aed']
 function avatarBg(idx) { return bgPalette[idx % bgPalette.length] }
 function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
+
+function goToChatWithReminder(item) {
+  if (!item?.roomId) return
+  router.push({
+    path: '/chat',
+    query: {
+      roomId: item.roomId,
+      messageId: item.messageId || undefined,
+      reminderId: item.reminderId || undefined,
+    },
+  })
+}
 </script>
 
 <template>
@@ -89,7 +91,7 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
         </div>
         <div>
           <h2 class="list-title">Lịch hẹn sắp tới</h2>
-          <p class="list-subtitle">Danh sách các lịch hẹn từ tất cả nhóm của bạn</p>
+          <p class="list-subtitle">Danh sách các lịch hẹn sắp tới từ tất cả nhóm của bạn </p>
         </div>
       </div>
       <span v-if="!isLoading && !error" class="count-badge">{{ reminders.length }} lịch hẹn</span>
@@ -122,9 +124,15 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
       <p class="empty-hint">Các lịch hẹn từ nhóm sẽ xuất hiện ở đây.</p>
     </div>
 
-    <!-- List -->
+    <!-- List (Bố cục 1 hàng 2 card) -->
     <div v-else class="reminders-list">
-      <div v-for="(item, idx) in reminders" :key="item.reminderId ?? idx" class="reminder-card">
+      <div
+        v-for="(item, idx) in reminders"
+        :key="item.reminderId ?? idx"
+        class="reminder-card"
+        title="Nhấn để nhảy tới tin nhắn thông báo nhắc hẹn trong phòng chat"
+        @click="goToChatWithReminder(item)"
+      >
         <!-- Badge & Status -->
         <div class="card-top">
           <span class="type-badge">
@@ -176,7 +184,13 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
               :style="{ backgroundColor: avatarBg(pi), color: avatarColor(pi), zIndex: 10 - pi }"
               :title="p.username ?? ''"
             >
-              <img v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.username" class="avatar-img" />
+              <img
+                v-if="p.avatarUrl && !avatarErrorMap[p.userId || pi]"
+                :src="resolveFileUrl(p.avatarUrl)"
+                class="avatar-img"
+                alt=""
+                @error="avatarErrorMap[p.userId || pi] = true"
+              />
               <span v-else>{{ getInitials(p.username ?? '') }}</span>
             </div>
             <div v-if="item.participants.length > 4" class="stacked-avatar more-avatar">+{{ item.participants.length - 4 }}</div>
@@ -289,11 +303,17 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* List */
+/* List: 1 HÀNG 2 CARD */
 .reminders-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 860px) {
+  .reminders-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Card */
@@ -304,12 +324,16 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
   border: 1px solid #eef2f7;
   box-shadow: 0 2px 12px rgba(0,0,0,0.03);
   transition: all 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .reminder-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-  border-color: #e2e8f0;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
+  border-color: #cbd5e1;
 }
 
 .card-top {
@@ -363,6 +387,10 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
   color: #64748b;
   line-height: 1.5;
   margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .time-row {
@@ -436,6 +464,6 @@ function avatarColor(idx) { return colorPalette[idx % colorPalette.length] }
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
+  display: block;
 }
 </style>
-
