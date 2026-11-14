@@ -99,20 +99,30 @@ watch(
     }
 );
 
-// 2. KHI CHỌN ẢNH: Đưa vào mảng chờ (hỗ trợ chọn dồn)
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB giới hạn dung lượng
+
+// 2. KHI CHỌN ẢNH HOẶC VIDEO: Đưa vào mảng chờ (hỗ trợ chọn dồn)
 const handleImageSelected = (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
     for (const file of files) {
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`File "${file.name}" vượt quá dung lượng cho phép (tối đa 100MB). Vui lòng chọn file nhỏ hơn!`);
+            continue;
+        }
+        const isVid = file.type?.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
         selectedFiles.value.push({
             file,
-            type: 'IMAGE',
-            previewUrl: URL.createObjectURL(file), // Tạo link tạm để hiện thumbnail
+            type: isVid ? 'VIDEO' : 'IMAGE',
+            previewUrl: URL.createObjectURL(file), // Tạo link tạm để hiện thumbnail / preview
             name: file.name
         });
     }
     event.target.value = '';
+    nextTick(() => {
+        textareaRef.value?.focus();
+    });
 };
 
 // 3. KHI CHỌN FILE: Đưa vào mảng chờ
@@ -121,6 +131,10 @@ const handleFileSelected = (event) => {
     if (files.length === 0) return;
 
     for (const file of files) {
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`File "${file.name}" vượt quá dung lượng cho phép (tối đa 100MB). Vui lòng chọn file nhỏ hơn!`);
+            continue;
+        }
         selectedFiles.value.push({
             file,
             type: 'FILE',
@@ -128,6 +142,9 @@ const handleFileSelected = (event) => {
         });
     }
     event.target.value = '';
+    nextTick(() => {
+        textareaRef.value?.focus();
+    });
 };
 
 // 4. XÓA 1 FILE TRONG DANH SÁCH CHỜ (Bấm nút X ở tag)
@@ -208,10 +225,10 @@ const handleSend = async () => {
         await chatStore.sendChatMessage(content, repliedMessageId);
     }
 
-    // Gửi lần lượt các file/ảnh trong hàng đợi
+    // Gửi lần lượt các file/ảnh/video trong hàng đợi
     for (const item of filesToSend) {
         try {
-            if (item.type === 'IMAGE') {
+            if (item.type === 'IMAGE' || item.type === 'VIDEO') {
                 await chatStore.sendImageMessage(roomId, item.file, repliedMessageId);
             } else {
                 await chatStore.sendFileMessage(roomId, item.file, repliedMessageId);
@@ -257,6 +274,10 @@ const handleSend = async () => {
         <div v-for="(item, index) in selectedFiles" :key="index" class="pending-file-tag">
           <div v-if="item.type === 'IMAGE'" class="pending-tag-thumb">
             <img :src="item.previewUrl" alt="preview" />
+          </div>
+          <div v-else-if="item.type === 'VIDEO'" class="pending-tag-thumb pending-tag-video">
+            <video :src="item.previewUrl" muted></video>
+            <font-awesome-icon icon="video" class="pending-video-badge" />
           </div>
           <div v-else class="pending-tag-file-icon">
             <font-awesome-icon icon="file-lines" />
@@ -320,7 +341,7 @@ const handleSend = async () => {
         id="hiddenImageInput"
         ref="imageInputRef" 
         type="file" 
-        accept="image/*" 
+        accept="image/*,video/*" 
         multiple 
         style="display: none;" 
         @change="handleImageSelected" 
@@ -539,10 +560,26 @@ const handleSend = async () => {
   flex-shrink: 0;
 }
 
-.pending-tag-thumb img {
+.pending-tag-thumb img,
+.pending-tag-thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.pending-tag-video {
+  position: relative;
+}
+
+.pending-video-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 10px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 2px;
+  padding: 1px 2px;
 }
 
 .pending-tag-file-icon {

@@ -310,6 +310,12 @@ const groupedReactions = computed(() => {
     return groups;
 });
 
+// Nhận diện kiểu tin nhắn thực tế (hỗ trợ trường hợp backend lưu video dưới dạng IMAGE hoặc FILE)
+const isVideoContent = computed(() => {
+    const key = fileStorageKey.value || '';
+    return props.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv)$/i.test(key);
+});
+
 //CÁI NÀY ĐỂ XỬ LÝ HIỂN THỊ ẢNH FILE TRÊN TIN NHẮN
 const fileStorageKey = computed(() => {
     // Nếu là tin nhắn media/file mà có Content_Message chứa đường dẫn
@@ -562,7 +568,7 @@ onUnmounted(() => {
 
                 <!-- 3. Tin nhắn dạng Ảnh -->
                 <div 
-                    v-else-if="messageType === 'IMAGE'" 
+                    v-else-if="messageType === 'IMAGE' && !isVideoContent" 
                     class="message message--media message--img-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                     @click="emit('preview-media', { type: 'IMAGE', url: fileStorageKey || Content_Message })"
@@ -583,31 +589,39 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- 4. Tin nhắn dạng Video -->
+                <!-- 4. Tin nhắn dạng Video (hỗ trợ cả messageType === 'VIDEO' hoặc file/image có đuôi video) -->
                 <div 
-                    v-else-if="messageType === 'VIDEO'" 
+                    v-else-if="messageType === 'VIDEO' || (['IMAGE', 'FILE'].includes(messageType) && isVideoContent)" 
                     class="message message--media message--video-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                 >
-                    <div class="message-media-wrapper" @click="emit('preview-media', { type: 'VIDEO', url: fileStorageKey || Content_Message })">
+                    <div class="message-media-wrapper message-video-wrapper" @click="emit('preview-media', { type: 'VIDEO', url: fileStorageKey || Content_Message })">
                         <!-- Fallback khi video không load được -->
                         <div v-if="isMediaLoadError" class="msg-media-fallback">
                             <font-awesome-icon icon="video" class="msg-fallback-icon" />
                             <span class="msg-fallback-text">Video không tải được</span>
                         </div>
-                        <video
-                            v-else
-                            :src="resolveFileUrl(fileStorageKey || Content_Message)"
-                            controls
-                            class="msg-media-video"
-                            @error="isMediaLoadError = true"
-                        ></video>
+                        <template v-else>
+                            <video
+                                :src="resolveFileUrl(fileStorageKey || Content_Message)"
+                                controls
+                                preload="metadata"
+                                class="msg-media-video"
+                                @error="isMediaLoadError = true"
+                            ></video>
+                            <!-- Lớp bắt click trên thân video để mở modal, nhưng chừa khoảng thanh điều khiển 42px ở dưới cho controls -->
+                            <div 
+                                class="video-click-overlay" 
+                                title="Bấm để phóng to video"
+                                @click.stop="emit('preview-media', { type: 'VIDEO', url: fileStorageKey || Content_Message })"
+                            ></div>
+                        </template>
                     </div>
                 </div>
 
                 <!-- 5. Tin nhắn dạng Tệp đính kèm (File) -->
                 <div 
-                    v-else-if="messageType === 'FILE'" 
+                    v-else-if="messageType === 'FILE' && !isVideoContent" 
                     class="message-file-standalone"
                 >
                     <a :href="resolveFileUrl(fileStorageKey)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
@@ -1758,6 +1772,20 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     border: 1px solid #e2e8f0;
+}
+
+.message-video-wrapper {
+    position: relative;
+}
+
+.video-click-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 44px; /* Chừa lại thanh controls ở đáy để người dùng bấm nút Play, Volume, Timeline */
+    cursor: pointer;
+    z-index: 2;
 }
 
 .msg-media-img, .msg-media-video {

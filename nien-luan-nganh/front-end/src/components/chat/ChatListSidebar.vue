@@ -158,11 +158,17 @@ function getLastMessageText(room) {
   }
 
   // 3. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
+  let text = room.lastMessageContent
+  const isVid = /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(text)
+  const isImg = !isVid && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(text)
+  if (isVid) text = '[Video]'
+  else if (isImg) text = '[Hình ảnh]'
+
   if (room.lastMessageSenderName) {
     const sender = isMyAction ? 'Bạn' : room.lastMessageSenderName
-    return `${sender}: ${room.lastMessageContent}`
+    return `${sender}: ${text}`
   }
-  return room.lastMessageContent
+  return text
 }
 
 /**

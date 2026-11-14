@@ -47,14 +47,14 @@
           v-for="item in results"
           :key="item.messageId"
           :name="item.senderUsername"
-          :avatar="item.senderAvatarUrl"
+          :avatar="resolveFileUrl(item.senderAvatarUrl)"
           :avatar-size="38"
           avatar-radius="10px"
           :time="formatTime(item.createdAt)"
           @select="selectMessage(item.messageId)"
         >
           <template #subtitle>
-            <p class="snippet-content" v-html="highlightKeyword(item.content, keyword)"></p>
+            <p class="snippet-content" v-html="highlightKeyword(formatSearchContent(item.content), keyword)"></p>
           </template>
         </ChatItem>
 
@@ -71,6 +71,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { searchMessagesSidebar } from '@/api/message.api';
+import { resolveFileUrl } from '@/api/storage.api';
 import ChatItem from '@/components/chat/ChatItem.vue';
 
 const props = defineProps({
@@ -144,6 +145,21 @@ const clearSearch = () => {
 const selectMessage = (messageId) => {
   if (!messageId) return;
   emit('jump-to-message', messageId);
+};
+
+// Format nội dung hiển thị cho các tin nhắn media/file tránh hiện storage key
+const formatSearchContent = (content) => {
+  if (!content) return '';
+  const text = String(content).trim();
+  const isVid = /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(text);
+  const isImg = !isVid && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(text);
+  if (isVid) return '[Video]';
+  if (isImg) return '[Hình ảnh]';
+  if (text.startsWith('rooms/') || text.startsWith('messages/') || text.startsWith('files/') || text.startsWith('attachments/')) {
+    const filename = text.split('/').pop();
+    return filename ? `[Tệp] ${filename}` : '[Tệp đính kèm]';
+  }
+  return text;
 };
 
 // Hàm escape ký tự đặc biệt chống tấn công XSS

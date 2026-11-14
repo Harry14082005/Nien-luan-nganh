@@ -1061,11 +1061,11 @@ const isNotificationMuted = ref(false);
 const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
 
 const displayRoomName = computed(() => {
-  return props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
+  return chatStore.activeRoom?.roomName || props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
 });
 
 const displayRoomAvatar = computed(() => {
-  return props.room?.roomAvatarURL || props.room?.avatarUrl || '';
+  return chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl || props.room?.roomAvatarURL || props.room?.avatarUrl || '';
 });
 
 const displayMembers = computed(() => {

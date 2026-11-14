@@ -85,6 +85,17 @@ const lightboxInitialIndex = ref(0)
 const handleOpenMediaPreview = (targetMedia) => {
   if (!targetMedia || !targetMedia.url) return
 
+  // Tạm dừng mọi video đang phát trong khung chat trước khi mở Modal
+  try {
+    document.querySelectorAll('.chat-body video').forEach((v) => {
+      if (!v.paused) {
+        v.pause()
+      }
+    })
+  } catch (e) {
+    console.warn('Lỗi tạm dừng video ngoài khung chat:', e)
+  }
+
   // Gom toàn bộ ảnh và video trong phòng thành danh sách xem liên tục
   const allMedia = [
     ...(roomMediaData.value?.images || []),
@@ -185,23 +196,23 @@ const roomMediaData = computed(() => {
   ;(chatStore.messages || []).forEach((m) => {
     if (m.isRevoked) return
     const content = m.content || ''
-    const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-    const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+    const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i)
+    const isImg = !isVid && (m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i))
 
-    if (isImg) {
-      images.push({
-        id: m.messageId,
-        url: m.content,
-        name: 'Hình ảnh',
-        type: 'IMAGE',
-        createdAt: m.createdAt,
-      })
-    } else if (isVid) {
+    if (isVid) {
       videos.push({
         id: m.messageId,
         url: m.content,
         name: 'Video',
         type: 'VIDEO',
+        createdAt: m.createdAt,
+      })
+    } else if (isImg) {
+      images.push({
+        id: m.messageId,
+        url: m.content,
+        name: 'Hình ảnh',
+        type: 'IMAGE',
         createdAt: m.createdAt,
       })
     } else if (m.messageType === 'FILE' || m.messageType === 'DOCUMENT') {
@@ -627,6 +638,11 @@ const handleTogglePin = async (messageId) => {
   } else {
     await chatStore.pinMessage(messageId)
   }
+}
+
+const isGroupChangeSystemMessage = (msg) => {
+  const content = msg?.content || ''
+  return content.includes('đã đổi tên nhóm') || content.includes('đã thay đổi ảnh đại diện');
 }
 
 /**
@@ -1171,7 +1187,7 @@ watch(
               class="system-message-row chat-event-row"
             >
               <div class="system-message-badge chat-event-pill">
-                <font-awesome-icon icon="thumbtack" class="event-pin-icon" />
+                <font-awesome-icon v-if="!isGroupChangeSystemMessage(msg)" icon="thumbtack" class="event-pin-icon" />
                 <span>{{ formatSystemMessageContent(msg) }}</span>
               </div>
             </div>

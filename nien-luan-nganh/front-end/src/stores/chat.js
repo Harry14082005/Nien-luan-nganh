@@ -1235,12 +1235,21 @@ export const useChatStore = defineStore('chat', {
         const roomToUpdate = this.rooms[index]
 
         let displayContent = message.content
+        const isVidMsg = message.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(message.content || '')
+        const isImgMsg = !isVidMsg && (message.messageType === 'IMAGE' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(message.content || ''))
+
         if (message.isRevoked) {
           displayContent = 'Tin nhắn đã bị thu hồi'
         } else if (isPinAction) {
           displayContent = 'đã ghim 1 tin nhắn'
         } else if (isUnpinAction) {
           displayContent = 'đã bỏ ghim 1 tin nhắn'
+        } else if (isVidMsg) {
+          displayContent = '[Video]'
+        } else if (isImgMsg) {
+          displayContent = '[Hình ảnh]'
+        } else if (message.messageType === 'FILE' || message.messageType === 'DOCUMENT') {
+          displayContent = '[Tệp đính kèm]'
         } else if (message.messageType === 'REMINDER') {
           displayContent = message.content?.startsWith('[Lịch')
             ? message.content
@@ -1304,6 +1313,16 @@ export const useChatStore = defineStore('chat', {
         // Nếu người dùng đang mở xem chính phòng này thì tự động đánh dấu đã đọc ngay lập tức
         if (isCurrentRoom && !message.isRevoked && message.messageId && !String(message.messageId).startsWith('mock-')) {
           this.markRoomAsRead(msgRoomId, message.messageId)
+        }
+
+        // Nếu tin nhắn thuộc phòng đang mở và là ảnh/video/file -> tự động đồng bộ realtime vào tab Media của ChatInfoSidebar
+        if (isCurrentRoom && !message.isRevoked) {
+          const content = message.content || ''
+          const isMedia = ['IMAGE', 'VIDEO', 'FILE', 'DOCUMENT'].includes(message.messageType) ||
+            /\.(jpg|jpeg|png|gif|webp|mp4|mov|webm|avi)$/i.test(content)
+          if (isMedia) {
+            this.syncRoomMediaFromCurrentMessages()
+          }
         }
       } else {
         // Nếu là phòng mới chưa có trong danh sách -> tải lại danh sách phòng
@@ -1524,23 +1543,23 @@ export const useChatStore = defineStore('chat', {
         list.forEach((m) => {
           if (m.isRevoked) return
           const content = m.content || ''
-          const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i)
+          const isImg = !isVid && (m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i))
 
-          if (isImg) {
-            images.push({
-              id: m.messageId,
-              url: m.content,
-              name: 'Hình ảnh',
-              type: 'IMAGE',
-              createdAt: m.createdAt,
-            })
-          } else if (isVid) {
+          if (isVid) {
             videos.push({
               id: m.messageId,
               url: m.content,
               name: 'Video',
               type: 'VIDEO',
+              createdAt: m.createdAt,
+            })
+          } else if (isImg) {
+            images.push({
+              id: m.messageId,
+              url: m.content,
+              name: 'Hình ảnh',
+              type: 'IMAGE',
               createdAt: m.createdAt,
             })
           } else {
@@ -1587,24 +1606,24 @@ export const useChatStore = defineStore('chat', {
         ; (this.messages || []).forEach((m) => {
           if (m.isRevoked || seenIds.has(String(m.messageId))) return
           const content = m.content || ''
-          const isImg = m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi)$/i)
+          const isVid = m.messageType === 'VIDEO' || content.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i)
+          const isImg = !isVid && (m.messageType === 'IMAGE' || content.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i))
 
-          if (isImg) {
-            images.unshift({
-              id: m.messageId,
-              url: m.content,
-              name: 'Hình ảnh',
-              type: 'IMAGE',
-              createdAt: m.createdAt,
-            })
-            seenIds.add(String(m.messageId))
-          } else if (isVid) {
+          if (isVid) {
             videos.unshift({
               id: m.messageId,
               url: m.content,
               name: 'Video',
               type: 'VIDEO',
+              createdAt: m.createdAt,
+            })
+            seenIds.add(String(m.messageId))
+          } else if (isImg) {
+            images.unshift({
+              id: m.messageId,
+              url: m.content,
+              name: 'Hình ảnh',
+              type: 'IMAGE',
               createdAt: m.createdAt,
             })
             seenIds.add(String(m.messageId))
@@ -1934,6 +1953,15 @@ export const useChatStore = defineStore('chat', {
           msg.repliedMessage.content = 'Tin nhắn đã được thu hồi'
         }
       })
+
+      // Đồng bộ loại bỏ khỏi roomMedia nếu tin bị thu hồi là ảnh/video/file
+      if (this.roomMedia) {
+        this.roomMedia = {
+          images: (this.roomMedia.images || []).filter((item) => String(item.id) !== targetId),
+          videos: (this.roomMedia.videos || []).filter((item) => String(item.id) !== targetId),
+          files: (this.roomMedia.files || []).filter((item) => String(item.id) !== targetId),
+        }
+      }
 
       // Đồng bộ pinnedMessages nếu tin bị thu hồi đang được ghim
       this.pinnedMessages = this.pinnedMessages.filter((p) => String(p.messageId) !== targetId)
