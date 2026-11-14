@@ -94,7 +94,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
                         @Param("cursorId") UUID cursorId,
                         Pageable pageable);
 
-        // Tim danh sach tin nhan kem thong tin nguoi gui (phuc vu Search Sidebar bên phải)
+        // Tim danh sach tin nhan kem thong tin nguoi gui (phuc vu Search Sidebar bên
+        // phải)
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
                         "WHERE m.room.roomId = :roomId " +
@@ -126,10 +127,27 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
         @Query("SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
                         "WHERE m.room.roomId = :roomId " +
-                        "AND m.messageType IN (com.nhom8.nien_luan_nganh.enums.MessageType.IMAGE, com.nhom8.nien_luan_nganh.enums.MessageType.FILE) " +
+                        "AND m.messageType IN (com.nhom8.nien_luan_nganh.enums.MessageType.IMAGE, com.nhom8.nien_luan_nganh.enums.MessageType.FILE) "
+                        +
                         "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
                         "ORDER BY m.createdAt DESC")
         List<Message> findMediaMessagesByRoomId(@Param("roomId") UUID roomId);
+
+        // Lay ngữ cảnh các tin nhắn TEXT gần nhất trước tin nhắn đích (phục vụ dịch
+        // thuật / gợi ý AI)
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.room.roomId = :roomId " +
+                        "AND m.messageType = com.nhom8.nien_luan_nganh.enums.MessageType.TEXT " +
+                        "AND (m.isRevoked = false OR m.isRevoked IS NULL) " +
+                        "AND m.createdAt < :before " +
+                        "AND m.createdAt >= :after " +
+                        "ORDER BY m.createdAt DESC")
+        List<Message> findRecentContextMessages(
+                        @Param("roomId") UUID roomId,
+                        @Param("before") LocalDateTime before,
+                        @Param("after") LocalDateTime after,
+                        org.springframework.data.domain.Pageable pageable);
 
         // Admin
         // 1. Thống kê số tin nhắn theo khoảng thời gian

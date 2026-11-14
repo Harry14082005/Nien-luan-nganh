@@ -7,7 +7,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@EnableScheduling // Kích hoạt chạy tác vụ ngầm định kỳ (cho ReminderScheduler quét lịch hẹn hết hạn)
+@EnableScheduling // Kích hoạt chạy tác vụ ngầm định kỳ (cho ReminderScheduler quét lịch hẹn hết
+					// hạn)
 public class NienLuanNganhApplication {
 
 	public static void main(String[] args) {

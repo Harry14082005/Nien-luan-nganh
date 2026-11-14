@@ -206,6 +206,41 @@ const toggleLangMenu = (event) => {
     }
 };
 
+// Key lưu trạng thái đóng/mở và nội dung dịch theo từng tin nhắn trong session/local
+const getTranslationStorageKey = () => `bluespace_trans_${props.messageId}`;
+
+const loadSavedTranslationState = () => {
+    if (!props.messageId) return;
+    try {
+        const raw = sessionStorage.getItem(getTranslationStorageKey());
+        if (raw) {
+            const data = JSON.parse(raw);
+            if (data.translatedText) translatedText.value = data.translatedText;
+            if (typeof data.showTranslation === 'boolean') showTranslation.value = data.showTranslation;
+            if (data.currentTargetLang) currentTargetLang.value = data.currentTargetLang;
+        }
+    } catch (e) {
+        // bỏ qua nếu parse lỗi
+    }
+};
+
+const saveTranslationState = () => {
+    if (!props.messageId) return;
+    try {
+        if (!translatedText.value) {
+            sessionStorage.removeItem(getTranslationStorageKey());
+            return;
+        }
+        sessionStorage.setItem(getTranslationStorageKey(), JSON.stringify({
+            translatedText: translatedText.value,
+            showTranslation: showTranslation.value,
+            currentTargetLang: currentTargetLang.value
+        }));
+    } catch (e) {
+        // bỏ qua nếu storage đầy
+    }
+};
+
 // Hàm khi người dùng bấm chọn một ngôn ngữ từ popup
 const handleSelectLanguage = async (langCode) => {
     showLangMenu.value = false;
@@ -218,6 +253,7 @@ const handleSelectLanguage = async (langCode) => {
         if (res.targetLanguage) {
             currentTargetLang.value = res.targetLanguage;
         }
+        saveTranslationState();
     } catch (error) {
         console.error('Lỗi khi dịch ngôn ngữ:', error);
     } finally {
@@ -230,6 +266,7 @@ const handleTranslate = async () => {
     // Nếu đã dịch rồi thì bấm là BẬT / TẮT 
     if (translatedText.value) {
         showTranslation.value = !showTranslation.value;
+        saveTranslationState();
         return;
     }
     // Nếu chưa dịch thì gọi AI (không truyền targetLanguage để backend tự lấy preferredLanguage của User)
@@ -242,6 +279,7 @@ const handleTranslate = async () => {
         if (res.targetLanguage) {
             currentTargetLang.value = res.targetLanguage;
         }
+        saveTranslationState();
     } catch (error) {
         console.error('Lỗi dịch tin nhắn:', error);
     } finally {
@@ -251,6 +289,7 @@ const handleTranslate = async () => {
 // Nút bấm thu gọn mất tiêu bản dịch
 const handleCloseTranslation = () => {
     showTranslation.value = false;
+    saveTranslationState();
 };
 
 // Khi nội dung tin nhắn thay đổi (do chỉnh sửa), tự động xóa bản dịch cũ trên giao diện
@@ -258,6 +297,9 @@ watch(() => props.Content_Message, (newContent, oldContent) => {
     if (newContent !== oldContent) {
         translatedText.value = '';
         showTranslation.value = false;
+        try {
+            if (props.messageId) sessionStorage.removeItem(getTranslationStorageKey());
+        } catch (e) {}
     }
 });
 
@@ -485,7 +527,12 @@ const handleDocumentClick = (e) => {
 };
 
 onMounted(() => {
+  loadSavedTranslationState()
   document.addEventListener('click', handleDocumentClick)
+})
+
+watch(() => props.messageId, () => {
+  loadSavedTranslationState()
 })
 
 onUnmounted(() => {

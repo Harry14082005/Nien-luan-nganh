@@ -2,6 +2,7 @@ package com.nhom8.nien_luan_nganh.service;
 
 import com.nhom8.nien_luan_nganh.dto.response.TranslationResponse;
 import com.nhom8.nien_luan_nganh.entity.Message;
+import com.nhom8.nien_luan_nganh.entity.MessageHistory;
 import com.nhom8.nien_luan_nganh.entity.Translation;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
 import com.nhom8.nien_luan_nganh.mapper.TranslationMapper;
@@ -14,6 +15,9 @@ import com.nhom8.nien_luan_nganh.service.ai.AiService.DetectTranslateResult;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
@@ -46,8 +51,12 @@ public class TranslationService {
     private final AiService aiService;
 
     public DetectTranslateResult detectAndTranslate(String content, String targetLanguage) {
+        return detectAndTranslate(content, targetLanguage, null);
+    }
+
+    public DetectTranslateResult detectAndTranslate(String content, String targetLanguage, String contextText) {
         // tạo câu prompt
-        String prompt = AiPromptBuilder.detectAndTranslatePrompt(content, targetLanguage);
+        String prompt = AiPromptBuilder.detectAndTranslatePrompt(content, targetLanguage, contextText);
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
@@ -131,12 +140,12 @@ public class TranslationService {
             // lần sửa tin nhắn không
             if (Boolean.TRUE.equals(message.getIsEdited())) {
                 try {
-                    java.util.List<com.nhom8.nien_luan_nganh.entity.MessageHistory> histories = message
+                    java.util.List<MessageHistory> histories = message
                             .getMessageHistories();
                     if (histories != null && !histories.isEmpty()) {
                         LocalDateTime lastEditedAt = histories.stream()
-                                .map(com.nhom8.nien_luan_nganh.entity.MessageHistory::getEditedAt)
-                                .filter(java.util.Objects::nonNull)
+                                .map(MessageHistory::getEditedAt)
+                                .filter(Objects::nonNull)
                                 .max(LocalDateTime::compareTo)
                                 .orElse(null);
 
@@ -161,7 +170,8 @@ public class TranslationService {
             if (!aiService.isAvailable()) {
                 throw new AppException(ErrorCode.TRANSLATION_FAILED);
             }
-            DetectTranslateResult result = detectAndTranslate(content, targetLanguage);
+            String contextText = buildConversationContext(message);
+            DetectTranslateResult result = detectAndTranslate(content, targetLanguage, contextText);
             String sourceLanguage = result.source();
             String translatedText = sourceLanguage.equals(targetLanguage) ? content : result.translation();
             t.setSourceLanguage(sourceLanguage);
@@ -177,11 +187,15 @@ public class TranslationService {
             throw new AppException(ErrorCode.TRANSLATION_FAILED);
         }
 
-        // 10. detect + dịch
-        DetectTranslateResult result = detectAndTranslate(content, targetLanguage);
+        // 10. lấy ngữ cảnh hội thoại xung quanh (3-5 tin nhắn TEXT gần nhất trước tin
+        // nhắn này)
+        String contextText = buildConversationContext(message);
+
+        // 11. detect + dịch kèm ngữ cảnh
+        DetectTranslateResult result = detectAndTranslate(content, targetLanguage, contextText);
         String sourceLanguage = result.source();
 
-        // 11. nếu cùng ngôn ngữ t hì thôi
+        // 12. nếu cùng ngôn ngữ t hì thôi
         String translatedText = sourceLanguage.equals(targetLanguage) ? content : result.translation();
 
         // 12. lưu cache
@@ -244,6 +258,52 @@ public class TranslationService {
             throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
         }
         return member;
+    }
+
+    /**
+     * Thu thập 3-5 tin nhắn văn bản (TEXT) gần nhất trước tin nhắn cần dịch
+     * trong vòng 24 giờ để làm ngữ cảnh tham khảo (bỏ qua SYSTEM, POLL, REMINDER,
+     * thu hồi).
+     */
+    private String buildConversationContext(Message anchorMessage) {
+        if (anchorMessage == null || anchorMessage.getRoom() == null || anchorMessage.getCreatedAt() == null) {
+            return "";
+        }
+
+        UUID roomId = anchorMessage.getRoom().getRoomId();
+        LocalDateTime before = anchorMessage.getCreatedAt();
+        LocalDateTime after = before.minusHours(24);
+
+        try {
+            List<Message> contextMsgs = messageRepository.findRecentContextMessages(
+                    roomId, before, after, PageRequest.of(0, 4));
+
+            if (contextMsgs == null || contextMsgs.isEmpty()) {
+                log.info("Không tìm thấy tin nhắn ngữ cảnh trước tin {}", anchorMessage.getMessageId());
+                return "";
+            }
+
+            // Đảo chiều từ cũ -> mới để AI đọc theo đúng tiến trình cuộc trò chuyện
+            Collections.reverse(contextMsgs);
+
+            StringBuilder sb = new StringBuilder();
+            for (Message m : contextMsgs) {
+                String senderName = (m.getSender() != null && m.getSender().getUsername() != null)
+                        ? m.getSender().getUsername()
+                        : "User";
+                String text = m.getContent() != null ? m.getContent().trim() : "";
+                if (text.length() > 200) {
+                    text = text.substring(0, 200) + "...";
+                }
+                sb.append("- ").append(senderName).append(": ").append(text).append("\n");
+            }
+            String result = sb.toString().trim();
+            log.info("Ngữ cảnh dịch thuật cho message {}:\n{}", anchorMessage.getMessageId(), result);
+            return result;
+        } catch (Exception e) {
+            log.warn("Không thể lấy ngữ cảnh tin nhắn để dịch: {}", e.getMessage());
+            return "";
+        }
     }
 
     private TranslationResponse toResponse(Translation t, boolean fromCache) {
