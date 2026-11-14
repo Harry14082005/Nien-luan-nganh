@@ -10,6 +10,10 @@
  *   + Nếu ngừng gõ sau 2.5 giây -> tự động gửi tín hiệu isTyping = false.
  *   + Khi bấm gửi tin nhắn -> hủy trạng thái gõ ngay lập tức để ẩn dấu nhấp nháy bên người nhận.
  */
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, PROPS/EMITS & KHỞI TẠO STATE
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, computed, watch, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
@@ -30,6 +34,10 @@ const selectedFiles = ref([]);
 let typingTimer = null; // Bộ đếm thời gian debounce phát hiện người dùng dừng gõ
 let isCurrentlyTyping = false; // Cờ ghi nhận trạng thái đang gõ phím hiện tại
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: TRẢ LỜI TIN NHẮN (REPLY) & CHUYỂN ĐỔI PHÒNG CHAT (DRAFTS)
+// █████████████████████████████████████████████████████████████████████████████
+
 /**
  * Kiểm tra xem tin nhắn đang được phản hồi có phải của chính mình hay không
  */
@@ -42,15 +50,6 @@ const isReplyingToMe = computed(() => {
     return (currentUserId && String(senderId) === String(currentUserId)) ||
            (currentUsername && senderUsername && currentUsername === senderUsername);
 });
-
-//xử lý hiện hôp thoại khi click
-const openImagePicker = () => {
-    imageInputRef.value?.click();
-};
-
-const openFilePicker = () => {
-    fileInputRef.value?.click();
-};
 
 /**
  * Tự động focus vào ô textarea khi người dùng bấm Trả lời
@@ -99,7 +98,20 @@ watch(
     }
 );
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: CHỌN & QUẢN LÝ ẢNH / VIDEO / TỆP ĐÍNH KÈM TRƯỚC KHI GỬI
+// █████████████████████████████████████████████████████████████████████████████
+
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB giới hạn dung lượng
+
+//xử lý hiện hôp thoại khi click
+const openImagePicker = () => {
+    imageInputRef.value?.click();
+};
+
+const openFilePicker = () => {
+    fileInputRef.value?.click();
+};
 
 // 2. KHI CHỌN ẢNH HOẶC VIDEO: Đưa vào mảng chờ (hỗ trợ chọn dồn)
 const handleImageSelected = (event) => {
@@ -156,6 +168,9 @@ const removeSelectedFile = (index) => {
     selectedFiles.value.splice(index, 1);
 };
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 4: SOẠN THẢO (TYPING INDICATOR) & GỬI TIN NHẮN
+// █████████████████████████████████████████████████████████████████████████████
 
 /**
  * Xử lý sự kiện khi người dùng gõ phím trong ô nhập tin nhắn
@@ -336,7 +351,6 @@ const handleSend = async () => {
   </div>
     </div>
 
-    <!-- ĐÃ ĐƯA 2 THẺ INPUT VÀO BÊN TRONG THẺ GỐC CHUNG -->
     <input 
         id="hiddenImageInput"
         ref="imageInputRef" 

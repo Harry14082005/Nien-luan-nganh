@@ -1,4 +1,7 @@
 <script setup>
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, ROUTER/STORE & KHỞI TẠO STATE CÀI ĐẶT / HỒ SƠ
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -37,6 +40,18 @@ const userProfile = ref({
   email: '',
   phoneNumber: '',
 })
+
+// Cài đặt tùy chọn chung
+const settings = ref({
+  messageNotifications: true,
+  soundNotifications: false,
+  readReceipts: true,
+  darkMode: false,
+})
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: TẢI DỮ LIỆU HỒ SƠ CÁ NHÂN & DANH SÁCH CHẶN
+// █████████████████████████████████████████████████████████████████████████████
 
 const avatarSrc = computed(() => getImageUrl(userProfile.value.avatar))
 
@@ -83,6 +98,10 @@ async function loadProfile() {
 
 onMounted(loadProfile)
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: CẬP NHẬT HỒ SƠ & ĐĂNG XUẤT
+// █████████████████████████████████████████████████████████████████████████████
+
 async function handleProfileSave(updatedUser) {
   userProfile.value = {
     ...userProfile.value,
@@ -100,14 +119,6 @@ async function handleProfileSave(updatedUser) {
     localStorage.setItem('currentUser', JSON.stringify(authStore.user))
   }
 }
-
-// Cài đặt tùy chọn chung
-const settings = ref({
-  messageNotifications: true,
-  soundNotifications: false,
-  readReceipts: true,
-  darkMode: false,
-})
 
 async function handleLogout() {
   await authStore.logout()

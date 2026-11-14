@@ -9,6 +9,10 @@
  * - Hỗ trợ nút sổ xuống (chevron-down) xem toàn bộ danh sách tin đã ghim (tối đa 5 tin).
  * - Cho phép bấm nút 'x' để bỏ ghim nhanh tin nhắn.
  */
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, EMITS & STATE QUẢN LÝ DANH SÁCH GHIM
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { resolveFileUrl } from '@/api/storage.api';
@@ -31,30 +35,12 @@ watch(
   },
 )
 
-// ĐOẠN CODE MỚI:
-const pinnedMsg = computed(() => {
-  const pins = chatStore.pinnedMessages
-  if (!pins || pins.length === 0) return null
+// Tin nhắn ghim mới nhất lấy trực tiếp từ getter dùng chung của chatStore
+const pinnedMsg = computed(() => chatStore.latestPinnedMessage)
 
-  // Tìm sự kiện ghim tin mới nhất từ danh sách tin nhắn hệ thống
-  const lastPinEvent = [...chatStore.messages]
-    .reverse()
-    .find(
-      (m) =>
-        m.messageType === 'SYSTEM' &&
-        m.repliedMessage?.messageId &&
-        m.content?.includes('đã ghim')
-    )
-
-  if (lastPinEvent?.repliedMessage?.messageId) {
-    const targetId = String(lastPinEvent.repliedMessage.messageId)
-    const found = pins.find((p) => String(p.messageId) === targetId)
-    if (found) return found
-  }
-
-  // Mặc định lấy tin ghim mới nhất trong danh sách
-  return pins[pins.length - 1] || pins[0]
-})
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: XỬ LÝ TƯƠNG TÁC GHIM / BỎ GHIM & CUỘN TỚI TIN NHẮN
+// █████████████████████████████████████████████████████████████████████████████
 
 /**
  * Xử lý bỏ ghim một tin nhắn bất kỳ.
@@ -109,6 +95,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
 })
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: PHÂN LOẠI & ĐỊNH DẠNG NỘI DUNG TIN NHẮN GHIM
+// █████████████████████████████████████████████████████████████████████████████
 
 const isImageMessage = (msg) => {
   if (!msg) return false

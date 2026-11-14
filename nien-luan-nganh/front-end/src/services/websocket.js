@@ -3,10 +3,10 @@ import { useChatStore } from '@/stores/chat'
 // Map lưu trữ các hàm hủy đăng ký (unsubscribe) theo từng phòng chat (key = roomId)
 const roomUnsubscribers = new Map()
 
+// =============================================================================
+// ██████████  PHẦN 1: NATIVE STOMP WEBSOCKET CLIENT (CORE ENGINE)  ████████████
+// =============================================================================
 /**
- * =========================================================================
- * Lightweight Native STOMP WebSocket Client
- * =========================================================================
  * - Sử dụng WebSocket API chuẩn của trình duyệt (không phụ thuộc thư viện bên ngoài như stompjs hay sockjs-client).
  * - Kết nối trực tiếp vào Native WebSocket endpoint của Spring Boot: ws://localhost:8080/ws-raw
  * - Hỗ trợ xác thực qua Bearer JWT Token ở Header STOMP CONNECT frame.
@@ -27,6 +27,10 @@ class NativeStompClient {
     this.heartbeatTimer = null // Bộ đếm gửi gói tin ping '\n' giữ kết nối
     this.onConnectedCallbacks = [] // Danh sách callback sẽ được gọi khi kết nối thành công
   }
+
+  // ---------------------------------------------------------------------------
+  // [1.1] KẾT NỐI & TỰ ĐỘNG KẾT NỐI LẠI (CONNECT & AUTO-RECONNECT)
+  // ---------------------------------------------------------------------------
 
   /**
    * Khởi tạo kết nối WebSocket STOMP tới Backend.
@@ -126,6 +130,10 @@ class NativeStompClient {
     }, 2500)
   }
 
+  // ---------------------------------------------------------------------------
+  // [1.2] BÓC TÁCH & ĐIỀU PHỐI GÓI TIN STOMP (INCOMING FRAME PARSER)
+  // ---------------------------------------------------------------------------
+
   /**
    * Bóc tách và xử lý các frame dữ liệu STOMP gửi từ Broker:
    * - Frame CONNECTED: Báo hiệu xác thực và kết nối Message Broker thành công.
@@ -218,6 +226,10 @@ class NativeStompClient {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // [1.3] ĐĂNG KÝ TOPIC, GỬI DỮ LIỆU & NGẮT KẾT NỐI (SUBSCRIBE / SEND / DISCONNECT)
+  // ---------------------------------------------------------------------------
+
   /**
    * Gửi frame SUBSCRIBE theo đúng chuẩn giao thức STOMP 1.2
    */
@@ -290,6 +302,10 @@ class NativeStompClient {
 // Khởi tạo một phiên STOMP WebSocket dùng chung toàn hệ thống
 export const wsService = new NativeStompClient()
 
+// =============================================================================
+// ████  PHẦN 2: ĐĂNG KÝ CÁC KÊNH WEBSOCKET TOÀN CỤC & THEO TỪNG PHÒNG CHAT  ███
+// =============================================================================
+
 /**
  * Hàm khởi tạo và kết nối WebSocket toàn cục cho ứng dụng chat.
  * Tự động đăng ký lắng nghe sự kiện Online/Offline của bạn bè và các phòng chat.
@@ -325,8 +341,11 @@ export function initGlobalWebSocket(token) {
 
 /**
  * Đăng ký lắng nghe các sự kiện diễn ra trong một phòng chat cụ thể:
- * 1. /topic/room.{roomId}: Tin nhắn mới, tin nhắn được ghim/bỏ ghim, reaction...
+ * 1. /topic/room.{roomId}: Tin nhắn mới, tin nhắn được ghim/bỏ ghim, thông báo hệ thống...
  * 2. /topic/room.{roomId}.typing: Trạng thái đang soạn tin nhắn của đối phương.
+ * 3. /topic/room.{roomId}.reactions: Thả / gỡ cảm xúc trên tin nhắn.
+ * 4. /topic/room.{roomId}.reminder: Sự kiện REMINDER (tạo mới, phản hồi RSVP, hủy lịch, đến giờ hẹn).
+ * 5. /topic/room.{roomId}.receipts: Sự kiện Đã nhận / Đã xem tin nhắn.
  * @param {string} roomId Khóa chính UUID của phòng chat
  */
 export function subscribeToRoom(roomId) {
@@ -337,28 +356,33 @@ export function subscribeToRoom(roomId) {
   const chatStore = useChatStore()
   const key = String(roomId)
 
-  // 1. Lắng nghe tin nhắn mới và sự kiện trong phòng
+  // [KÊNH 1] TIN NHẮN MỚI & SỰ KIỆN HỆ THỐNG (/topic/room.{roomId})
   const unsubMsg = wsService.subscribe(`/topic/room.${key}`, (message) => {
     console.log(`🔔 [Tin nhắn mới phòng ${key}]:`, message)
     chatStore.handleNewMessage(message)
   })
 
-  // 2. Lắng nghe trạng thái đang soạn tin nhắn (Typing indicator)
+  // [KÊNH 2] TRẠNG THÁI ĐANG GÕ PHÍM (/topic/room.{roomId}.typing)
   const unsubTyping = wsService.subscribe(`/topic/room.${key}.typing`, (typingEvent) => {
     console.log(`✍️ [Typing event phòng ${key}]:`, typingEvent)
     chatStore.handleTypingEvent(typingEvent)
   })
 
-  // 3. Lắng nghe sự kiện cảm xúc trên tin nhắn (Reactions)
+  // [KÊNH 3] CẢM XÚC TIN NHẮN (/topic/room.{roomId}.reactions)
   const unsubReaction = wsService.subscribe(`/topic/room.${key}.reactions`, (reactionEvent) => {
     console.log(`❤️ [Reaction event phòng ${key}]:`, reactionEvent)
     chatStore.handleReactionEvent(reactionEvent)
   })
 
-  // 4. Lắng nghe sự kiện lịch hẹn & nhắc nhở (Reminders: tạo mới, RSVP, hủy lịch, đến giờ hẹn)
+  // [KÊNH 4] LỊCH HẸN & NHẮC NHỞ - REMINDER (/topic/room.{roomId}.reminder)
   const unsubReminder = wsService.subscribe(`/topic/room.${key}.reminder`, (reminderEvent) => {
     console.log(`📅 [Reminder event phòng ${key}]:`, reminderEvent)
     chatStore.handleReminderEvent(reminderEvent)
+  })
+
+  // [KÊNH 5] TRẠNG THÁI ĐÃ NHẬN / ĐÃ XEM (/topic/room.{roomId}.receipts)
+  const unsubReceipts = wsService.subscribe(`/topic/room.${key}.receipts`, (receiptEvent) => {
+    chatStore.handleReceiptEvent(receiptEvent)
   })
 
   // Lưu lại hàm unsubscribe để dọn dẹp khi rời phòng hoặc đổi tài khoản
@@ -367,5 +391,6 @@ export function subscribeToRoom(roomId) {
     unsubTyping()
     unsubReaction()
     unsubReminder()
+    unsubReceipts()
   })
 }
