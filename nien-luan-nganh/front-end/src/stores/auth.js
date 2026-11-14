@@ -3,6 +3,9 @@ import * as authApi from '@/api/auth.api'
 import { initGlobalWebSocket, wsService } from '@/services/websocket'
 
 export const useAuthStore = defineStore('auth', {
+  // ███████████████████████████████████████████████████████████████████████████
+  // PHẦN 1: STATE & GETTERS (THÔNG TIN USER & TOKEN ĐĂNG NHẬP)
+  // ███████████████████████████████████████████████████████████████████████████
   state: () => ({
     user: JSON.parse(localStorage.getItem('currentUser') || 'null'),
     accessToken: localStorage.getItem('accessToken'),
@@ -12,6 +15,9 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (s) => !!s.accessToken,
   },
 
+  // ███████████████████████████████████████████████████████████████████████████
+  // PHẦN 2: ACTIONS (LƯU PHIÊN, ĐĂNG NHẬP, ĐĂNG KÝ & ĐĂNG XUẤT)
+  // ███████████████████████████████████████████████████████████████████████████
   actions: {
     saveSession(data) {
       if (!data) return

@@ -1,24 +1,29 @@
 package com.nhom8.nien_luan_nganh.service;
 
+import com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent;
 import com.nhom8.nien_luan_nganh.dto.request.AddMemberRequest;
 import com.nhom8.nien_luan_nganh.dto.request.ApproveMemberRequest;
 import com.nhom8.nien_luan_nganh.dto.request.ChangeMemberRoleRequest;
 import com.nhom8.nien_luan_nganh.dto.request.LeaveRoomRequest;
 import com.nhom8.nien_luan_nganh.dto.response.MessageReceiptResponse;
+import com.nhom8.nien_luan_nganh.dto.response.MessageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomMemberResponse;
 import com.nhom8.nien_luan_nganh.dto.response.UserResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import com.nhom8.nien_luan_nganh.enums.MessageReceiptType;
+import com.nhom8.nien_luan_nganh.enums.MessageType;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
+import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
 import com.nhom8.nien_luan_nganh.mapper.RoomMemberMapper;
 import com.nhom8.nien_luan_nganh.mapper.UserMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -41,6 +46,8 @@ public class RoomMemberService {
     private final MessageRepository messageRepository;
     private final FriendshipRepository friendshipRepository;
     private final UserMapper userMapper;
+    private final MessageMapper messageMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 1. Thêm thành viên lúc tạo
     // 2. Thêm thành viên vô nhóm đã tạo
@@ -110,13 +117,76 @@ public class RoomMemberService {
             }
         }
 
-        return saveMember(room, request.getMemberIds(), RoomRole.MEMBER, status);
+        List<RoomMemberResponse> responses = saveMember(room, request.getMemberIds(), RoomRole.MEMBER, status);
+
+        // Nếu người dùng được vào nhóm ngay (ACTIVE) -> Tạo thông báo hệ thống và phát realtime qua WebSocket
+        if (status == RoomMemberStatus.ACTIVE && request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
+            User actorUser = userRepository.findById(currentUserId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+            List<User> addedUsers = userRepository.findAllById(request.getMemberIds());
+
+            if (!addedUsers.isEmpty()) {
+                String actorName = actorUser.getUsername();
+                String systemContent;
+                int count = addedUsers.size();
+
+                // Định dạng nội dung thông báo hệ thống:
+                // <= 2 người: liệt kê tên từng người
+                // > 2 người: gom số lượng (ví dụ: "A đã thêm 3 thành viên vào nhóm")
+                if (count == 1) {
+                    systemContent = actorName + " đã thêm " + addedUsers.get(0).getUsername() + " vào nhóm";
+                } else if (count == 2) {
+                    systemContent = actorName + " đã thêm " + addedUsers.get(0).getUsername() + ", "
+                            + addedUsers.get(1).getUsername() + " vào nhóm";
+                } else {
+                    systemContent = actorName + " đã thêm " + count + " thành viên vào nhóm";
+                }
+
+                // 1. Lưu tin nhắn hệ thống vào CSDL
+                Message systemMessage = Message.builder()
+                        .room(room)
+                        .sender(actorUser)
+                        .messageType(MessageType.SYSTEM)
+                        .content(systemContent)
+                        .isEdited(false)
+                        .isRevoked(false)
+                        .isPinned(false)
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                Message savedSystemMessage = messageRepository.save(systemMessage);
+
+                // 2. Cập nhật hoạt động mới nhất của phòng
+                LocalDateTime now = savedSystemMessage.getCreatedAt();
+                room.setLastMessageId(savedSystemMessage.getMessageId());
+                room.setLastMessageContent(systemContent);
+                room.setLastMessageSenderId(actorUser.getUserId());
+                room.setLastMessageSenderName(actorName);
+                room.setLastMessageAt(now);
+                room.setUpdatedAt(now);
+                roomRepository.save(room);
+
+                // 3. Reset trạng thái đã đọc cho các thành viên khác
+                List<RoomMember> allMembers = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+                for (RoomMember m : allMembers) {
+                    if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                        m.setLastReadMessageId(null);
+                    }
+                }
+                roomMemberRepository.saveAll(allMembers);
+
+                // 4. Phát sóng realtime tin nhắn hệ thống qua WebSocket tới /topic/room.{roomId}
+                MessageResponse messageResponse = messageMapper.toMessageResponse(savedSystemMessage);
+                eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, messageResponse));
+            }
+        }
+
+        return responses;
     }
 
     // phê duyệt thành viên
     @Transactional
     public RoomMemberResponse approveMember(UUID roomId, ApproveMemberRequest request, UUID currentUserId) {
-        getRoomOrThrow(roomId);
+        Room room = getRoomOrThrow(roomId);
 
         RoomMember actor = getRoomMemberOrThrow(roomId, currentUserId);
 
@@ -137,10 +207,50 @@ public class RoomMemberService {
 
         roomMemberRepository.save(target);
 
+        // Tạo thông báo hệ thống khi admin phê duyệt thành viên vào nhóm
+        User actorUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User targetUser = userRepository.findById(request.getTargetUserId())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        String systemContent = actorUser.getUsername() + " đã phê duyệt " + targetUser.getUsername() + " vào nhóm";
+
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(actorUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        LocalDateTime now = savedSystemMessage.getCreatedAt();
+        room.setLastMessageId(savedSystemMessage.getMessageId());
+        room.setLastMessageContent(systemContent);
+        room.setLastMessageSenderId(actorUser.getUserId());
+        room.setLastMessageSenderName(actorUser.getUsername());
+        room.setLastMessageAt(now);
+        room.setUpdatedAt(now);
+        roomRepository.save(room);
+
+        List<RoomMember> allMembers = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : allMembers) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
+        }
+        roomMemberRepository.saveAll(allMembers);
+
+        MessageResponse messageResponse = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, messageResponse));
+
         return roomMemberMapper.toRoomMemberResponse(target);
     }
 
-    // xoá thành viên ra khỏi phòng
+    // xoá thành viên ra khỏi phòng (hoặc từ chối yêu cầu tham gia đang PENDING)
     @Transactional
     public void removeMember(UUID roomId, UUID targetUserId, UUID currentUserId) {
         Room room = roomRepository.findById(roomId).orElseThrow(
@@ -154,23 +264,38 @@ public class RoomMemberService {
                 .orElseThrow(
                         () -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
 
-        // chưa xử lý tự kick bản thân (hàm tự rời ở dưới)
+        // Không tự kick bản thân (dùng leaveRoom)
         boolean isSelf = currentUserId.equals(targetUserId);
         if (isSelf)
             throw new AppException(ErrorCode.INVALID_INPUT);
 
-        /// ADMIN MỚI ĐƯỢC QUYỀN XOÁ THÀNH VIÊN ///
+        // Chỉ ADMIN mới được quyền xoá / từ chối thành viên
         if (actor.getRoomMemberRole() != RoomRole.ADMIN)
             throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
+
+        // Không được phép xoá Người tạo nhóm (createdBy)
+        if (room.getCreatedBy() != null && targetUserId.equals(room.getCreatedBy().getUserId())) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
 
         RoomMember target = roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(targetUserId, roomId)
                 .orElseThrow(
                         () -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
 
+        boolean wasActive = target.getStatus() == RoomMemberStatus.ACTIVE;
+        User actorUser = getUserOrThrow(currentUserId);
+        User targetUser = getUserOrThrow(targetUserId);
+
         roomMemberRepository.delete(target);
+
+        // Nếu xoá một thành viên đang ACTIVE -> Tạo tin nhắn hệ thống thông báo trong nhóm
+        if (wasActive) {
+            String systemContent = actorUser.getUsername() + " đã xóa " + targetUser.getUsername() + " khỏi nhóm";
+            createAndBroadcastSystemMessage(room, actorUser, systemContent);
+        }
     }
 
-    // tự rời
+    // tự rời phòng chat nhóm
     @Transactional
     public void leaveRoom(UUID roomId, LeaveRoomRequest request, UUID currentUserId) {
         Room room = getRoomOrThrow(roomId);
@@ -180,38 +305,94 @@ public class RoomMemberService {
         }
 
         RoomMember actor = getRoomMemberOrThrow(roomId, currentUserId);
+        User actorUser = getUserOrThrow(currentUserId);
+
+        // Đếm số thành viên ACTIVE hiện tại trong phòng
+        List<RoomMember> activeMembers = roomMemberRepository.findByRoomMemberId_RoomIdAndStatus(
+                roomId, RoomMemberStatus.ACTIVE);
+
+        if (activeMembers.size() <= 1) {
+            // Còn 1 mình trong nhóm thì xoá luôn phòng
+            deleteRoomCompletely(room);
+            return;
+        }
 
         // Nếu là admin thì kiểm tra có phải là admin duy nhất hay không
         if (actor.getRoomMemberRole() == RoomRole.ADMIN) {
-            long adminCount = roomMemberRepository.countByRoomMemberId_RoomIdAndRoomMemberRole(roomId, RoomRole.ADMIN);
+            long adminCount = activeMembers.stream()
+                    .filter(m -> m.getRoomMemberRole() == RoomRole.ADMIN)
+                    .count();
 
-            if (adminCount == 1) {
-                long memberCount = roomMemberRepository.countByRoomMemberId_RoomId(roomId);
-
-                if (memberCount == 1) {
-                    // còn mình ên thì xoá luôn phòng
-                    deleteRoomCompletely(room);
-                    return;
-                }
-
-                UUID newAdminId;
-                if (request == null) {
-                    newAdminId = null;
-                } else {
-                    newAdminId = request.getNewAdminId();
-                }
+            if (adminCount <= 1) {
+                UUID newAdminId = (request != null) ? request.getNewAdminId() : null;
 
                 if (newAdminId == null || newAdminId.equals(currentUserId)) {
                     throw new AppException(ErrorCode.INVALID_INPUT);
                 }
 
-                // người được chỉ định phải là thành viên Active
+                // Người được chỉ định kế nhiệm phải là thành viên ACTIVE
                 RoomMember newAdmin = getActiveMemberOrThrow(roomId, newAdminId);
                 newAdmin.setRoomMemberRole(RoomRole.ADMIN);
+                roomMemberRepository.save(newAdmin);
+
+                // Nếu người rời đi là người tạo nhóm (createdBy) thì chuyển giao luôn quyền sở hữu nhóm
+                if (room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId())) {
+                    room.setCreatedBy(newAdmin.getUser());
+                    roomRepository.save(room);
+                }
+            } else if (room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId())) {
+                // Nếu nhóm đã có sẵn Admin khác, chuyển createdBy cho Admin còn lại hoặc người được chọn
+                UUID newOwnerId = (request != null && request.getNewAdminId() != null)
+                        ? request.getNewAdminId()
+                        : activeMembers.stream()
+                                .filter(m -> !m.getRoomMemberId().getUserId().equals(currentUserId)
+                                        && m.getRoomMemberRole() == RoomRole.ADMIN)
+                                .map(m -> m.getRoomMemberId().getUserId())
+                                .findFirst()
+                                .orElse(null);
+                if (newOwnerId != null) {
+                    RoomMember nextOwner = getActiveMemberOrThrow(roomId, newOwnerId);
+                    room.setCreatedBy(nextOwner.getUser());
+                    roomRepository.save(room);
+                }
             }
         }
 
         roomMemberRepository.delete(actor);
+
+        // Phát thông báo hệ thống "A đã rời khỏi nhóm"
+        String systemContent = actorUser.getUsername() + " đã rời khỏi nhóm";
+        createAndBroadcastSystemMessage(room, actorUser, systemContent);
+    }
+
+    // bật / tắt chế độ xét duyệt thành viên mới (chỉ Admin mới được phép)
+    @Transactional
+    public boolean toggleRequireApproval(UUID roomId, Boolean requireApproval, UUID currentUserId) {
+        Room room = getRoomOrThrow(roomId);
+        if (room.getRoomType() == RoomType.DIRECT) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
+        boolean isCreator = room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId());
+        if (actor.getRoomMemberRole() != RoomRole.ADMIN && !isCreator) {
+            throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
+        }
+
+        boolean nextValue = (requireApproval != null) ? requireApproval : !room.isRequireApproval();
+        if (room.isRequireApproval() == nextValue) {
+            return nextValue;
+        }
+
+        room.setRequireApproval(nextValue);
+        roomRepository.save(room);
+
+        User actorUser = getUserOrThrow(currentUserId);
+        String systemContent = actorUser.getUsername()
+                + (nextValue ? " đã bật phê duyệt thành viên mới" : " đã tắt phê duyệt thành viên mới");
+        createAndBroadcastSystemMessage(room, actorUser, systemContent);
+
+        return nextValue;
     }
 
     // xem 1 thành viên
@@ -244,7 +425,7 @@ public class RoomMemberService {
     public RoomMemberResponse changeMemberRole(UUID roomId, UUID userId, ChangeMemberRoleRequest request,
             UUID currentUserId) {
         // kiểm tra phòng chat tồn tại
-        getRoomOrThrow(roomId);
+        Room room = getRoomOrThrow(roomId);
 
         // phải là thành viên thì mới xem được
         RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
@@ -264,6 +445,13 @@ public class RoomMemberService {
 
         RoomRole newRole = request.getRole();
 
+        // Không được gỡ quyền Admin của Người tạo nhóm (createdBy)
+        if (room.getCreatedBy() != null
+                && userId.equals(room.getCreatedBy().getUserId())
+                && newRole == RoomRole.MEMBER) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
         // không làm gì nếu không đổi quyền
         if (target.getRoomMemberRole() == newRole) {
             return roomMemberMapper.toRoomMemberResponse(target);
@@ -280,6 +468,7 @@ public class RoomMemberService {
 
         // cập nhật vai trò
         target.setRoomMemberRole(newRole);
+        roomMemberRepository.save(target);
 
         return roomMemberMapper.toRoomMemberResponse(target);
     }
@@ -288,7 +477,30 @@ public class RoomMemberService {
     @Transactional
     public MessageReceiptResponse markAsDelivered(UUID roomId, UUID messageId, UUID currentUserId) {
         RoomMember member = getActiveMemberOrThrow(roomId, currentUserId);
-        Message message = getMessageInRoomOrThrow(roomId, messageId);
+
+        if (messageId == null) {
+            Room room = getRoomOrThrow(roomId);
+            messageId = room.getLastMessageId();
+        }
+
+        Message message = null;
+        if (messageId != null) {
+            message = messageRepository.findById(messageId)
+                    .filter(m -> m.getRoom() != null && m.getRoom().getRoomId().equals(roomId))
+                    .orElse(null);
+        }
+
+        if (message == null) {
+            Page<Message> latestPage = messageRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId, PageRequest.of(0, 1));
+            if (latestPage.hasContent()) {
+                message = latestPage.getContent().get(0);
+                messageId = message.getMessageId();
+            }
+        }
+
+        if (message == null) {
+            return null;
+        }
 
         if (isNewer(message, member.getLastDeliveredMessageId())) {
             member.setLastDeliveredMessageId(messageId);
@@ -515,5 +727,46 @@ public class RoomMemberService {
         return messageRepository.findById(currentMarkId)
                 .map(old -> newMessage.getCreatedAt().isAfter(old.getCreatedAt()))
                 .orElse(true); // mốc cũ đã bị xoá thì cho ghi đè
+    }
+
+    /**
+     * Tạo tin nhắn hệ thống (MessageType.SYSTEM), cập nhật hoạt động mới nhất của phòng,
+     * reset trạng thái đã đọc cho các thành viên khác và phát sóng qua WebSocket.
+     */
+    private void createAndBroadcastSystemMessage(Room room, User actorUser, String systemContent) {
+        UUID roomId = room.getRoomId();
+        UUID currentUserId = actorUser.getUserId();
+
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(actorUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        LocalDateTime now = savedSystemMessage.getCreatedAt();
+        room.setLastMessageId(savedSystemMessage.getMessageId());
+        room.setLastMessageContent(systemContent);
+        room.setLastMessageSenderId(currentUserId);
+        room.setLastMessageSenderName(actorUser.getUsername());
+        room.setLastMessageAt(now);
+        room.setUpdatedAt(now);
+        roomRepository.save(room);
+
+        List<RoomMember> allMembers = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : allMembers) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
+        }
+        roomMemberRepository.saveAll(allMembers);
+
+        MessageResponse messageResponse = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, messageResponse));
     }
 }

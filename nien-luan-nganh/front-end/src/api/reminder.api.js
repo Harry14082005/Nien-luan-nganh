@@ -1,5 +1,9 @@
 import { http } from './http'
 
+// =============================================================================
+// ██████████████  API: REMINDER (LỊCH HẸN & NHẮC NHỞ PHÒNG CHAT)  █████████████
+// =============================================================================
+
 /**
  * 0. Lấy TẤT CẢ lịch hẹn của người dùng hiện tại từ tất cả các phòng
  *    Chiến lược: lấy danh sách phòng trước, rồi lấy reminder của từng phòng song song.

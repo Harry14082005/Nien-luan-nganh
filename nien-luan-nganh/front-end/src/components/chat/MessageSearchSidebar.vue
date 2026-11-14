@@ -69,9 +69,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, PROPS/EMITS & STATE TÌM KIẾM TIN NHẮN
+// █████████████████████████████████████████████████████████████████████████████
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { searchMessagesSidebar } from '@/api/message.api';
 import { resolveFileUrl } from '@/api/storage.api';
+import { highlightKeyword as highlightSearchText } from '@/stores/chat';
 import ChatItem from '@/components/chat/ChatItem.vue';
 
 const props = defineProps({
@@ -90,6 +94,10 @@ const hasSearched = ref(false);
 const searchInputRef = ref(null);
 let debounceTimer = null;
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: VÒNG ĐỜI COMPONENT & THEO DÕI CHUYỂN PHÒNG
+// █████████████████████████████████████████████████████████████████████████████
+
 onMounted(() => {
   // Trì hoãn focus nhẹ (120ms) để CSS Transition mở hoàn toàn êm ái trên GPU trước khi nháy con trỏ
   setTimeout(() => {
@@ -101,6 +109,19 @@ onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer);
   emit('update-keyword', '');
 });
+
+// Đóng và reset khi chuyển phòng chat khác
+watch(
+  () => props.roomId,
+  () => {
+    clearSearch();
+    emit('close');
+  }
+);
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: XỬ LÝ TÌM KIẾM DEBOUNCE, CHỌN TIN NHẮN & ĐỊNH DẠNG HIỂN THỊ
+// █████████████████████████████████████████████████████████████████████████████
 
 // Cơ chế Debounce 300ms thuần tránh phụ thuộc lodash
 const onSearchInput = () => {
@@ -198,15 +219,6 @@ const formatTime = (isoString) => {
     return '';
   }
 };
-
-// Đóng và reset khi chuyển phòng chat khác
-watch(
-  () => props.roomId,
-  () => {
-    clearSearch();
-    emit('close');
-  }
-);
 </script>
 
 <style scoped>

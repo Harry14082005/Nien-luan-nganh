@@ -3,17 +3,23 @@
  * =========================================================================
  * Component: MessageList.vue
  * =========================================================================
- * - Hiển thị từng dòng tin nhắn trong khung chat (bong bóng chat, tên người gửi, thời gian).
- * - Nút 3 chấm (...) và nút Ghim nằm ngang hàng ngay sau/bên cạnh bong bóng tin nhắn (hiện khi hover).
- * - Giao diện chỉnh sửa inline đẹp mắt, giữ nguyên hình dạng và màu sắc của bong bóng tin nhắn bình thường.
- * - Hỗ trợ xem lịch sử các lần chỉnh sửa tin nhắn.
+ * - PHẦN 1: KHỞI TẠO PROPS, EMITS, STORE & TRẠNG THÁI MENU TƯƠNG TÁC
+ * - PHẦN 2: DỊCH TIN NHẮN ĐA NGÔN NGỮ BẰNG AI (AI MESSAGE TRANSLATION)
+ * - PHẦN 3: BIỂU CẢM TIN NHẮN (MESSAGE REACTIONS)
+ * - PHẦN 4: FILE PHƯƠNG TIỆN, REMINDER (LỊCH HẸN) & HIGHLIGHT TỪ KHÓA
+ * - PHẦN 5: CHỈNH SỬA INLINE, THU HỒI, LỊCH SỬ SỬA & TRẢ LỜI (REPLY)
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { useChatStore, getReplySnippet } from '@/stores/chat';
+import { useChatStore, getReplySnippet, highlightKeyword } from '@/stores/chat';
 import { resolveFileUrl } from '@/api/storage.api'; 
 import { translateMessage } from '@/api/message.api';
-import ReminderMessageCard from '@/components/chat/ReminderMessageCard.vue'; 
+import ReminderMessageCard from './ReminderMessageCard.vue';
+
+// =============================================================================
+// ████  PHẦN 1: KHỞI TẠO PROPS, EMITS, STORE & TRẠNG THÁI MENU TƯƠNG TÁC  █████
+// =============================================================================
+
 const props = defineProps({
     // Mốc thời gian gửi tin nhắn (vd: 14:30)
     Time: {
@@ -97,11 +103,10 @@ const props = defineProps({
         type: String,
         default: ''
     },
-
     // Xử lý cái hiển thị ảnh file chỗ tin nhắn
     messageType: {
           type: String,
-          default: 'TEXT', // TEXT, IMAGE, VIDEO, FILE
+          default: 'TEXT', // TEXT, IMAGE, VIDEO, FILE, REMINDER
       },
       mediaUrl: {
           type: String,
@@ -135,18 +140,16 @@ const authStore = useAuthStore();
 const chatStore = useChatStore();
 
 const showMenu = ref(false); // Trạng thái mở menu 3 chấm
-const showReactionPicker = ref(false); // Trạng thái hiển thị thanh chọn nhanh 6 icon
-let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
-const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
-const editContent = ref(''); // Nội dung văn bản đang sửa
-const editTextareaRef = ref(null); // Ref tới ô textarea sửa
-const editBoxRef = ref(null); // Ref tới khối wrapper chỉnh sửa
-const isMediaLoadError = ref(false); // Trạng thái ảnh/video load thất bại
+
+// =============================================================================
+// ██████████  PHẦN 2: DỊCH TIN NHẮN ĐA NGÔN NGỮ BẰNG AI (TRANSLATION)  ████████
+// =============================================================================
 
 // Lưu trữ trạng thái dịch của tin nhắn này
 const translatedText = ref('');       // Nội dung đã dịch
 const isTranslating = ref(false);     // Trạng thái đang gọi AI dịch (loading)
 const showTranslation = ref(true);    // Trạng thái mở ra hay thu gọn bản dịch
+
 // Danh sách ngôn ngữ thông dụng
 const ALL_LANGUAGES = [
     { code: 'vi', label: 'Tiếng Việt' },
@@ -286,6 +289,7 @@ const handleTranslate = async () => {
         isTranslating.value = false;
     }
 };
+
 // Nút bấm thu gọn mất tiêu bản dịch
 const handleCloseTranslation = () => {
     showTranslation.value = false;
@@ -303,6 +307,27 @@ watch(() => props.Content_Message, (newContent, oldContent) => {
     }
 });
 
+// =============================================================================
+// ██████████████  PHẦN 3: BIỂU CẢM TIN NHẮN (MESSAGE REACTIONS)  ██████████████
+// =============================================================================
+
+const showReactionPicker = ref(false); // Trạng thái hiển thị thanh chọn nhanh 6 icon
+let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
+
+// 6 biểu cảm chuẩn: LIKE, LOVE, HAHA, WOW, SAD, ANGRY
+const AVAILABLE_REACTIONS = [
+    { type: 'LIKE', emoji: '👍', label: 'Thích' },
+    { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
+    { type: 'HAHA', emoji: '😂', label: 'Haha' },
+    { type: 'WOW', emoji: '😮', label: 'Wow' },
+    { type: 'SAD', emoji: '😢', label: 'Buồn' },
+    { type: 'ANGRY', emoji: '😡', label: 'Phẫn nộ' }
+];
+
+const getEmojiChar = (type) => {
+    const found = AVAILABLE_REACTIONS.find((r) => r.type === type);
+    return found ? found.emoji : '👍';
+};
 
 // Quản lý đóng/mở thanh cảm xúc có độ trễ 250ms
 const handleMouseEnterReaction = () => {
@@ -322,21 +347,6 @@ const handleMouseLeaveReaction = () => {
     }, 200);
 };
 
-// 6 biểu cảm chuẩn: LIKE, LOVE, HAHA, WOW, SAD, ANGRY
-const AVAILABLE_REACTIONS = [
-    { type: 'LIKE', emoji: '👍', label: 'Thích' },
-    { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
-    { type: 'HAHA', emoji: '😂', label: 'Haha' },
-    { type: 'WOW', emoji: '😮', label: 'Wow' },
-    { type: 'SAD', emoji: '😢', label: 'Buồn' },
-    { type: 'ANGRY', emoji: '😡', label: 'Phẫn nộ' }
-];
-
-const getEmojiChar = (type) => {
-    const found = AVAILABLE_REACTIONS.find((r) => r.type === type);
-    return found ? found.emoji : '👍';
-};
-
 // Gom nhóm reactions để render badge: { LOVE: { count: 1, reactedByMe: true, users: ['Harry'] } }
 const groupedReactions = computed(() => {
     const groups = {};
@@ -354,19 +364,37 @@ const groupedReactions = computed(() => {
     return groups;
 });
 
-// Nhận diện kiểu tin nhắn thực tế (hỗ trợ trường hợp backend lưu video dưới dạng IMAGE hoặc FILE)
-const isVideoContent = computed(() => {
-    const key = fileStorageKey.value || '';
-    return props.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv)$/i.test(key);
-});
+// Thả hoặc gỡ cảm xúc với Optimistic UI
+const handleSelectReaction = async (type) => {
+    if (closeReactionTimer) {
+        clearTimeout(closeReactionTimer);
+        closeReactionTimer = null;
+    }
+    showReactionPicker.value = false;
+    if (props.messageId) {
+        await chatStore.toggleReaction(props.messageId, type);
+    }
+};
 
-//CÁI NÀY ĐỂ XỬ LÝ HIỂN THỊ ẢNH FILE TRÊN TIN NHẮN
+// =============================================================================
+// ████  PHẦN 4: FILE PHƯƠNG TIỆN, REMINDER (LỊCH HẸN) & HIGHLIGHT TỪ KHÓA  ████
+// =============================================================================
+
+const isMediaLoadError = ref(false); // Trạng thái ảnh/video load thất bại
+
+// Xử lý hiển thị ảnh / video / file đính kèm trên tin nhắn
 const fileStorageKey = computed(() => {
     // Nếu là tin nhắn media/file mà có Content_Message chứa đường dẫn
     if (['IMAGE', 'VIDEO', 'FILE'].includes(props.messageType)) {
         return props.mediaUrl || props.Content_Message || '';
     }
     return props.mediaUrl || '';
+});
+
+// Nhận diện kiểu tin nhắn thực tế (hỗ trợ trường hợp backend lưu video dưới dạng IMAGE hoặc FILE)
+const isVideoContent = computed(() => {
+    const key = fileStorageKey.value || '';
+    return props.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv)$/i.test(key);
 });
 
 const displayFileName = computed(() => {
@@ -384,45 +412,20 @@ const reminderData = computed(() => {
     );
 });
 
-
 // Kiểm tra nội dung tin nhắn có chứa từ khóa tìm kiếm hay không
 const hasKeywordMatch = computed(() => {
     if (!props.searchKeyword || !props.Content_Message) return false;
     return props.Content_Message.toLowerCase().includes(props.searchKeyword.toLowerCase());
 });
 
-// Chuyển ký tự đặc biệt tránh tấn công XSS
-const escapeHtml = (text) => {
-    if (!text) return '';
-    return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-};
+// =============================================================================
+// ████  PHẦN 5: CHỈNH SỬA INLINE, THU HỒI, LỊCH SỬ SỬA & TRẢ LỜI (REPLY)  █████
+// =============================================================================
 
-// Đánh dấu từ khóa khớp bên trong chuỗi tin nhắn
-const highlightKeyword = (text, keyword) => {
-    if (!text) return '';
-    if (!keyword || !keyword.trim()) return escapeHtml(text);
-    const escapedText = escapeHtml(text);
-    const escapedKw = escapeHtml(keyword.trim()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedKw})`, 'gi');
-    return escapedText.replace(regex, '<mark class="chat-search-mark">$1</mark>');
-};
-
-// Thả hoặc gỡ cảm xúc với Optimistic UI
-const handleSelectReaction = async (type) => {
-    if (closeReactionTimer) {
-        clearTimeout(closeReactionTimer);
-        closeReactionTimer = null;
-    }
-    showReactionPicker.value = false;
-    if (props.messageId) {
-        await chatStore.toggleReaction(props.messageId, type);
-    }
-};
+const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
+const editContent = ref(''); // Nội dung văn bản đang sửa
+const editTextareaRef = ref(null); // Ref tới ô textarea sửa
+const editBoxRef = ref(null); // Ref tới khối wrapper chỉnh sửa
 
 // Tự động điều chỉnh chiều cao textarea theo nội dung gõ
 const autoResize = () => {

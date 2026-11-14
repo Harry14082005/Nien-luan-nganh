@@ -68,6 +68,13 @@ public class MessageService {
     private static final long MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000L;
     private final Map<String, Long> roomMembershipCache = new ConcurrentHashMap<>();
 
+    private record MessageContext(User sender, Room room) {
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 1: GỬI TIN NHẮN (TEXT, IMAGE, FILE & ATTACHMENT) ██████████
+    // =========================================================================
+
     /**
      * Nghiệp vụ 1: Gửi tin nhắn vào phòng chat.
      * Hỗ trợ các định dạng: Text, Image, File và Trả lời tin nhắn (Reply).
@@ -142,6 +149,139 @@ public class MessageService {
         eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
         return response;
     }
+
+    private MessageResponse sendAttachment(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            MessageType messageType,
+            UUID repliedMessageId) {
+
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        log.info("1. Bắt đầu sendAttachment");
+        MessageContext context = getMessageContext(currentUserId, roomId);
+        log.info("2. Đã lấy được MessageContext");
+
+        User sender = context.sender();
+        Room room = context.room();
+
+        Message repliedMessage = null;
+
+        if (repliedMessageId != null) {
+            repliedMessage = messageRepository.findById(repliedMessageId).orElseThrow(
+                    () -> new AppException(ErrorCode.REPLIED_MESSAGE_NOT_FOUND));
+
+            if (!repliedMessage.getRoom().getRoomId().equals(roomId)) {
+                throw new AppException(ErrorCode.REPLIED_MESSAGE_NOT_IN_SAME_ROOM);
+            }
+
+            if (Boolean.TRUE.equals(repliedMessage.getIsRevoked())) {
+                throw new AppException(ErrorCode.MESSAGE_REVOKED);
+            }
+        }
+
+        // Lưu message trước để Hibernate sinh messageId.
+        Message message = Message.builder()
+                .room(room)
+                .sender(sender)
+                .messageType(messageType)
+                .content(null)
+                .repliedMessage(repliedMessage)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .build();
+
+        Message savedMessage = messageRepository.save(message);
+        log.info("3. Đã lưu message lần đầu, id={}", message.getMessageId());
+
+        String storageKey = null;
+
+        try {
+            if (messageType == MessageType.IMAGE) {
+                storageKey = fileStorageService.saveMessageImage(
+                        file,
+                        roomId,
+                        savedMessage.getMessageId());
+            } else if (messageType == MessageType.FILE) {
+                storageKey = fileStorageService.saveMessageFile(
+                        file,
+                        roomId,
+                        savedMessage.getMessageId());
+                log.info("4. Đã lưu file, key={}", storageKey);
+            } else {
+                throw new AppException(ErrorCode.INVALID_INPUT);
+            }
+
+            // content lưu thành đường dẫn
+            savedMessage.setContent(storageKey);
+            savedMessage = messageRepository.save(savedMessage);
+            log.info("5. Đã lưu content");
+
+            String preview;
+            if (messageType == MessageType.IMAGE) {
+                preview = "[Hình ảnh]";
+            } else {
+                preview = "[Tệp đính kèm]";
+            }
+
+            roomService.updateLastActivity(
+                    room,
+                    savedMessage.getMessageId(),
+                    preview,
+                    sender,
+                    savedMessage.getCreatedAt());
+            log.info("6. Đã cập nhật room");
+
+            MessageResponse response = messageMapper.toMessageResponse(savedMessage);
+            eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+            return response;
+        } catch (RuntimeException e) {
+            // nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
+            log.error("Lỗi khi gửi attachment", e);
+            if (storageKey != null) {
+                fileStorageService.deleteFile(storageKey);
+            }
+
+            throw e;
+        }
+    }
+
+    @Transactional
+    public MessageResponse sendImage(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            UUID repliedMessageId) {
+        return sendAttachment(
+                currentUserId,
+                roomId,
+                file,
+                MessageType.IMAGE,
+                repliedMessageId);
+    }
+
+    @Transactional
+    public MessageResponse sendFile(
+            UUID currentUserId,
+            UUID roomId,
+            MultipartFile file,
+            UUID repliedMessageId) {
+
+        return sendAttachment(
+                currentUserId,
+                roomId,
+                file,
+                MessageType.FILE,
+                repliedMessageId);
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 2: CHỈNH SỬA, THU HỒI & LỊCH SỬ TIN NHẮN ██████████
+    // =========================================================================
 
     /**
      * Nghiệp vụ 2: Chỉnh sửa nội dung tin nhắn.
@@ -360,6 +500,10 @@ public class MessageService {
         return messageMapper.toMessageHistoryResponseList(histories);
     }
 
+    // =========================================================================
+    // ██████████ PHẦN 3: GHIM TIN NHẮN (PIN / UNPIN & GET PINNED) ██████████
+    // =========================================================================
+
     /**
      * Nghiệp vụ 5: Ghim tin nhắn trong phòng chat.
      * Quy tắc nghiệp vụ:
@@ -558,28 +702,9 @@ public class MessageService {
         return messageMapper.toMessageResponseList(pinnedMessages);
     }
 
-    /**
-     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho
-     * Sidebar Thông tin.
-     *
-     * @param currentUserId Khóa chính UUID của người yêu cầu
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @return Danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
-     */
-    @Transactional(readOnly = true)
-    public List<MessageResponse> getRoomMediaMessages(UUID currentUserId, UUID roomId) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-
-        List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
-        return messageMapper.toMessageResponseList(mediaList);
-    }
+    // =========================================================================
+    // ██████████ PHẦN 4: THẢ & QUẢN LÝ CẢM XÚC TIN NHẮN (REACTIONS) ██████████
+    // =========================================================================
 
     /**
      * Nghiệp vụ 8: Thả hoặc cập nhật cảm xúc trên tin nhắn (Reactions).
@@ -767,6 +892,10 @@ public class MessageService {
         return messageMapper.toReactionResponseList(reactions);
     }
 
+    // =========================================================================
+    // ██████████ PHẦN 5: TRUY VẤN TIN NHẮN (CURSOR PAGINATION & CONTEXT) ██████████
+    // =========================================================================
+
     /**
      * Nghiệp vụ 11: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
      * (Cursor-based Pagination).
@@ -914,6 +1043,76 @@ public class MessageService {
         return messageMapper.toMessageResponseList(newerMessages);
     }
 
+    // =========================================================================
+    // ██████████ PHẦN 6: TRUY VẤN MEDIA, TÌM KIẾM SIDEBAR & TYPING INDICATOR ██████████
+    // =========================================================================
+
+    /**
+     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho
+     * Sidebar Thông tin.
+     *
+     * @param currentUserId Khóa chính UUID của người yêu cầu
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @return Danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getRoomMediaMessages(UUID currentUserId, UUID roomId) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
+                roomId);
+
+        List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
+        return messageMapper.toMessageResponseList(mediaList);
+    }
+
+    /**
+     * Tìm kiếm tin nhắn kèm chi tiết người gửi phục vụ hiển thị trên Search Sidebar
+     * Drawer bên phải.
+     *
+     * @param currentUserId UUID của người dùng hiện tại
+     * @param roomId        UUID của phòng chat
+     * @param q             Từ khóa tìm kiếm
+     * @return Danh sách MessageSearchResultDTO tóm tắt (tối đa 100 tin gần nhất)
+     */
+    @Transactional(readOnly = true)
+    public List<MessageSearchResultDTO> searchMessagesForSidebar(UUID currentUserId, UUID roomId, String q) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        if (q == null || q.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String pattern = "%" + q.trim().toLowerCase() + "%";
+        List<Message> messages = messageRepository.searchMessagesWithDetails(
+                roomId,
+                pattern,
+                PageRequest.of(0, 100));
+
+        return messages.stream()
+                .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
+                .map(m -> MessageSearchResultDTO.builder()
+                        .messageId(m.getMessageId())
+                        .content(m.getContent())
+                        .createdAt(m.getCreatedAt())
+                        .senderUsername(m.getSender() != null ? m.getSender().getUsername() : "Thành viên")
+                        .senderAvatarUrl(m.getSender() != null ? m.getSender().getAvatarUrl() : null)
+                        .build())
+                .toList();
+    }
+
     /**
      * Nghiệp vụ 12: Xử lý sự kiện Đang gõ chữ (Typing indicator) qua WebSocket.
      * - Kiểm tra tư cách thành viên qua bộ nhớ đệm RAM (TTL 5 phút) nhằm giảm tải
@@ -959,137 +1158,9 @@ public class MessageService {
                 .build();
     }
 
-    private MessageResponse sendAttachment(
-            UUID currentUserId,
-            UUID roomId,
-            MultipartFile file,
-            MessageType messageType,
-            UUID repliedMessageId) {
-
-        if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_INPUT);
-        }
-
-        log.info("1. Bắt đầu sendAttachment");
-        MessageContext context = getMessageContext(currentUserId, roomId);
-        log.info("2. Đã lấy được MessageContext");
-
-        User sender = context.sender();
-        Room room = context.room();
-
-        Message repliedMessage = null;
-
-        if (repliedMessageId != null) {
-            repliedMessage = messageRepository.findById(repliedMessageId).orElseThrow(
-                    () -> new AppException(ErrorCode.REPLIED_MESSAGE_NOT_FOUND));
-
-            if (!repliedMessage.getRoom().getRoomId().equals(roomId)) {
-                throw new AppException(ErrorCode.REPLIED_MESSAGE_NOT_IN_SAME_ROOM);
-            }
-
-            if (Boolean.TRUE.equals(repliedMessage.getIsRevoked())) {
-                throw new AppException(ErrorCode.MESSAGE_REVOKED);
-            }
-        }
-
-        // Lưu message trước để Hibernate sinh messageId.
-        Message message = Message.builder()
-                .room(room)
-                .sender(sender)
-                .messageType(messageType)
-                .content(null)
-                .repliedMessage(repliedMessage)
-                .isEdited(false)
-                .isRevoked(false)
-                .isPinned(false)
-                .build();
-
-        Message savedMessage = messageRepository.save(message);
-        log.info("3. Đã lưu message lần đầu, id={}", message.getMessageId());
-
-        String storageKey = null;
-
-        try {
-            if (messageType == MessageType.IMAGE) {
-                storageKey = fileStorageService.saveMessageImage(
-                        file,
-                        roomId,
-                        savedMessage.getMessageId());
-            } else if (messageType == MessageType.FILE) {
-                storageKey = fileStorageService.saveMessageFile(
-                        file,
-                        roomId,
-                        savedMessage.getMessageId());
-                log.info("4. Đã lưu file, key={}", storageKey);
-            } else {
-                throw new AppException(ErrorCode.INVALID_INPUT);
-            }
-
-            // content lưu thành đường dẫn
-            savedMessage.setContent(storageKey);
-            savedMessage = messageRepository.save(savedMessage);
-            log.info("5. Đã lưu content");
-
-            String preview;
-            if (messageType == MessageType.IMAGE) {
-                preview = "[Hình ảnh]";
-            } else {
-                preview = "[Tệp đính kèm]";
-            }
-
-            roomService.updateLastActivity(
-                    room,
-                    savedMessage.getMessageId(),
-                    preview,
-                    sender,
-                    savedMessage.getCreatedAt());
-            log.info("6. Đã cập nhật room");
-
-            MessageResponse response = messageMapper.toMessageResponse(savedMessage);
-            eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
-            return response;
-        } catch (RuntimeException e) {
-            // nếu file lưu nhưng nghiêp vụ lỗi thì xoá file luôn
-            log.error("Lỗi khi gửi attachment", e);
-            if (storageKey != null) {
-                fileStorageService.deleteFile(storageKey);
-            }
-
-            throw e;
-        }
-    }
-
-    @Transactional
-    public MessageResponse sendImage(
-            UUID currentUserId,
-            UUID roomId,
-            MultipartFile file,
-            UUID repliedMessageId) {
-        return sendAttachment(
-                currentUserId,
-                roomId,
-                file,
-                MessageType.IMAGE,
-                repliedMessageId);
-    }
-
-    @Transactional
-    public MessageResponse sendFile(
-            UUID currentUserId,
-            UUID roomId,
-            MultipartFile file,
-            UUID repliedMessageId) {
-
-        return sendAttachment(
-                currentUserId,
-                roomId,
-                file,
-                MessageType.FILE,
-                repliedMessageId);
-    }
-
-    private record MessageContext(User sender, Room room) {
-    }
+    // =========================================================================
+    // ██████████ PHẦN 7: HÀM TIỆN ÍCH NỘI BỘ (HELPER) ██████████
+    // =========================================================================
 
     private MessageContext getMessageContext(UUID currentUserId, UUID roomId) {
         User sender = userRepository.findById(currentUserId)
@@ -1120,48 +1191,5 @@ public class MessageService {
         }
 
         return new MessageContext(sender, room);
-    }
-
-    /**
-     * Tìm kiếm tin nhắn kèm chi tiết người gửi phục vụ hiển thị trên Search Sidebar
-     * Drawer bên phải.
-     *
-     * @param currentUserId UUID của người dùng hiện tại
-     * @param roomId        UUID của phòng chat
-     * @param q             Từ khóa tìm kiếm
-     * @return Danh sách MessageSearchResultDTO tóm tắt (tối đa 100 tin gần nhất)
-     */
-    @Transactional(readOnly = true)
-    public List<MessageSearchResultDTO> searchMessagesForSidebar(UUID currentUserId, UUID roomId, String q) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        if (q == null || q.trim().isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        String pattern = "%" + q.trim().toLowerCase() + "%";
-        List<Message> messages = messageRepository.searchMessagesWithDetails(
-                roomId,
-                pattern,
-                PageRequest.of(0, 100));
-
-        return messages.stream()
-                .filter(m -> m.getMessageType() == null || m.getMessageType() != MessageType.SYSTEM)
-                .map(m -> MessageSearchResultDTO.builder()
-                        .messageId(m.getMessageId())
-                        .content(m.getContent())
-                        .createdAt(m.getCreatedAt())
-                        .senderUsername(m.getSender() != null ? m.getSender().getUsername() : "Thành viên")
-                        .senderAvatarUrl(m.getSender() != null ? m.getSender().getAvatarUrl() : null)
-                        .build())
-                .toList();
     }
 }

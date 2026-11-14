@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -56,16 +57,18 @@ public class RoomMemberController {
         return ResponseEntity.ok(ApiResponse.success(responses, "Thêm thành viên thành công"));
     }
 
-    // xoá thành viên
+    // xoá thành viên (hoặc từ chối yêu cầu tham gia đang chờ duyệt)
     @DeleteMapping("/{userId}")
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> deleteMember(
             Authentication authentication,
             @PathVariable UUID roomId,
-            @RequestBody RemoveMemberRequest request
+            @PathVariable UUID userId,
+            @RequestBody(required = false) RemoveMemberRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
+        UUID targetUserId = (request != null && request.getTargetUserId() != null) ? request.getTargetUserId() : userId;
 
-        roomMemberService.removeMember(roomId, request.getTargetUserId(), currentUserId);
+        roomMemberService.removeMember(roomId, targetUserId, currentUserId);
 
         return ResponseEntity.ok(ApiResponse.message("Xoá thành viên thành công"));
     }
@@ -75,7 +78,7 @@ public class RoomMemberController {
     public ResponseEntity<ApiResponse<List<RoomMemberResponse>>> leaveRoom(
             Authentication authentication,
             @PathVariable UUID roomId,
-            @RequestBody LeaveRoomRequest request
+            @RequestBody(required = false) LeaveRoomRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
 
@@ -87,8 +90,6 @@ public class RoomMemberController {
     // sửa quyền thành viên
     @PutMapping("/{userId}/role")
     public ResponseEntity<ApiResponse<RoomMemberResponse>> changeMemberRole(
-    //    public ResponseEntity<ApiResponse<RoomMemberResponse>> changeMemberRole(
-
             Authentication authentication,
             @PathVariable UUID roomId,
             @PathVariable UUID userId,
@@ -104,17 +105,36 @@ public class RoomMemberController {
     // phê duyệt thành viên
     @PutMapping("/{userId}/approve")
     public ResponseEntity<ApiResponse<RoomMemberResponse>> approveMember(
-    //    public ResponseEntity<ApiResponse<RoomMemberResponse>> approveMember(
-
             Authentication authentication,
             @PathVariable UUID roomId,
-            @RequestBody ApproveMemberRequest request
+            @PathVariable UUID userId,
+            @RequestBody(required = false) ApproveMemberRequest request
     ){
         UUID currentUserId = UUID.fromString(authentication.getName());
+        ApproveMemberRequest effectiveReq = (request != null && request.getTargetUserId() != null)
+                ? request
+                : ApproveMemberRequest.builder().targetUserId(userId).build();
 
-        RoomMemberResponse response = roomMemberService.approveMember(roomId, request, currentUserId);
+        RoomMemberResponse response = roomMemberService.approveMember(roomId, effectiveReq, currentUserId);
 
-        return ResponseEntity.ok(ApiResponse.message("Phê duyệt thành viên thành công"));
+        return ResponseEntity.ok(ApiResponse.success(response, "Phê duyệt thành viên thành công"));
+    }
+
+    // bật / tắt chế độ phê duyệt thành viên mới vào nhóm
+    @PutMapping("/approval")
+    public ResponseEntity<ApiResponse<Boolean>> toggleRequireApproval(
+            Authentication authentication,
+            @PathVariable UUID roomId,
+            @RequestParam(required = false) Boolean requireApproval,
+            @RequestBody(required = false) Map<String, Object> body
+    ){
+        UUID currentUserId = UUID.fromString(authentication.getName());
+        Boolean effectiveApproval = requireApproval;
+        if (effectiveApproval == null && body != null && body.get("requireApproval") != null) {
+            effectiveApproval = Boolean.valueOf(String.valueOf(body.get("requireApproval")));
+        }
+        boolean nextValue = roomMemberService.toggleRequireApproval(roomId, effectiveApproval, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(nextValue, "Cập nhật chế độ phê duyệt thành viên thành công"));
     }
 
     // đánh dấu tin nhắn đã đọc

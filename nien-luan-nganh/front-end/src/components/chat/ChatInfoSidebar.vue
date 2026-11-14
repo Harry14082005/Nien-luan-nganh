@@ -164,6 +164,30 @@
           </label>
         </div>
 
+        <!-- 2.2.5 BẬT / TẮT PHÊ DUYỆT THÀNH VIÊN (CHỈ HIỆN CHO ADMIN NHÓM) -->
+        <div v-if="isGroupRoom && isMyRoleAdmin" class="setting-item approval-box">
+          <div class="setting-info">
+            <div class="setting-icon-wrapper" :class="{ muted: !isApprovalRequired }">
+              <font-awesome-icon icon="user-shield" />
+            </div>
+            <div class="setting-text">
+              <span class="setting-title">Phê duyệt thành viên</span>
+              <span class="setting-subtext">
+                {{ isApprovalRequired ? 'Đang bật phê duyệt' : 'Đang tắt phê duyệt' }}
+              </span>
+            </div>
+          </div>
+          <!-- Toggle Switch UI -->
+          <label class="switch">
+            <input
+              type="checkbox"
+              :checked="isApprovalRequired"
+              @change="handleToggleRequireApproval"
+            />
+            <span class="slider round"></span>
+          </label>
+        </div>
+
         <hr class="divider" />
 
         <!-- 2.3 DANH SÁCH THÀNH VIÊN (COLLAPSIBLE ACCORDION) - CHỈ CHO NHÓM CHAT -->
@@ -173,6 +197,9 @@
               <div class="header-left">
                 <font-awesome-icon icon="user-group" class="section-icon" />
                 <span class="section-title">Thành viên phòng ({{ displayMembers.length }})</span>
+                <span v-if="isMyRoleAdmin && pendingMembers.length > 0" class="pending-count-pill">
+                  +{{ pendingMembers.length }} chờ duyệt
+                </span>
               </div>
 
               <font-awesome-icon
@@ -194,14 +221,55 @@
                     <span class="add-member-text">Thêm thành viên</span>
                   </div>
 
+                  <!-- Danh sách Chờ phê duyệt (Chỉ Admin mới thấy) -->
+                  <div v-if="isMyRoleAdmin && pendingMembers.length > 0" class="pending-approval-box">
+                    <div class="pending-box-header">
+                      <span>Danh sách chờ duyệt ({{ pendingMembers.length }})</span>
+                    </div>
+                    <div
+                      v-for="pMember in pendingMembers"
+                      :key="pMember.userId"
+                      class="pending-member-row"
+                    >
+                      <UserAvatar
+                        :name="pMember.username || 'Thành viên'"
+                        :src="resolveFileUrl(pMember.avatarUrl)"
+                        :size="32"
+                      />
+                      <div class="pending-member-meta">
+                        <span class="pending-member-name">{{ pMember.username || 'Thành viên' }}</span>
+                        <span class="pending-member-sub">Chờ phê duyệt vào nhóm</span>
+                      </div>
+                      <div class="pending-member-btns">
+                        <button
+                          type="button"
+                          class="btn-approve-pending"
+                          title="Phê duyệt vào nhóm"
+                          @click.stop="handleApprovePendingMember(pMember)"
+                        >
+                          <font-awesome-icon icon="check" />
+                          <span>Duyệt</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-reject-pending"
+                          title="Từ chối yêu cầu"
+                          @click.stop="handleRejectPendingMember(pMember)"
+                        >
+                          <font-awesome-icon icon="x" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div v-if="displayMembers.length === 0" class="empty-members-hint">
                     Chưa có danh sách thành viên
                   </div>
                   <div
-                    v-for="member in displayMembers"
+                    v-for="member in sortedDisplayMembers"
                     :key="member.userId || member.username"
                     class="member-item member-item--clickable"
-                    title="Bấm để xem thông tin thành viên"
+                    title="Bấm để xem thông tin & tùy chọn thành viên"
                     @click="openMemberProfile(member)"
                   >
                     <UserAvatar
@@ -210,12 +278,26 @@
                       :size="34"
                     />
                     <div class="member-info">
-                      <span class="member-name">{{ member.username || 'Thành viên' }}</span>
+                      <span class="member-name">
+                        {{ member.username || 'Thành viên' }}
+                        <span
+                          v-if="authStore.user?.userId && String(member.userId) === String(authStore.user.userId)"
+                          class="me-tag"
+                        >(Bạn)</span>
+                      </span>
                       <span
-                        v-if="member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN'"
-                        class="role-badge"
+                        v-if="isRoomCreator(member)"
+                        class="role-badge role-badge--creator"
                       >
-                        Trưởng nhóm
+                        <font-awesome-icon icon="crown" class="badge-icon" />
+                        <span>Người tạo nhóm</span>
+                      </span>
+                      <span
+                        v-else-if="isMemberAdmin(member)"
+                        class="role-badge role-badge--admin"
+                      >
+                        <font-awesome-icon icon="user-shield" class="badge-icon" />
+                        <span>Quản trị viên</span>
                       </span>
                     </div>
                   </div>
@@ -436,6 +518,22 @@
             </div>
           </div>
         </div>
+
+        <!-- 2.5 NÚT RỜI KHỎI NHÓM (CHỈ HIỂN THỊ CHO NHÓM CHAT) -->
+        <template v-if="isGroupRoom">
+          <hr class="divider" />
+          <div class="leave-room-section">
+            <button
+              type="button"
+              class="btn-leave-group"
+              :disabled="leavingRoom"
+              @click="handleClickLeaveGroup"
+            >
+              <font-awesome-icon icon="right-from-bracket" class="leave-icon" />
+              <span>{{ leavingRoom ? 'Đang xử lý...' : 'Rời khỏi nhóm' }}</span>
+            </button>
+          </div>
+        </template>
       </div>
 
       <!-- VIEW 2: SUB-VIEW QUẢN LÝ LỊCH HẸN & NHẮC NHỞ PHÒNG CHAT -->
@@ -718,6 +816,29 @@
                   <span>Xem trong danh bạ</span>
                 </button>
 
+                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy và không áp dụng lên Người tạo nhóm) -->
+                <template v-if="isGroupRoom && isMyRoleAdmin && !selectedMemberProfile.isCreator">
+                  <button
+                    type="button"
+                    class="menu-dropdown-item item-primary"
+                    @click="handleToggleMemberRoleFromProfile(selectedMemberProfile)"
+                  >
+                    <font-awesome-icon icon="user-shield" class="item-icon" />
+                    <span>
+                      {{ selectedMemberProfile.isAdmin ? 'Gỡ quyền Quản trị viên' : 'Cấp quyền Quản trị viên' }}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="menu-dropdown-item item-danger"
+                    @click="handleKickMemberFromProfile(selectedMemberProfile)"
+                  >
+                    <font-awesome-icon icon="user-xmark" class="item-icon" />
+                    <span>Xóa khỏi nhóm</span>
+                  </button>
+                </template>
+
                 <!-- 2. Hủy kết bạn (chỉ hiện khi đã là bạn bè) -->
                 <button
                   v-if="selectedMemberProfile.isFriend"
@@ -765,6 +886,79 @@
           />
         </div>
       </div>
+
+      <!-- Modal chọn Quản trị viên kế nhiệm trước khi rời nhóm (khi là Admin duy nhất) -->
+      <div
+        v-if="showTransferAdminModal"
+        class="profile-modal-backdrop"
+        @click.self="showTransferAdminModal = false"
+      >
+        <div class="transfer-admin-modal">
+          <div class="transfer-modal-header">
+            <div class="transfer-header-left">
+              <div class="transfer-icon-badge">
+                <font-awesome-icon icon="user-shield" />
+              </div>
+              <div>
+                <h4 class="transfer-title">Chọn Quản trị viên mới</h4>
+                <p class="transfer-subtitle">
+                  Bạn là Quản trị viên duy nhất. Vui lòng chọn 1 thành viên kế nhiệm trước khi rời nhóm.
+                </p>
+              </div>
+            </div>
+            <button type="button" class="btn-close" @click="showTransferAdminModal = false">
+              <font-awesome-icon icon="x" />
+            </button>
+          </div>
+
+          <div class="transfer-members-list">
+            <div
+              v-for="candidate in otherActiveMembers"
+              :key="candidate.userId"
+              class="transfer-candidate-row"
+              :class="{ selected: String(selectedSuccessorId) === String(candidate.userId) }"
+              @click="selectedSuccessorId = candidate.userId"
+            >
+              <UserAvatar
+                :name="candidate.username || 'Thành viên'"
+                :src="resolveFileUrl(candidate.avatarUrl)"
+                :size="36"
+              />
+              <div class="candidate-info">
+                <span class="candidate-name">{{ candidate.username || 'Thành viên' }}</span>
+                <span class="candidate-sub">Thành viên nhóm</span>
+              </div>
+              <input
+                type="radio"
+                name="successorAdmin"
+                class="candidate-radio"
+                :checked="String(selectedSuccessorId) === String(candidate.userId)"
+                @change="selectedSuccessorId = candidate.userId"
+              />
+            </div>
+          </div>
+
+          <div class="transfer-modal-footer">
+            <button
+              type="button"
+              class="btn-cancel-transfer"
+              :disabled="leavingRoom"
+              @click="showTransferAdminModal = false"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              class="btn-confirm-transfer"
+              :disabled="!selectedSuccessorId || leavingRoom"
+              @click="handleConfirmTransferAndLeave"
+            >
+              <font-awesome-icon icon="right-from-bracket" />
+              <span>{{ leavingRoom ? 'Đang rời nhóm...' : 'Chuyển quyền & Rời nhóm' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </Teleport>
 
     <!-- 4. MODAL CẮT VÀ TẢI LÊN AVATAR NHÓM -->
@@ -788,6 +982,13 @@ import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
 import { uploadRoomAvatar, updateRoomName } from '@/api/room.api';
 import {
+  getRoomMembers,
+  approveRoomMember,
+  removeRoomMember,
+  changeRoomMemberRole,
+  toggleRoomApproval,
+} from '@/api/room.api';
+import {
   getFriends,
   getPendingFriendships,
   sendFriendRequest,
@@ -797,8 +998,11 @@ import {
   unblockUser
 } from '@/api/contacts.api';
 
-const router = useRouter();
+// =============================================================================
+// ████  PHẦN 1: KHỞI TẠO STORE, PROPS, EMITS & ĐIỀU HƯỚNG VIEW SIDEBAR  ███████
+// =============================================================================
 
+const router = useRouter();
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 
@@ -824,11 +1028,21 @@ const emit = defineEmits([
   'add-member',
   'create-reminder',
   'jump-to-message',
+  'members-updated',
 ]);
 
 // Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn)
 const currentView = ref('INFO');
 const currentReminderTab = ref('UPCOMING'); // 'UPCOMING' | 'PAST'
+const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
+
+// State quản lý Accordion đóng/mở các mục trên Sidebar
+const isMembersExpanded = ref(true);
+const isRemindersExpanded = ref(true);
+const isMediaExpanded = ref(true);
+
+// State bật/tắt thông báo
+const isNotificationMuted = ref(false);
 
 const openMediaView = (tab = 'IMAGE') => {
   currentMediaTab.value = tab;
@@ -844,6 +1058,11 @@ const backToInfoView = () => {
   currentView.value = 'INFO';
 };
 
+const handleToggleNotification = (e) => {
+  isNotificationMuted.value = !e.target.checked;
+  emit('toggle-notification', isNotificationMuted.value);
+};
+
 // Tự động điều hướng trở lại màn hình Thông tin hội thoại khi chuyển sang phòng chat khác
 watch(
   [() => props.room?.roomId, () => props.room?.id, () => chatStore.activeRoomId],
@@ -855,6 +1074,14 @@ watch(
 // Phân biệt nhóm hay phòng trực tiếp 1-1
 const isGroupRoom = computed(() => {
   return props.room?.roomType === 'GROUP';
+});
+
+const displayRoomName = computed(() => {
+  return chatStore.activeRoom?.roomName || props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
+});
+
+const displayRoomAvatar = computed(() => {
+  return chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl || props.room?.roomAvatarURL || props.room?.avatarUrl || '';
 });
 
 // ==========================================
@@ -976,10 +1203,9 @@ const saveEditRoomName = async () => {
   }
 };
 
-// State quản lý Accordion
-const isMembersExpanded = ref(true);
-const isRemindersExpanded = ref(true);
-const isMediaExpanded = ref(true);
+// =============================================================================
+// ██████████████  PHẦN 2: REMINDER (LỊCH HẸN & NHẮC NHỞ)  █████████████████████
+// =============================================================================
 
 // Danh sách lịch hẹn của phòng đang mở từ Pinia Store
 const allRemindersList = computed(() => {
@@ -1004,7 +1230,6 @@ const pastRemindersList = computed(() => {
     .filter((r) => isReminderPast(r))
     .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
 });
-
 
 const currentTabRemindersList = computed(() => {
   return currentReminderTab.value === 'UPCOMING'
@@ -1045,9 +1270,7 @@ const canCancelReminder = (rem) => {
   if (!rem || rem.reminderStatus !== 'PENDING' || isReminderPast(rem)) return false;
   const myId = authStore.user?.userId;
   if (myId && String(rem.createdById) === String(myId)) return true;
-  const myMember = displayMembers.value.find((m) => myId && String(m.userId) === String(myId));
-  const role = myMember?.role || myMember?.roomMemberRole;
-  return role === 'ADMIN' || role === 'OWNER';
+  return isMyRoleAdmin.value;
 };
 
 const handleSidebarRsvp = async (rem, status) => {
@@ -1069,23 +1292,202 @@ const handleSidebarCancelReminder = async (rem) => {
   }
 };
 
-// State bật/tắt thông báo
-const isNotificationMuted = ref(false);
-
-// State tab Phương tiện
-const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
-
-const displayRoomName = computed(() => {
-  return chatStore.activeRoom?.roomName || props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
-});
-
-const displayRoomAvatar = computed(() => {
-  return chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl || props.room?.roomAvatarURL || props.room?.avatarUrl || '';
-});
+// =============================================================================
+// ████  PHẦN 3: THÀNH VIÊN NHÓM, PHÂN QUYỀN & PHÊ DUYỆT THÀNH VIÊN MỚI  ███████
+// =============================================================================
 
 const displayMembers = computed(() => {
   return Array.isArray(props.members) ? props.members : [];
 });
+
+// ID của người tạo nhóm (truy vấn từ room.createdBy)
+const roomCreatorId = computed(() => {
+  return props.room?.createdBy || chatStore.activeRoom?.createdBy || null;
+});
+
+const isRoomCreator = (member) => {
+  if (!member || !roomCreatorId.value) return false;
+  return String(member.userId) === String(roomCreatorId.value);
+};
+
+const isMemberAdmin = (member) => {
+  if (!member) return false;
+  const r = member.roomMemberRole || member.role;
+  return r === 'ADMIN' || isRoomCreator(member);
+};
+
+// Kiểm tra người dùng hiện tại có phải là Quản trị viên nhóm hay không
+const isMyRoleAdmin = computed(() => {
+  const myId = authStore.user?.userId;
+  if (!myId) return false;
+  if (roomCreatorId.value && String(roomCreatorId.value) === String(myId)) return true;
+  const me = displayMembers.value.find((m) => String(m.userId) === String(myId));
+  return isMemberAdmin(me);
+});
+
+// Sắp xếp danh sách thành viên: Người tạo nhóm -> Quản trị viên -> Thành viên thường
+const sortedDisplayMembers = computed(() => {
+  return [...displayMembers.value].sort((a, b) => {
+    const score = (m) => (isRoomCreator(m) ? 3 : isMemberAdmin(m) ? 2 : 1);
+    return score(b) - score(a);
+  });
+});
+
+// Trạng thái bật/tắt xét duyệt thành viên mới (Optimistic UI giống nút Thông báo)
+const isApprovalRequired = ref(false);
+const togglingApproval = ref(false);
+const pendingMembers = ref([]);
+
+watch(
+  () => props.room?.requireApproval ?? chatStore.activeRoom?.requireApproval,
+  (val) => {
+    if (!togglingApproval.value && val !== undefined) {
+      isApprovalRequired.value = Boolean(val);
+    }
+  },
+  { immediate: true }
+);
+
+const fetchPendingRoomMembers = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !isGroupRoom.value || !isMyRoleAdmin.value || ['1', '2', '3'].includes(String(rId))) {
+    pendingMembers.value = [];
+    return;
+  }
+  try {
+    const list = await getRoomMembers(rId, 'PENDING');
+    pendingMembers.value = Array.isArray(list) ? list : [];
+  } catch {
+    pendingMembers.value = [];
+  }
+};
+
+watch(
+  [() => props.room?.roomId, () => chatStore.activeRoomId, () => isMyRoleAdmin.value, () => chatStore.messages.length],
+  () => {
+    fetchPendingRoomMembers();
+  },
+  { immediate: true }
+);
+
+const handleToggleRequireApproval = async (e) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || togglingApproval.value) {
+    if (e?.target) e.target.checked = isApprovalRequired.value;
+    return;
+  }
+  const prevVal = isApprovalRequired.value;
+  const nextVal = e?.target ? Boolean(e.target.checked) : !prevVal;
+
+  // Cập nhật Optimistic tức thời để nút gạt chuyển mượt 0ms (không bị giật ngược khi Vue re-render)
+  isApprovalRequired.value = nextVal;
+  chatStore.updateRoomRequireApproval(rId, nextVal);
+  togglingApproval.value = true;
+
+  try {
+    const resVal = await toggleRoomApproval(rId, nextVal);
+    const finalVal = typeof resVal === 'boolean' ? resVal : nextVal;
+    isApprovalRequired.value = finalVal;
+    chatStore.updateRoomRequireApproval(rId, finalVal);
+  } catch (err) {
+    // Khôi phục trạng thái cũ nếu API lỗi
+    isApprovalRequired.value = prevVal;
+    chatStore.updateRoomRequireApproval(rId, prevVal);
+    if (e?.target) e.target.checked = prevVal;
+    alert(err?.response?.data?.message || 'Không thể thay đổi chế độ phê duyệt thành viên (hãy đảm bảo Backend đã được khởi động lại).');
+  } finally {
+    togglingApproval.value = false;
+  }
+};
+
+const handleApprovePendingMember = async (pMember) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !pMember?.userId) return;
+  try {
+    await approveRoomMember(rId, pMember.userId);
+    pendingMembers.value = pendingMembers.value.filter((m) => String(m.userId) !== String(pMember.userId));
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể phê duyệt thành viên này.');
+  }
+};
+
+const handleRejectPendingMember = async (pMember) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !pMember?.userId) return;
+  try {
+    await removeRoomMember(rId, pMember.userId);
+    pendingMembers.value = pendingMembers.value.filter((m) => String(m.userId) !== String(pMember.userId));
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể từ chối yêu cầu tham gia.');
+  }
+};
+
+// =============================================================================
+// ██████████  PHẦN 4: RỜI NHÓM & CHUYỂN QUYỀN QUẢN TRỊ VIÊN KẾ NHIỆM  █████████
+// =============================================================================
+
+const leavingRoom = ref(false);
+const showTransferAdminModal = ref(false);
+const selectedSuccessorId = ref(null);
+
+const otherActiveMembers = computed(() => {
+  const myId = authStore.user?.userId;
+  return displayMembers.value.filter((m) => !myId || String(m.userId) !== String(myId));
+});
+
+const otherAdmins = computed(() => {
+  return otherActiveMembers.value.filter((m) => isMemberAdmin(m));
+});
+
+const handleClickLeaveGroup = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || leavingRoom.value) return;
+
+  // Nếu mình là Admin duy nhất và trong nhóm vẫn còn các thành viên khác -> Mở Modal chọn Admin mới
+  if (isMyRoleAdmin.value && otherActiveMembers.value.length > 0 && otherAdmins.value.length === 0) {
+    selectedSuccessorId.value = otherActiveMembers.value[0]?.userId || null;
+    showTransferAdminModal.value = true;
+    return;
+  }
+
+  const confirmMsg =
+    otherActiveMembers.value.length === 0
+      ? 'Bạn là thành viên cuối cùng trong nhóm. Rời nhóm sẽ xóa vĩnh viễn nhóm chat này. Bạn có chắc chắn không?'
+      : `Bạn có chắc chắn muốn rời khỏi nhóm "${displayRoomName.value}" không?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  leavingRoom.value = true;
+  try {
+    await chatStore.leaveGroupRoom(rId, null);
+    emit('close');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể rời khỏi nhóm.');
+  } finally {
+    leavingRoom.value = false;
+  }
+};
+
+const handleConfirmTransferAndLeave = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !selectedSuccessorId.value || leavingRoom.value) return;
+  leavingRoom.value = true;
+  try {
+    await chatStore.leaveGroupRoom(rId, selectedSuccessorId.value);
+    showTransferAdminModal.value = false;
+    emit('close');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể chuyển quyền và rời nhóm.');
+  } finally {
+    leavingRoom.value = false;
+  }
+};
+
+// =============================================================================
+// ██████████  PHẦN 5: KHO FILE PHƯƠNG TIỆN (ẢNH, VIDEO, TÀI LIỆU)  ████████████
+// =============================================================================
 
 const switchMediaTab = (tab) => {
   currentMediaTab.value = tab;
@@ -1105,11 +1507,6 @@ const currentTabMediaList = computed(() => {
   });
 });
 
-const handleToggleNotification = (e) => {
-  isNotificationMuted.value = !e.target.checked;
-  emit('toggle-notification', isNotificationMuted.value);
-};
-
 // Quản lý các ảnh/video bị lỗi không load được
 const failedMediaUrls = ref(new Set());
 const handleMediaError = (item) => {
@@ -1126,6 +1523,10 @@ const isMediaFailed = (item) => {
 const openMediaPreview = (item) => {
   emit('preview-media', item);
 };
+
+// =============================================================================
+// ██  PHẦN 6: HỒ SƠ THÀNH VIÊN, KẾT BẠN, CHẶN & QUẢN TRỊ TỪ POPUP PROFILE  ████
+// =============================================================================
 
 // Quản lý quan hệ bạn bè để hiển thị trạng thái và nút kết bạn / thu hồi / hủy kết bạn / chặn
 const friendIds = ref(new Set());
@@ -1189,15 +1590,26 @@ const openMemberProfile = (member) => {
   const isBlocked = blockedIds.value.has(targetId);
   const friendshipId = pendingMap.value.get(targetId) || friendShipMap.value.get(targetId) || null;
 
+  const isCreator = isRoomCreator(member);
+  const isAdmin = isMemberAdmin(member);
+
   selectedMemberProfile.value = {
     id: targetId,
     name: member.username || 'Thành viên',
-    role: (member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN') ? 'Trưởng nhóm' : (isMe ? 'Bạn (Thành viên)' : 'Thành viên'),
+    role: isCreator
+      ? 'Người tạo nhóm'
+      : isAdmin
+        ? 'Quản trị viên'
+        : isMe
+          ? 'Bạn (Thành viên)'
+          : 'Thành viên',
     avatar: resolveFileUrl(member.avatarUrl || member.avatar || ''),
     online: member.status === 'ACTIVE' || member.isOnline || false,
     statusText: member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
     bio: member.bio || member.description || 'Thành viên trong phòng trò chuyện.',
     isMe,
+    isCreator,
+    isAdmin,
     isFriend,
     isPending,
     isBlocked,
@@ -1365,6 +1777,41 @@ const handleDirectMessageWithMember = async (contact) => {
   }
   emit('close');
   await chatStore.startDirectChat(contact.id);
+};
+
+// Cấp / Gỡ quyền Quản trị viên (ADMIN <-> MEMBER) từ popup hồ sơ
+const handleToggleMemberRoleFromProfile = async (contact) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !contact?.id || contact.isCreator) return;
+  isProfileMenuOpen.value = false;
+  const nextRole = contact.isAdmin ? 'MEMBER' : 'ADMIN';
+  try {
+    await changeRoomMemberRole(rId, contact.id, nextRole);
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+    if (selectedMemberProfile.value && selectedMemberProfile.value.id === contact.id) {
+      selectedMemberProfile.value.isAdmin = nextRole === 'ADMIN';
+      selectedMemberProfile.value.role = nextRole === 'ADMIN' ? 'Quản trị viên' : 'Thành viên';
+    }
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể thay đổi vai trò của thành viên.');
+  }
+};
+
+// Xóa thành viên khỏi nhóm từ popup hồ sơ
+const handleKickMemberFromProfile = async (contact) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !contact?.id || contact.isCreator) return;
+  isProfileMenuOpen.value = false;
+  if (!confirm(`Bạn có chắc chắn muốn xóa "${contact.name}" khỏi nhóm không?`)) return;
+  try {
+    await removeRoomMember(rId, contact.id);
+    closeMemberProfile();
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể xóa thành viên khỏi nhóm.');
+  }
 };
 </script>
 
@@ -1663,24 +2110,35 @@ const handleDirectMessageWithMember = async (contact) => {
   transform: none;
 }
 
-/* 3. Notification Setting */
-.notification-box {
+/* 3. Notification & Approval Settings */
+.setting-item,
+.notification-box,
+.approval-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 18px;
+  gap: 12px;
+  padding: 7px 18px;
   margin: 0;
+  transition: background-color 0.15s ease;
+}
+
+.setting-item:hover {
+  background-color: #f8fafc;
 }
 
 .setting-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .setting-icon-wrapper {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   border-radius: 8px;
   background: #eff6ff;
   color: #3b82f6;
@@ -1699,6 +2157,7 @@ const handleDirectMessageWithMember = async (contact) => {
 .setting-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .setting-title {
@@ -1718,6 +2177,7 @@ const handleDirectMessageWithMember = async (contact) => {
   display: inline-block;
   width: 38px;
   height: 22px;
+  flex-shrink: 0;
 }
 
 .switch input {
@@ -1878,6 +2338,10 @@ input:checked + .slider:before {
 }
 
 .member-item--clickable:hover .member-name {
+  color: #2563eb;
+}
+
+.member-item--clickable:hover .me-tag {
   color: #2563eb;
 }
 
@@ -2714,5 +3178,336 @@ input:checked + .slider:before {
   font-size: 11.5px;
   font-weight: 600;
   color: #64748b;
+}
+
+/* =========================================================================
+   PHÊ DUYỆT THÀNH VIÊN, VAI TRÒ & RỜI NHÓM
+   ========================================================================= */
+.pending-count-pill {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pending-approval-box {
+  margin: 6px 0 10px;
+  padding: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-box-header {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b45309;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pending-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #fef3c7;
+  border-radius: 10px;
+}
+
+.pending-member-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-member-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pending-member-sub {
+  font-size: 11px;
+  color: #d97706;
+  font-weight: 600;
+}
+
+.pending-member-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-approve-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-approve-pending:hover {
+  background: #1d4ed8;
+}
+
+.btn-reject-pending {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reject-pending:hover {
+  background: #fee2e2;
+}
+
+.me-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-icon {
+  font-size: 10px;
+}
+
+.role-badge--creator {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.role-badge--admin {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.leave-room-section {
+  padding: 6px 16px 20px;
+}
+
+.btn-leave-group {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #e11d48;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-leave-group:hover:not(:disabled) {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  transform: translateY(-1px);
+}
+
+.btn-leave-group:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.transfer-admin-modal {
+  width: 420px;
+  max-width: 92vw;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.transfer-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.transfer-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.transfer-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.transfer-title {
+  margin: 0 0 4px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.transfer-subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.transfer-members-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transfer-candidate-row:hover {
+  background: #f8fafc;
+}
+
+.transfer-candidate-row.selected {
+  background: #eff6ff;
+  border-color: #60a5fa;
+}
+
+.candidate-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.candidate-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.candidate-sub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.candidate-radio {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.transfer-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.btn-cancel-transfer {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-confirm-transfer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #e11d48;
+  color: #ffffff;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-confirm-transfer:hover:not(:disabled) {
+  background: #be123c;
+}
+
+.btn-confirm-transfer:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

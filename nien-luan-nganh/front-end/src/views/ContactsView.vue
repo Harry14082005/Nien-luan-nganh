@@ -1,4 +1,7 @@
 <script setup>
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, ROUTER & KHỞI TẠO STATE DANH BẠ
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
@@ -32,6 +35,10 @@ const selectedContactId = ref(null)
 const me = ref(null)
 const loading = ref(false)
 const errorMsg = ref('')
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: COMPUTED & TẢI DỮ LIỆU DANH BẠ / HỒ SƠ ĐANG CHỌN
+// █████████████████████████████████████████████████████████████████████████████
 
 const selectedContact = computed(() => {
   if (standaloneContact.value && standaloneContact.value.id === selectedContactId.value) {
@@ -111,6 +118,10 @@ function onSelectContact(contact) {
   standaloneContact.value = null
   selectedContactId.value = contact.id
 }
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: THAO TÁC KẾT BẠN, THU HỒI LỜI MỜI, CHẶN & NHẮN TIN
+// █████████████████████████████████████████████████████████████████████████████
 
 // Xử lý thêm / hủy lời mời / block / unblock bạn bè
 async function handleAddFriend(contact) {

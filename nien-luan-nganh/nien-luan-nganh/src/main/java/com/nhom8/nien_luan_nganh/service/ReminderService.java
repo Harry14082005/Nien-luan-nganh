@@ -364,10 +364,9 @@ public class ReminderService {
         }
 
         boolean isCreator = reminder.getCreatedBy().getUserId().equals(currentUserId);
-        boolean isAdminOrOwner = actor.getRoomMemberRole() == RoomRole.ADMIN
-                || actor.getRoomMemberRole() == RoomRole.OWNER;
+        boolean isAdmin = actor.getRoomMemberRole() == RoomRole.ADMIN;
 
-        if (!isCreator && !isAdminOrOwner) {
+        if (!isCreator && !isAdmin) {
             throw new AppException(ErrorCode.CANNOT_CANCEL_REMINDER);
         }
 
