@@ -108,7 +108,7 @@
           </div>
 
           <!-- Trạng thái Đang chỉnh sửa inline (như chỉnh sửa tin nhắn) -->
-          <div v-else class="room-title-edit-box">
+          <div v-else ref="editRoomNameBoxRef" class="room-title-edit-box">
             <input
               ref="editRoomNameInputRef"
               v-model="editRoomNameValue"
@@ -779,7 +779,7 @@
 
 <script setup>
 import { resolveFileUrl } from '@/api/storage.api';
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import UserAvatar from '@/components/common/UserAvatar.vue';
 import AvatarUploadModal from '@/components/common/AvatarUploadModal.vue';
@@ -918,7 +918,22 @@ const handleSaveGroupAvatar = async (croppedFile) => {
 const isEditingRoomName = ref(false);
 const editRoomNameValue = ref('');
 const editRoomNameInputRef = ref(null);
+const editRoomNameBoxRef = ref(null);
 const isSavingRoomName = ref(false);
+
+const handleDocumentClick = (e) => {
+  if (isEditingRoomName.value && editRoomNameBoxRef.value && !editRoomNameBoxRef.value.contains(e.target)) {
+    cancelEditRoomName();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
 
 const startEditRoomName = async () => {
   if (!isGroupRoom.value) return;

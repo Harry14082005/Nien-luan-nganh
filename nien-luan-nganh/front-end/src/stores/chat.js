@@ -173,10 +173,16 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
 export const getReplySnippet = (msg) => {
   if (!msg) return ''
   if (msg.isRevoked) return 'Tin nhắn đã bị thu hồi'
-  if (msg.messageType === 'IMAGE') return '[Hình ảnh]'
-  if (msg.messageType === 'FILE') return '[Tệp đính kèm]'
-  if (msg.messageType === 'REMINDER') return `[Lịch hẹn] ${msg.content || ''}`
-  return msg.content || ''
+
+  const content = msg.content || ''
+  const isVid = msg.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(content)
+  const isImg = !isVid && (msg.messageType === 'IMAGE' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(content))
+
+  if (isVid) return '[Video]'
+  if (isImg) return '[Hình ảnh]'
+  if (msg.messageType === 'FILE' || msg.messageType === 'DOCUMENT') return '[Tệp đính kèm]'
+  if (msg.messageType === 'REMINDER') return `[Lịch hẹn] ${content}`
+  return content
 }
 
 // Chuẩn hóa thông tin ReminderResponse và tính lại myRsvp theo đúng tài khoản đang đăng nhập

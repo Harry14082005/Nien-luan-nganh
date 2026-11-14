@@ -50,7 +50,7 @@ const showSearchBar = ref(false)
 const currentSearchKeyword = ref('')
 
 // Quản lý thanh thông tin phòng chat bên phải (Chat Info Sidebar)
-const isInfoSidebarOpen = ref(false)
+const isInfoSidebarOpen = ref(localStorage.getItem('isChatInfoSidebarOpen') === 'true')
 const currentRoomMembers = ref([])
 const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
@@ -168,6 +168,7 @@ const handleCloseSearch = () => {
 
 const handleToggleInfo = () => {
   isInfoSidebarOpen.value = !isInfoSidebarOpen.value
+  localStorage.setItem('isChatInfoSidebarOpen', String(isInfoSidebarOpen.value))
   if (isInfoSidebarOpen.value) {
     showSearchBar.value = false
     currentSearchKeyword.value = ''
@@ -180,6 +181,7 @@ const handleToggleInfo = () => {
 
 const handleCloseInfo = () => {
   isInfoSidebarOpen.value = false
+  localStorage.setItem('isChatInfoSidebarOpen', 'false')
 }
 
 // Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
@@ -609,6 +611,9 @@ onMounted(async () => {
       chatStore.fetchRoomReminders(chatStore.activeRoomId),
     ])
     await chatStore.markRoomAsRead(chatStore.activeRoomId)
+    if (isInfoSidebarOpen.value) {
+      fetchCurrentRoomMembers()
+    }
   }
   await scrollOrJumpToLatestActivity()
 
@@ -1290,7 +1295,7 @@ watch(
           :room="chatStore.activeRoom || {}"
           :members="currentRoomMembers"
           :media-data="roomMediaData"
-          @close="isInfoSidebarOpen = false"
+          @close="handleCloseInfo"
           @toggle-notification="handleMuteNotification"
           @add-member="showAddMemberModal = true"
           @create-reminder="handleOpenCreateReminder"

@@ -139,6 +139,7 @@ let closeReactionTimer = null; // Timer hoãn đóng thanh cảm xúc (250ms)
 const isEditing = ref(false); // Trạng thái đang chỉnh sửa inline
 const editContent = ref(''); // Nội dung văn bản đang sửa
 const editTextareaRef = ref(null); // Ref tới ô textarea sửa
+const editBoxRef = ref(null); // Ref tới khối wrapper chỉnh sửa
 const isMediaLoadError = ref(false); // Trạng thái ảnh/video load thất bại
 
 // Lưu trữ trạng thái dịch của tin nhắn này
@@ -470,11 +471,16 @@ const handleClickRepliedQuote = () => {
     }
 };
 
-// Đóng menu 3 chấm và thanh chọn cảm xúc khi click bên ngoài
-const handleDocumentClick = () => {
+// Đóng menu 3 chấm, thanh chọn cảm xúc và hủy chỉnh sửa khi click bên ngoài
+const handleDocumentClick = (e) => {
     showMenu.value = false;
     showReactionPicker.value = false;
-    showLangMenu.value = false; 
+    showLangMenu.value = false;
+
+    // Nếu đang chỉnh sửa inline mà click ra ngoài khung sửa -> tự động hủy bỏ
+    if (isEditing.value && editBoxRef.value && !editBoxRef.value.contains(e.target)) {
+        handleCancelEdit();
+    }
 };
 
 onMounted(() => {
@@ -542,6 +548,7 @@ onUnmounted(() => {
                 <!-- 2. Trạng thái đang chỉnh sửa -->
                 <div 
                     v-else-if="isEditing" 
+                    ref="editBoxRef"
                     :class="['message', `message--${variant}`, 'message--editing']"
                 >
                     <textarea 
