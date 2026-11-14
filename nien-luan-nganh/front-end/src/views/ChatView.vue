@@ -96,26 +96,37 @@ const handleOpenMediaPreview = (targetMedia) => {
     console.warn('Lỗi tạm dừng video ngoài khung chat:', e)
   }
 
-  // Gom toàn bộ ảnh và video trong phòng thành danh sách xem liên tục
+  // Gom toàn bộ ảnh và video trong phòng thành danh sách xem liên tục và sắp xếp theo thời gian cũ -> mới (ASC)
+  // để: Bấm Mũi tên Phải (Next) -> Sang ảnh/video mới hơn (mới nhất nằm cuối mảng)
+  //     Bấm Mũi tên Trái (Prev) -> Xem lại ảnh/video cũ hơn
   const allMedia = [
     ...(roomMediaData.value?.images || []),
     ...(roomMediaData.value?.videos || []),
-  ]
+  ].sort((a, b) => {
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return tA - tB
+  })
 
-  // Tìm index của file được click
-  const targetUrl = targetMedia.url
-  let foundIdx = allMedia.findIndex(
-    (m) => m.url === targetUrl || m.content === targetUrl
-  )
+  // Tìm index của file được click (chuẩn hóa so sánh URL hoặc storage key)
+  const targetUrl = String(targetMedia.url || '').trim()
+  const cleanKey = (val) => String(val || '').split('?')[0].trim()
+
+  let foundIdx = allMedia.findIndex((m) => {
+    const mUrl = cleanKey(m.url || m.content)
+    const tUrl = cleanKey(targetUrl)
+    return mUrl === tUrl || mUrl.endsWith(tUrl) || tUrl.endsWith(mUrl)
+  })
 
   if (foundIdx === -1) {
-    // Nếu chưa có trong danh sách tổng hợp (ví dụ vừa gửi xong), tạo 1 item tạm
-    allMedia.unshift({
+    // Nếu chưa có trong danh sách tổng hợp (ví dụ vừa gửi xong), thêm vào danh sách và chọn nó
+    allMedia.push({
       url: targetUrl,
       type: targetMedia.type || 'IMAGE',
       name: 'Phương tiện',
+      createdAt: new Date().toISOString(),
     })
-    foundIdx = 0
+    foundIdx = allMedia.length - 1
   }
 
   lightboxMediaList.value = allMedia

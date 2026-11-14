@@ -52,7 +52,7 @@ const isVideo = computed(() => {
   if (!currentItem.value) return false
   if (currentItem.value.type === 'VIDEO' || currentItem.value.messageType === 'VIDEO') return true
   const url = currentItem.value.url || currentItem.value.content || ''
-  return Boolean(url.match(/\.(mp4|mov|webm|avi)$/i))
+  return Boolean(url.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i))
 })
 
 const hasPrev = computed(() => currentIndex.value > 0)
