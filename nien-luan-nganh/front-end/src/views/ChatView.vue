@@ -11,6 +11,7 @@
  * - Hiển thị trạng thái đang gõ phím của đối phương với hiệu ứng chấm nhảy (Typing indicator).
  */
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
