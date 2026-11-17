@@ -19,7 +19,7 @@
             <font-awesome-icon icon="chevron-left" />
           </button>
           <div class="header-title subview-title">
-            <h3>Lịch hẹn nhắc nhở</h3>
+            <h3>Lời nhắc</h3>
           </div>
         </div>
         <div class="rem-subview-header-actions">
@@ -38,7 +38,33 @@
         </div>
       </div>
 
-      <!-- C. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
+      <!-- C. Header Sub-view Quản lý Bình chọn nhóm -->
+      <div v-else-if="currentView === 'POLLS'" class="sidebar-header subview-header">
+        <div class="subview-header-left" @click="backToInfoView">
+          <button class="btn-back" title="Quay lại thông tin">
+            <font-awesome-icon icon="chevron-left" />
+          </button>
+          <div class="header-title subview-title">
+            <h3>Bình chọn</h3>
+          </div>
+        </div>
+        <div class="rem-subview-header-actions">
+          <button
+            type="button"
+            class="btn-header-create-rem"
+            title="Tạo bình chọn mới"
+            @click="$emit('create-poll')"
+          >
+            <font-awesome-icon icon="plus" />
+            <span>Tạo poll</span>
+          </button>
+          <button class="btn-close" title="Đóng (Esc)" @click="$emit('close')">
+            <font-awesome-icon icon="x" />
+          </button>
+        </div>
+      </div>
+
+      <!-- D. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
       <div v-else class="sidebar-header subview-header">
         <div class="subview-header-left" @click="backToInfoView">
           <button class="btn-back" title="Quay lại thông tin">
@@ -309,6 +335,83 @@
           <hr class="divider" />
         </template>
 
+        <!-- 2.3.6 BÌNH CHỌN NHÓM (ACCORDION + PREVIEW + XEM TẤT CẢ) -->
+        <div v-if="isGroupRoom" class="accordion-section">
+          <div class="accordion-header" @click="isPollsExpanded = !isPollsExpanded">
+            <div class="header-left">
+              <font-awesome-icon icon="chart-simple" class="section-icon poll-header-icon" />
+              <span class="section-title">
+                Bình chọn nhóm ({{ allPollsList.length }})
+              </span>
+            </div>
+            <font-awesome-icon
+              icon="chevron-right"
+              class="arrow-icon"
+              :class="{ 'arrow--down': isPollsExpanded }"
+            />
+          </div>
+
+          <div class="accordion-collapse" :class="{ 'is-expanded': isPollsExpanded }">
+            <div class="accordion-collapse-inner">
+              <div class="accordion-body">
+                <!-- Thanh tạo bình chọn mới -->
+                <div class="add-member-action-bar" @click="$emit('create-poll')">
+                  <div class="add-member-icon-circle poll-add-icon-circle">
+                    <font-awesome-icon icon="chart-simple" />
+                  </div>
+                  <span class="add-member-text">Tạo bình chọn mới</span>
+                </div>
+
+                <!-- Danh sách preview: Chỉ hiển thị 1 cuộc bình chọn mới nhất ở ngoài theo yêu cầu -->
+                <div v-if="allPollsList.length === 0" class="empty-members-hint">
+                  Chưa có cuộc bình chọn nào trong nhóm
+                </div>
+
+                <div v-else class="poll-preview-list">
+                  <div
+                    v-for="poll in allPollsList.slice(0, 1)"
+                    :key="poll.pollId"
+                    class="poll-preview-card"
+                    @click="handleJumpToPoll(poll)"
+                  >
+                    <div class="poll-mini-icon-box" :class="{ 'is-closed': !poll.isActive }">
+                      <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
+                    </div>
+
+                    <div class="poll-preview-info">
+                      <div class="poll-preview-top">
+                        <p class="poll-preview-title">{{ poll.question }}</p>
+                        <span class="poll-preview-pill" :class="{ 'pill-closed': !poll.isActive }">
+                          {{ poll.isActive ? 'ĐANG MỞ' : 'KẾT THÚC' }}
+                        </span>
+                      </div>
+                      <div class="poll-preview-meta">
+                        <span>{{ poll.totalVoters || 0 }} người tham gia</span>
+                        <span>·</span>
+                        <span>{{ poll.options?.length || 0 }} phương án</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Nút Xem tất cả bình chọn -->
+                <button
+                  v-if="allPollsList.length > 0"
+                  type="button"
+                  class="btn-open-gallery"
+                  style="margin-top: 8px"
+                  @click="openPollsView('ACTIVE')"
+                >
+                  <!-- <span>Xem tất cả bình chọn ({{ allPollsList.length }})</span> -->
+                  <span>Xem tất cả bình chọn</span>
+
+                  <font-awesome-icon icon="chevron-right" class="btn-arrow" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 2.3.5 LỊCH HẸN & NHẮC NHỞ (ACCORDION + PREVIEW + XEM TẤT CẢ) -->
         <div class="accordion-section">
           <div class="accordion-header" @click="isRemindersExpanded = !isRemindersExpanded">
@@ -381,7 +484,9 @@
                   style="margin-top: 8px"
                   @click="openRemindersView('UPCOMING')"
                 >
-                  <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span>
+                  <!-- <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span> -->
+                  <span>Xem tất cả lịch hẹn</span>
+
                   <font-awesome-icon icon="chevron-right" class="btn-arrow" />
                 </button>
               </div>
@@ -682,7 +787,82 @@
         </div>
       </div>
 
-      <!-- VIEW 3: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
+      <!-- VIEW 3: SUB-VIEW QUẢN LÝ BÌNH CHỌN NHÓM PHÒNG CHAT -->
+      <div v-else-if="currentView === 'POLLS'" class="subview-media-content">
+        <div class="subview-tabs-bar">
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentPollTab === 'ACTIVE' }"
+            @click="currentPollTab = 'ACTIVE'"
+          >
+            <font-awesome-icon icon="chart-simple" />
+            <span>Đang mở ({{ activePollsList.length }})</span>
+          </button>
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentPollTab === 'CLOSED' }"
+            @click="currentPollTab = 'CLOSED'"
+          >
+            <font-awesome-icon icon="lock" />
+            <span>Đã kết thúc ({{ closedPollsList.length }})</span>
+          </button>
+        </div>
+
+        <div class="subview-gallery-scroll rem-subview-list">
+          <div v-if="currentTabPollsList.length === 0" class="empty-media-hint">
+            {{
+              currentPollTab === 'ACTIVE'
+                ? 'Không có cuộc bình chọn nào đang diễn ra'
+                : 'Không có cuộc bình chọn nào đã kết thúc'
+            }}
+          </div>
+
+          <div
+            v-for="poll in currentTabPollsList"
+            :key="poll.pollId"
+            class="poll-subview-card"
+            :class="{ 'is-closed': !poll.isActive }"
+            @click="handleJumpToPoll(poll)"
+          >
+            <div class="poll-subview-top">
+              <div class="poll-mini-icon-box poll-leaf-lg" :class="{ 'is-closed': !poll.isActive }">
+                <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
+              </div>
+
+              <div class="rem-subview-main">
+                <div class="rem-subview-badges">
+                  <span
+                    class="rem-badge-status"
+                    :class="poll.isActive ? 'st-active' : 'st-closed'"
+                  >
+                    {{ poll.isActive ? 'ĐANG MỞ' : 'ĐÃ KẾT THÚC' }}
+                  </span>
+                  <span class="poll-subview-creator">
+                    Tạo bởi {{ poll.createdByName || 'Thành viên' }}
+                  </span>
+                </div>
+
+                <h4 class="rem-subview-title">{{ poll.question }}</h4>
+
+                <div class="poll-subview-stats">
+                  <span><strong>{{ poll.totalVoters || 0 }}</strong> người tham gia</span>
+                  <span>·</span>
+                  <span><strong>{{ poll.options?.length || 0 }}</strong> phương án</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="poll-subview-footer">
+              <span class="poll-jump-hint">Nhấp để xem bình chọn</span>
+              <font-awesome-icon icon="chevron-right" class="poll-chevron-right" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
       <div v-else class="subview-media-content">
         <!-- THANH TAB SEGMENTED CONTROL TO RÕ TRÊN ĐẦU SUBVIEW -->
         <div class="subview-tabs-bar">
@@ -1027,18 +1207,21 @@ const emit = defineEmits([
   'preview-media',
   'add-member',
   'create-reminder',
+  'create-poll',
   'jump-to-message',
   'members-updated',
 ]);
 
-// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn)
+// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn) | 'POLLS' (bình chọn)
 const currentView = ref('INFO');
 const currentReminderTab = ref('UPCOMING'); // 'UPCOMING' | 'PAST'
+const currentPollTab = ref('ACTIVE'); // 'ACTIVE' | 'CLOSED'
 const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
 
 // State quản lý Accordion đóng/mở các mục trên Sidebar
 const isMembersExpanded = ref(true);
 const isRemindersExpanded = ref(true);
+const isPollsExpanded = ref(true);
 const isMediaExpanded = ref(true);
 
 // State bật/tắt thông báo
@@ -1052,6 +1235,11 @@ const openMediaView = (tab = 'IMAGE') => {
 const openRemindersView = (tab = 'UPCOMING') => {
   currentReminderTab.value = tab;
   currentView.value = 'REMINDERS';
+};
+
+const openPollsView = (tab = 'ACTIVE') => {
+  currentPollTab.value = tab;
+  currentView.value = 'POLLS';
 };
 
 const backToInfoView = () => {
@@ -1289,6 +1477,59 @@ const handleSidebarCancelReminder = async (rem) => {
     await chatStore.cancelRoomReminder(rem.roomId || chatStore.activeRoomId, rem.reminderId);
   } catch (err) {
     alert(err?.response?.data?.message || 'Không thể hủy lịch hẹn.');
+  }
+};
+
+// =============================================================================
+// ██████████████  PHẦN 2.5: POLL (BÌNH CHỌN NHÓM)  ████████████████████████████
+// =============================================================================
+
+// Danh sách bình chọn của phòng đang mở từ Pinia Store
+const allPollsList = computed(() => {
+  return chatStore.roomPolls || [];
+});
+
+const activePollsList = computed(() => {
+  return chatStore.activeRoomPolls || [];
+});
+
+const closedPollsList = computed(() => {
+  return chatStore.closedRoomPolls || [];
+});
+
+const currentTabPollsList = computed(() => {
+  return currentPollTab.value === 'ACTIVE'
+    ? activePollsList.value
+    : closedPollsList.value;
+});
+
+// Nhảy đến vị trí tin nhắn của Poll trong phòng chat
+const handleJumpToPoll = (poll) => {
+  if (!poll) return;
+  // Tìm messageId mới nhất của poll này trong messages của store
+  const msgs = chatStore.messages || [];
+  let targetMsgId = null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (m.messageType === 'POLL') {
+      const p = chatStore.getPollForMessage(m);
+      if (String(p?.pollId) === String(poll.pollId) || String(m.pollId) === String(poll.pollId)) {
+        targetMsgId = m.messageId;
+        break;
+      }
+    }
+  }
+
+  // Nếu không tìm thấy trong messages hiện tại, lấy messageId được lưu trên poll (nếu có)
+  if (!targetMsgId && poll.messageId) {
+    targetMsgId = poll.messageId;
+  }
+
+  if (targetMsgId) {
+    emit('jump-to-message', targetMsgId);
+  } else {
+    // Nếu chưa load tin nhắn chứa poll thì mở view chi tiết
+    openPollsView(poll.isActive ? 'ACTIVE' : 'CLOSED');
   }
 };
 
@@ -3509,5 +3750,192 @@ input:checked + .slider:before {
 .btn-confirm-transfer:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* =========================================================================
+   STYLE CHO POLL TRÊN SIDEBAR (ĐỒNG BỘ 100% VỚI REMINDER)
+   ========================================================================= */
+.poll-header-icon {
+  color: #2563eb;
+}
+
+.poll-add-icon-circle {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.poll-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.poll-preview-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.poll-preview-card:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.poll-mini-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  border: 1px solid #bfdbfe;
+}
+
+.poll-mini-icon-box.is-closed {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.poll-mini-icon-box.poll-leaf-lg {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+.poll-preview-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.poll-preview-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.poll-preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.poll-preview-pill {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  flex-shrink: 0;
+}
+
+.poll-preview-pill.pill-closed {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.poll-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Sub-view Poll Cards */
+.poll-subview-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.poll-subview-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+.poll-subview-card.is-closed {
+  background: #f8fafc;
+  opacity: 0.9;
+}
+
+.poll-subview-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.poll-subview-creator {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.poll-subview-stats {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.poll-subview-stats strong {
+  color: #0f172a;
+}
+
+.poll-subview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.poll-jump-hint {
+  transition: color 0.15s;
+}
+
+.poll-chevron-right {
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.poll-subview-card:hover .poll-chevron-right {
+  transform: translateX(3px);
 }
 </style>

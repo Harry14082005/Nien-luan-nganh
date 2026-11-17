@@ -66,6 +66,9 @@ import {
   faUserShield,
   faCrown,
   faUserCheck,
+  faChartSimple,
+  faXmark,
+  faTrashCan,
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
   faHouse,
@@ -126,6 +129,9 @@ library.add(
   faUserShield,
   faCrown,
   faUserCheck,
+  faChartSimple,
+  faXmark,
+  faTrashCan,
 )
 async function enableMocking() {
   if (import.meta.env.VITE_USE_MOCK !== 'true') return

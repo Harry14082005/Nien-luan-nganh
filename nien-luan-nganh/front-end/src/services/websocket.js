@@ -288,7 +288,7 @@ class NativeStompClient {
     if (this.ws) {
       try {
         this.ws.close()
-      } catch {}
+      } catch { }
       this.ws = null
     }
     this.connected = false
@@ -380,6 +380,12 @@ export function subscribeToRoom(roomId) {
     chatStore.handleReminderEvent(reminderEvent)
   })
 
+  // [KÊNH 4.5] BÌNH CHỌN - POLL (/topic/room.{roomId}.poll)
+  const unsubPoll = wsService.subscribe(`/topic/room.${key}.poll`, (pollEvent) => {
+    console.log(`📊 [Poll event phòng ${key}]:`, pollEvent)
+    chatStore.handlePollEvent(pollEvent)
+  })
+
   // [KÊNH 5] TRẠNG THÁI ĐÃ NHẬN / ĐÃ XEM (/topic/room.{roomId}.receipts)
   const unsubReceipts = wsService.subscribe(`/topic/room.${key}.receipts`, (receiptEvent) => {
     chatStore.handleReceiptEvent(receiptEvent)
@@ -391,6 +397,7 @@ export function subscribeToRoom(roomId) {
     unsubTyping()
     unsubReaction()
     unsubReminder()
+    unsubPoll()
     unsubReceipts()
   })
 }

@@ -2171,4 +2171,5 @@ onUnmounted(() => {
     text-align: center;
     padding: 8px 0;
 }
+
 </style>

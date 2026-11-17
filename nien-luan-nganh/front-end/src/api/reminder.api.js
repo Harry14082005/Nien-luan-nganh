@@ -120,3 +120,14 @@ export const cancelReminder = (roomId, reminderId) => {
     .delete(`/rooms/${roomId}/reminders/${reminderId}`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+/**
+ * 6. Trích xuất gợi ý lịch hẹn bằng AI từ tin nhắn
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn anchor
+ */
+export const suggestReminderWithAi = (roomId, messageId) => {
+  return http
+    .post(`/rooms/${roomId}/reminders/ai-suggest`, { messageId })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}

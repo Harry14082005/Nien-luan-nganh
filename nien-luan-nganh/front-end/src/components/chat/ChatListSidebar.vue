@@ -110,27 +110,37 @@ function getLastMessageText(room) {
   }
   if (!room.lastMessageContent) return 'Chưa có tin nhắn'
 
-  // 3. Hiển thị thông báo khi có tin nhắn hệ thống (ghim/bỏ ghim, thêm/phê duyệt/xóa/rời nhóm, bật/tắt phê duyệt, đổi tên/ảnh nhóm)
+  // 3. Hiển thị thông báo khi có tin nhắn hệ thống (ghim/bỏ ghim, thêm/phê duyệt/xóa/rời nhóm, bật/tắt phê duyệt, đổi tên/ảnh nhóm, bình chọn)
   const content = room.lastMessageContent || ''
   const myUsername = authStore.user?.username
+  const myUserId = authStore.user?.userId
   const senderName = room.lastMessageSenderName
+  const senderId = room.lastMessageSenderId
   const isMyAction =
     senderName === 'Bạn' ||
+    (myUserId && senderId && String(senderId) === String(myUserId)) ||
     (myUsername && (senderName === myUsername || content.startsWith(myUsername)))
 
-  if (
+  const isSystemOrEvent =
     content.includes('ghim') ||
     content.includes('gỡ') ||
+    content.includes('bình chọn') ||
+    content.includes('Bình chọn') ||
     content.includes('đã thêm') ||
     content.includes('đã phê duyệt') ||
     content.includes('đã xóa') ||
     content.includes('đã rời khỏi nhóm') ||
     content.includes('phê duyệt thành viên mới') ||
-    content.includes('đã đổi tên nhóm thành') ||
-    content.includes('đã thay đổi ảnh đại diện nhóm')
-  ) {
+    content.includes('đã bật') ||
+    content.includes('đã tắt') ||
+    content.includes('đã đổi tên nhóm') ||
+    content.includes('đã thay đổi ảnh đại diện')
+
+  if (isSystemOrEvent) {
     return formatSystemMessageText(content, {
-      senderName: room.lastMessageSenderName,
+      senderUserId: senderId,
+      senderName: isMyAction ? 'Bạn' : senderName,
+      actorUsername: isMyAction ? 'Bạn' : senderName,
       currentUser: authStore.user,
       isPreview: true,
     })

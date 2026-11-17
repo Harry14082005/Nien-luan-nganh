@@ -62,6 +62,9 @@ public class MessageService {
     private final RoomService roomService;
     private final FileStorageService fileStorageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PollResourceRepository pollResourceRepository;
+    private final ReminderResourceRepository reminderResourceRepository;
+    private final PollRepository pollRepository;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
@@ -144,7 +147,8 @@ public class MessageService {
                 : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
         roomService.updateLastActivity(room, savedMessage.getMessageId(), preview, sender, savedMessage.getCreatedAt());
 
-        // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả về cho Controller
+        // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả
+        // về cho Controller
         MessageResponse response = messageMapper.toMessageResponse(savedMessage);
         eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
         return response;
@@ -950,8 +954,10 @@ public class MessageService {
             boolean cursorHasMore = fetched.size() > effectiveLimit;
             List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit))
                     : fetched;
+            List<MessageResponse> responses = messageMapper.toMessageResponseList(sliceList);
+            enrichPollAndReminderIds(roomId, responses);
             return CursorResponse.<MessageResponse>builder()
-                    .data(messageMapper.toMessageResponseList(sliceList))
+                    .data(responses)
                     .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null
                             : sliceList.get(sliceList.size() - 1).getMessageId())
                     .hasMore(cursorHasMore)
@@ -962,6 +968,7 @@ public class MessageService {
 
         // Xử lý dữ liệu trả về cho Frontend (Xac dinh nextCursor & hasMore)
         List<MessageResponse> messageResponses = messageMapper.toMessageResponseList(messagePage.getContent());
+        enrichPollAndReminderIds(roomId, messageResponses);
 
         // Xác định nextCursor: ID của tin nhắn cũ nhất trong batch hiện tại (phần tử
         // cuối danh sách)
@@ -1015,7 +1022,9 @@ public class MessageService {
         List<Message> context = new ArrayList<>(older);
         context.addAll(newer);
 
-        return messageMapper.toMessageResponseList(context);
+        List<MessageResponse> responses = messageMapper.toMessageResponseList(context);
+        enrichPollAndReminderIds(roomId, responses);
+        return responses;
     }
 
     /**
@@ -1040,11 +1049,70 @@ public class MessageService {
         Pageable pageable = PageRequest.of(0, effectiveLimit);
 
         List<Message> newerMessages = messageRepository.findMessagesAfterCursor(roomId, cursorId, pageable);
-        return messageMapper.toMessageResponseList(newerMessages);
+        List<MessageResponse> responses = messageMapper.toMessageResponseList(newerMessages);
+        enrichPollAndReminderIds(roomId, responses);
+        return responses;
+    }
+
+    private void enrichPollAndReminderIds(UUID roomId, List<MessageResponse> responses) {
+        if (responses == null || responses.isEmpty()) {
+            return;
+        }
+
+        List<UUID> pollMsgIds = new ArrayList<>();
+        List<UUID> reminderMsgIds = new ArrayList<>();
+
+        for (MessageResponse res : responses) {
+            if (res.getMessageType() == MessageType.POLL && res.getPollId() == null) {
+                pollMsgIds.add(res.getMessageId());
+            } else if (res.getMessageType() == MessageType.REMINDER && res.getReminderId() == null) {
+                reminderMsgIds.add(res.getMessageId());
+            }
+        }
+
+        if (!pollMsgIds.isEmpty()) {
+            Map<UUID, UUID> pollIdByMsgId = new java.util.HashMap<>();
+            List<PollResource> prList = pollResourceRepository.findByMessage_MessageIdIn(pollMsgIds);
+            for (PollResource pr : prList) {
+                pollIdByMsgId.put(pr.getMessage().getMessageId(), pr.getPoll().getPollId());
+            }
+
+            // Fallback tra cứu qua bảng polls nếu tin cũ chưa có poll_resource
+            List<Poll> roomPolls = pollRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId);
+            Map<String, UUID> pollIdByQuestion = new java.util.HashMap<>();
+            for (Poll p : roomPolls) {
+                if (p.getMessage() != null) {
+                    pollIdByMsgId.putIfAbsent(p.getMessage().getMessageId(), p.getPollId());
+                }
+                if (p.getQuestion() != null) {
+                    pollIdByQuestion.putIfAbsent(p.getQuestion(), p.getPollId());
+                }
+            }
+
+            for (MessageResponse res : responses) {
+                if (res.getMessageType() == MessageType.POLL && res.getPollId() == null) {
+                    UUID pid = pollIdByMsgId.get(res.getMessageId());
+                    if (pid == null && res.getContent() != null) {
+                        pid = pollIdByQuestion.get(res.getContent());
+                    }
+                    res.setPollId(pid);
+                }
+            }
+        }
+
+        if (!reminderMsgIds.isEmpty()) {
+            for (MessageResponse res : responses) {
+                if (res.getMessageType() == MessageType.REMINDER && res.getReminderId() == null) {
+                    reminderResourceRepository.findByMessage_MessageId(res.getMessageId())
+                            .ifPresent(rr -> res.setReminderId(rr.getReminder().getReminderId()));
+                }
+            }
+        }
     }
 
     // =========================================================================
-    // ██████████ PHẦN 6: TRUY VẤN MEDIA, TÌM KIẾM SIDEBAR & TYPING INDICATOR ██████████
+    // ██████████ PHẦN 6: TRUY VẤN MEDIA, TÌM KIẾM SIDEBAR & TYPING INDICATOR
+    // ██████████
     // =========================================================================
 
     /**

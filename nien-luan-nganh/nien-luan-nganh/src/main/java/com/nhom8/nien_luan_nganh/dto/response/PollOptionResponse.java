@@ -2,6 +2,7 @@ package com.nhom8.nien_luan_nganh.dto.response;
 
 import lombok.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -15,4 +16,5 @@ public class PollOptionResponse {
 
     private long voteCount;
     private boolean votedByMe;
+    private List<PollVoterResponse> voters;
 }
