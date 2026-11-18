@@ -13,6 +13,7 @@ import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
+import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
@@ -312,11 +313,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn cần chỉnh sửa
         Message message = messageRepository.findById(messageId)
@@ -400,11 +397,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn cần thu hồi
         Message message = messageRepository.findById(messageId)
@@ -474,11 +467,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn
         Message message = messageRepository.findById(messageId)
@@ -527,11 +516,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn cần ghim
         Message message = messageRepository.findById(messageId)
@@ -615,11 +600,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn cần bỏ ghim
         Message message = messageRepository.findById(messageId)
@@ -690,11 +671,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Lấy danh sách tin nhắn đã ghim từ repository
         List<Message> pinnedMessages = messageRepository.findPinnedMessagesByRoomId(roomId);
@@ -733,11 +710,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn cần thả cảm xúc
         Message message = messageRepository.findById(messageId)
@@ -805,11 +778,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn
         Message message = messageRepository.findById(messageId)
@@ -867,11 +836,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Tìm tin nhắn
         Message message = messageRepository.findById(messageId)
@@ -926,11 +891,7 @@ public class MessageService {
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
         // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         // 4. Chuẩn hóa giới hạn số lượng tin nhắn (1 <= limit <= 100)
         int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
@@ -989,9 +950,7 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         Message targetMessage = messageRepository.findById(targetMessageId)
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
@@ -1032,9 +991,7 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
         Pageable pageable = PageRequest.of(0, effectiveLimit);
@@ -1063,8 +1020,7 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
+        ensureActiveMember(currentUserId, roomId);
 
         List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
         return messageMapper.toMessageResponseList(mediaList);
@@ -1087,9 +1043,7 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         if (q == null || q.trim().isEmpty()) {
             return Collections.emptyList();
@@ -1132,11 +1086,7 @@ public class MessageService {
 
         Long cachedValidUntil = roomMembershipCache.get(cacheKey);
         if (cachedValidUntil == null || cachedValidUntil < now) {
-            boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                    roomId);
-            if (!isMember) {
-                throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-            }
+            ensureActiveMember(currentUserId, roomId);
             roomMembershipCache.put(cacheKey, now + MEMBERSHIP_CACHE_TTL_MS);
         }
 
@@ -1162,17 +1112,25 @@ public class MessageService {
     // ██████████ PHẦN 7: HÀM TIỆN ÍCH NỘI BỘ (HELPER) ██████████
     // =========================================================================
 
+    private RoomMember ensureActiveMember(UUID currentUserId, UUID roomId) {
+        RoomMember member = roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+        if (member.getStatus() == RoomMemberStatus.PENDING) {
+            throw new AppException(ErrorCode.ROOM_MEMBER_PENDING);
+        }
+        if (member.getStatus() != RoomMemberStatus.ACTIVE) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+        return member;
+    }
+
     private MessageContext getMessageContext(UUID currentUserId, UUID roomId) {
         User sender = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
 
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         if (room.getRoomType() == RoomType.DIRECT) {
             List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);

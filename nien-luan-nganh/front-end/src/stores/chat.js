@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import * as roomApi from '@/api/room.api'
 import * as messageApi from '@/api/message.api'
 import * as reminderApi from '@/api/reminder.api'
+import * as pollApi from '@/api/poll.api'
 import { wsService, subscribeToRoom } from '@/services/websocket'
 import { useAuthStore } from './auth'
 
@@ -200,6 +201,7 @@ export const getReplySnippet = (msg) => {
   if (isImg) return '[Hình ảnh]'
   if (msg.messageType === 'FILE' || msg.messageType === 'DOCUMENT') return '[Tệp đính kèm]'
   if (msg.messageType === 'REMINDER') return `[Lịch hẹn] ${content}`
+  if (msg.messageType === 'POLL') return `[Bình chọn] ${content}`
   return content
 }
 
@@ -263,6 +265,13 @@ export const formatSystemMessageText = (
 
   if (isMe) {
     if (
+      text.includes('đã tạo một cuộc bình chọn') ||
+      text.includes('đã thêm phương án') ||
+      text.includes('đã thực hiện bình chọn') ||
+      text.includes('đã khóa cuộc bình chọn') ||
+      text.includes('đã khoá cuộc bình chọn') ||
+      text.includes('đã khóa bình chọn') ||
+      text.includes('đã khoá bình chọn') ||
       text.includes('đã thêm') ||
       text.includes('đã phê duyệt') ||
       text.includes('đã xóa') ||
@@ -393,8 +402,13 @@ export const useChatStore = defineStore('chat', {
     remindersByRoom: {}, // Danh sách lịch hẹn & nhắc nhở theo từng phòng: { [roomId]: ReminderResponse[] }
     loadingReminders: false,
 
+    // --- [5.5] BÌNH CHỌN (POLL) ---
+    pollsByRoom: {}, // Danh sách bình chọn theo từng phòng: { [roomId]: PollResponse[] }
+    loadingPolls: false,
+
     // --- [6] THÀNH VIÊN & ĐÃ GỬI / ĐÃ NHẬN / ĐÃ XEM (MEMBERS & RECEIPTS) ---
     roomMembersByRoom: {}, // Danh sách thành viên theo từng phòng (kèm lastDeliveredMessageId & lastReadMessageId)
+    pendingApprovalVersion: 0, // Phiên bản danh sách chờ duyệt phục vụ realtime sync
   }),
 
   // ===========================================================================
@@ -520,6 +534,22 @@ export const useChatStore = defineStore('chat', {
     },
 
     // -------------------------------------------------------------------------
+    // [GETTER - POLL (BÌNH CHỌN NHÓM)]
+    // -------------------------------------------------------------------------
+    roomPolls: (state) => {
+      if (!state.activeRoomId) return []
+      return state.pollsByRoom[String(state.activeRoomId)] || []
+    },
+
+    activeRoomPolls() {
+      return [...this.roomPolls].filter((p) => p.isActive)
+    },
+
+    closedRoomPolls() {
+      return [...this.roomPolls].filter((p) => !p.isActive)
+    },
+
+    // -------------------------------------------------------------------------
     // [GETTER - THÀNH VIÊN & PHÂN QUYỀN (MEMBERS & PERMISSIONS)]
     // -------------------------------------------------------------------------
 
@@ -550,6 +580,35 @@ export const useChatStore = defineStore('chat', {
     // ██████████  PHẦN 1: QUẢN LÝ PHÒNG CHAT, BỘ LỌC & ONLINE/OFFLINE  ████████
     // =========================================================================
 
+    // 1.0. Xóa sạch dữ liệu trong store khi đăng xuất hoặc đổi tài khoản
+    resetState() {
+      this.rooms = []
+      this.activeRoomId = null
+      this.messages = []
+      this.pinnedMessages = []
+      this.pinNotices = {}
+      this.roomEventsMap = {}
+      this.myRecentPinActions = {}
+      this.roomMedia = { images: [], videos: [], files: [] }
+      this.remindersByRoom = {}
+      this.pollsByRoom = {}
+      this.roomMembersByRoom = {}
+      this.pendingApprovalVersion = 0
+      this.typingMap = {}
+      this.demoMessagesMap = {}
+      this.searchQuery = ''
+      this.currentFilter = 'SelectAll'
+      this.nextCursor = null
+      this.hasMoreOlder = true
+      this.hasMoreNewer = false
+      this.replyingMessage = null
+    },
+
+    //Dem so nguoi dang can duyet
+    incrementPendingVersion() {
+      this.pendingApprovalVersion = (this.pendingApprovalVersion || 0) + 1
+    },
+
     // 1.1. Tải danh sách phòng chat từ Backend (Có fallback mẫu)
     async fetchRooms() {
       this.loading = true
@@ -572,22 +631,28 @@ export const useChatStore = defineStore('chat', {
           // Đăng ký lắng nghe WebSocket cho các phòng thực tế
           this.rooms.forEach((r) => subscribeToRoom(r.roomId))
         } else {
-          this.rooms = loadDemoRooms()
+          this.rooms = []
+          this.activeRoomId = null
+          this.messages = []
         }
 
-        // Tự động chọn phòng đầu tiên nếu chưa có phòng nào được chọn
+        // Tự động chọn phòng đầu tiên nếu có phòng và chưa có phòng nào được chọn
         const currentExists = this.rooms.some(
           (r) => String(r.roomId) === String(this.activeRoomId),
         )
-        if ((!this.activeRoomId || !currentExists) && this.rooms.length > 0) {
-          await this.selectRoom(this.rooms[0].roomId)
+        if (this.rooms.length > 0) {
+          if (!this.activeRoomId || !currentExists) {
+            await this.selectRoom(this.rooms[0].roomId)
+          }
+        } else {
+          this.activeRoomId = null
+          this.messages = []
         }
       } catch (err) {
-        console.warn('Lỗi gọi API rooms, kích hoạt danh sách mẫu dự phòng:', err)
-        this.rooms = loadDemoRooms()
-        if (!this.activeRoomId && this.rooms.length > 0) {
-          await this.selectRoom(this.rooms[0].roomId)
-        }
+        console.warn('Lỗi gọi API rooms:', err)
+        this.rooms = []
+        this.activeRoomId = null
+        this.messages = []
       } finally {
         this.loading = false
       }
@@ -687,13 +752,14 @@ export const useChatStore = defineStore('chat', {
       // Đăng ký nhận tin nhắn WebSocket cho phòng này
       subscribeToRoom(roomId)
 
-      // Tải tin nhắn, tin nhắn ghim, lịch hẹn, thành viên và toàn bộ file phương tiện của phòng
+      // Tải tin nhắn, tin nhắn ghim, lịch hẹn, bình chọn, thành viên và toàn bộ file phương tiện của phòng
       if (!isSameRoom || this.messages.length === 0) {
         await Promise.all([
           this.fetchMessages(roomId),
           this.fetchPinnedMessages(roomId),
           this.fetchRoomMedia(roomId),
           this.fetchRoomReminders(roomId),
+          this.fetchRoomPolls(roomId),
           this.fetchRoomMembers(roomId),
         ])
       } else {
@@ -701,6 +767,7 @@ export const useChatStore = defineStore('chat', {
           this.fetchPinnedMessages(roomId),
           this.fetchRoomMedia(roomId),
           this.fetchRoomReminders(roomId),
+          this.fetchRoomPolls(roomId),
           this.fetchRoomMembers(roomId),
           this.markRoomAsRead(roomId),
         ])
@@ -1228,6 +1295,23 @@ export const useChatStore = defineStore('chat', {
       // Xử lý gói tin broadcast cập nhật tên phòng
       if (message.type === 'ROOM_NAME_UPDATED' && message.roomId) {
         this.updateRoomName(message.roomId, message.roomName)
+        return
+      }
+
+      // Xử lý gói tin broadcast liên quan đến phê duyệt và thành viên phòng
+      if (message.type === 'ROOM_MEMBER_PENDING_ADDED' || message.type === 'ROOM_MEMBER_APPROVED' || message.type === 'ROOM_MEMBER_REMOVED') {
+        this.incrementPendingVersion()
+        if (message.roomId) {
+          this.fetchRoomMembers(message.roomId)
+        }
+        const authStore = useAuthStore()
+        const myUserId = authStore.user?.userId
+        if (message.type === 'ROOM_MEMBER_APPROVED' && myUserId && String(message.targetUserId) === String(myUserId)) {
+          this.fetchRooms()
+        }
+        if (message.type === 'ROOM_MEMBER_REMOVED' && myUserId && String(message.targetUserId) === String(myUserId)) {
+          this.fetchRooms()
+        }
         return
       }
 
@@ -2382,6 +2466,214 @@ export const useChatStore = defineStore('chat', {
       }
       //Cap nhat State bat bien, tao tham chieu object moi cho reminderByRoom de dam bao hethong Reactivity cua Vue luon nhan dien duoc thay doi va render lai giao dien ngay lap tuc
       this.remindersByRoom = { ...this.remindersByRoom, [rKey]: currentList }
+    },
+
+    // -------------------------------------------------------------------------
+    // Lấy thông tin chi tiết của Poll tương ứng với một tin nhắn type = POLL
+    // -------------------------------------------------------------------------
+    getPollForMessage(msg) {
+      if (!msg) return null
+      const rKey = String(msg.roomId || this.activeRoomId || '')
+      const list = this.pollsByRoom[rKey] || []
+
+      // 1. Khớp theo pollId nếu message có lưu
+      if (msg.pollId) {
+        const found = list.find((p) => String(p.pollId) === String(msg.pollId))
+        if (found) return found
+      }
+
+      // 2. Khớp theo messageId
+      if (msg.messageId) {
+        const found = list.find((p) => String(p.messageId) === String(msg.messageId))
+        if (found) return found
+      }
+
+      // 3. Khớp theo nội dung câu hỏi
+      const found = list.find((p) => p.question === msg.content)
+      if (found) return found
+
+      return null
+    },
+
+    // =========================================================================
+    // ███████  PHẦN 6.5: QUẢN LÝ BÌNH CHỌN (POLL TRONG NHÓM CHAT)  ████████████
+    // =========================================================================
+
+    // Tải danh sách bình chọn của phòng chat
+    async fetchRoomPolls(roomId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return []
+      const rKey = String(targetRoomId)
+
+      try {
+        this.loadingPolls = true
+        const polls = await pollApi.getRoomPolls(targetRoomId)
+        const authStore = useAuthStore()
+        const myUserId = authStore.user?.userId
+
+        // Chuẩn hóa cờ votedByMe của từng option dựa theo userId của chính người dùng hiện tại
+        const normalized = (polls || []).map((poll) => ({
+          ...poll,
+          options: (poll.options || []).map((opt) => {
+            let isVotedByMe = false
+            if (opt.voters && Array.isArray(opt.voters) && myUserId) {
+              isVotedByMe = opt.voters.some((v) => String(v.userId) === String(myUserId))
+            } else if (opt.votedByMe !== undefined && !opt.voters) {
+              isVotedByMe = Boolean(opt.votedByMe)
+            }
+            return {
+              ...opt,
+              votedByMe: isVotedByMe,
+            }
+          }),
+        }))
+
+        this.pollsByRoom = {
+          ...this.pollsByRoom,
+          [rKey]: normalized,
+        }
+        return normalized
+      } catch (err) {
+        console.error(`Lỗi tải danh sách bình chọn phòng ${targetRoomId}:`, err)
+        return []
+      } finally {
+        this.loadingPolls = false
+      }
+    },
+
+    // Tạo bình chọn mới trong phòng chat
+    async createRoomPoll(roomId, pollData) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return null
+      const created = await pollApi.createPoll(targetRoomId, pollData)
+      if (created) {
+        const rKey = String(targetRoomId)
+        const currentList = this.pollsByRoom[rKey] || []
+        const filtered = currentList.filter((p) => String(p.pollId) !== String(created.pollId))
+        this.pollsByRoom = {
+          ...this.pollsByRoom,
+          [rKey]: [created, ...filtered],
+        }
+        return created
+      }
+      return null
+    },
+
+    // Bỏ phiếu / Đổi phiếu bầu (Optimistic UI)
+    async voteRoomPoll(roomId, pollId, optionIds) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId) return null
+      const rKey = String(targetRoomId)
+      const list = [...(this.pollsByRoom[rKey] || [])]
+      const idx = list.findIndex((p) => String(p.pollId) === String(pollId))
+      const snapshot = idx !== -1 ? JSON.parse(JSON.stringify(list[idx])) : null
+
+      // Optimistic UI update
+      if (idx !== -1) {
+        const currentPoll = { ...list[idx] }
+        const wantedSet = new Set(optionIds.map(String))
+        let diffUserCount = 0
+        const hadAnyVoteBefore = currentPoll.options.some((o) => o.votedByMe)
+        const willHaveVote = wantedSet.size > 0
+
+        currentPoll.options = currentPoll.options.map((opt) => {
+          const isWanted = wantedSet.has(String(opt.pollOptionId))
+          const wasVoted = Boolean(opt.votedByMe)
+          let newVoteCount = opt.voteCount || 0
+          if (isWanted && !wasVoted) newVoteCount++
+          if (!isWanted && wasVoted) newVoteCount = Math.max(0, newVoteCount - 1)
+          return {
+            ...opt,
+            votedByMe: isWanted,
+            voteCount: newVoteCount,
+          }
+        })
+
+        if (!hadAnyVoteBefore && willHaveVote) diffUserCount = 1
+        if (hadAnyVoteBefore && !willHaveVote) diffUserCount = -1
+        currentPoll.totalVoters = Math.max(0, (currentPoll.totalVoters || 0) + diffUserCount)
+
+        list[idx] = currentPoll
+        this.pollsByRoom = { ...this.pollsByRoom, [rKey]: list }
+      }
+
+      try {
+        const updated = await pollApi.votePoll(targetRoomId, pollId, optionIds)
+        if (updated) {
+          this.handlePollEvent({ type: 'POLL_VOTED', roomId: targetRoomId, poll: updated })
+        }
+        return updated
+      } catch (err) {
+        if (snapshot && idx !== -1) {
+          const revertList = [...(this.pollsByRoom[rKey] || [])]
+          revertList[idx] = snapshot
+          this.pollsByRoom = { ...this.pollsByRoom, [rKey]: revertList }
+        }
+        throw err
+      }
+    },
+
+    // Thêm lựa chọn mới vào Poll
+    async addOptionToRoomPoll(roomId, pollId, optionText) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId || !optionText) return null
+      const updated = await pollApi.addPollOption(targetRoomId, pollId, optionText)
+      if (updated) {
+        this.handlePollEvent({ type: 'POLL_OPTION_ADDED', roomId: targetRoomId, poll: updated })
+      }
+      return updated
+    },
+
+    // Khóa / Kết thúc bình chọn
+    async closeRoomPoll(roomId, pollId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId) return false
+      const updated = await pollApi.closePoll(targetRoomId, pollId)
+      if (updated) {
+        this.handlePollEvent({ type: 'POLL_CLOSED', roomId: targetRoomId, poll: updated })
+      }
+      return true
+    },
+
+    // Xử lý sự kiện Realtime từ WebSocket đối với POLL (/topic/room.{roomId}.poll)
+    handlePollEvent(event) {
+      if (!event || !event.roomId || !event.poll) return
+      const rKey = String(event.roomId)
+      const rawPoll = event.poll
+      const authStore = useAuthStore()
+      const myUserId = authStore.user?.userId
+
+      // Chuẩn hóa cờ votedByMe của từng option dựa theo userId của chính người dùng hiện tại
+      const normalizedOptions = (rawPoll.options || []).map((opt) => {
+        let isVotedByMe = false
+        if (opt.voters && Array.isArray(opt.voters) && myUserId) {
+          isVotedByMe = opt.voters.some((v) => String(v.userId) === String(myUserId))
+        } else if (opt.votedByMe !== undefined && !opt.voters) {
+          isVotedByMe = Boolean(opt.votedByMe)
+        }
+        return {
+          ...opt,
+          votedByMe: isVotedByMe,
+        }
+      })
+
+      const poll = {
+        ...rawPoll,
+        options: normalizedOptions,
+      }
+
+      const currentList = [...(this.pollsByRoom[rKey] || [])]
+      const existingIdx = currentList.findIndex((p) => String(p.pollId) === String(poll.pollId))
+
+      if (existingIdx !== -1) {
+        currentList[existingIdx] = {
+          ...currentList[existingIdx],
+          ...poll,
+        }
+      } else {
+        currentList.unshift(poll)
+      }
+      this.pollsByRoom = { ...this.pollsByRoom, [rKey]: currentList }
     },
 
     // =========================================================================

@@ -330,7 +330,18 @@ export function initGlobalWebSocket(token) {
       }
     })
 
-    // 2. Lắng nghe các phòng chat hiện có trong store để cập nhật tin nhắn mới
+    // 2. Lắng nghe thông báo thời gian thực cá nhân (/user/queue/notifications)
+    wsService.subscribe('/user/queue/notifications', (notification) => {
+      console.log('🔔 [WebSocket Notification]:', notification)
+      if (notification?.notificationType === 'ROOM_JOIN_APPROVED' || notification?.notificationType === 'ROOM_ADDED') {
+        chatStore.fetchRooms()
+      }
+      if (notification?.notificationType === 'ROOM_JOIN_REQUEST') {
+        chatStore.incrementPendingVersion()
+      }
+    })
+
+    // 3. Lắng nghe các phòng chat hiện có trong store để cập nhật tin nhắn mới
     if (Array.isArray(chatStore.rooms)) {
       chatStore.rooms.forEach((room) => {
         subscribeToRoom(room.roomId)
@@ -380,6 +391,12 @@ export function subscribeToRoom(roomId) {
     chatStore.handleReminderEvent(reminderEvent)
   })
 
+  // [KÊNH 4.5] BÌNH CHỌN - POLL (/topic/room.{roomId}.poll)
+  const unsubPoll = wsService.subscribe(`/topic/room.${key}.poll`, (pollEvent) => {
+    console.log(`📊 [Poll event phòng ${key}]:`, pollEvent)
+    chatStore.handlePollEvent(pollEvent)
+  })
+
   // [KÊNH 5] TRẠNG THÁI ĐÃ NHẬN / ĐÃ XEM (/topic/room.{roomId}.receipts)
   const unsubReceipts = wsService.subscribe(`/topic/room.${key}.receipts`, (receiptEvent) => {
     chatStore.handleReceiptEvent(receiptEvent)
@@ -391,6 +408,7 @@ export function subscribeToRoom(roomId) {
     unsubTyping()
     unsubReaction()
     unsubReminder()
+    unsubPoll()
     unsubReceipts()
   })
 }

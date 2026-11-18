@@ -13,6 +13,7 @@ import com.nhom8.nien_luan_nganh.mapper.PollMapper;
 import com.nhom8.nien_luan_nganh.mapper.UserMapper;
 import com.nhom8.nien_luan_nganh.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PollService {
@@ -34,6 +36,7 @@ public class PollService {
     private final UserMapper userMapper;
     private final PollVoteRepository pollVoteRepository;
     private final RoomService roomService;
+    private final NotificationService notificationService;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -111,6 +114,23 @@ public class PollService {
                         .roomId(roomId)
                         .poll(pollResponse)
                         .build()));
+
+        // Gửi thông báo POLL_CREATED cho tất cả thành viên trong phòng (trừ người tạo)
+        List<RoomMember> activeMembers = roomMemberRepository.findByRoomMemberId_RoomIdAndStatus(
+                roomId, RoomMemberStatus.ACTIVE);
+        for (RoomMember m : activeMembers) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                notificationService.createAndSendNotification(
+                        m.getUser(),
+                        actor.getUser(),
+                        NotificationType.POLL_CREATED,
+                        "Bình chọn mới",
+                        actor.getUser().getUsername() + " đã tạo cuộc bình chọn: '" + preview(poll.getQuestion()) + "' trong nhóm " + (room.getRoomName() != null ? room.getRoomName() : "Chat") + ".",
+                        roomId,
+                        poll.getPollId()
+                );
+            }
+        }
 
         return pollResponse;
     }
@@ -245,8 +265,8 @@ public class PollService {
 
         ensureActive(poll); // đã đóng rồi thì báo lỗi
         poll.setIsActive(false);
+        poll = pollRepository.save(poll);
 
-        // TODO WebSocket: đẩy trạng thái đã đóng
         // cập nhật lastActivity
         if (poll.getMessage() != null) {
             roomService.updateLastActivity(
@@ -265,6 +285,27 @@ public class PollService {
                         .roomId(roomId)
                         .poll(pollResponse)
                         .build()));
+
+        // Gửi thông báo POLL_CLOSED cho tất cả thành viên trong phòng (trừ người thao tác đóng)
+        try {
+            List<RoomMember> activeMembers = roomMemberRepository.findByRoomMemberId_RoomIdAndStatus(
+                    roomId, RoomMemberStatus.ACTIVE);
+            for (RoomMember m : activeMembers) {
+                if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                    notificationService.createAndSendNotification(
+                            m.getUser(),
+                            actor.getUser(),
+                            NotificationType.POLL_CLOSED,
+                            "Bình chọn đã kết thúc",
+                            "Cuộc bình chọn: '" + preview(poll.getQuestion()) + "' đã kết thúc.",
+                            roomId,
+                            poll.getPollId()
+                    );
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Không thể gửi thông báo đóng bình chọn pollId={}: {}", pollId, e.getMessage(), e);
+        }
 
         return pollResponse;
     }

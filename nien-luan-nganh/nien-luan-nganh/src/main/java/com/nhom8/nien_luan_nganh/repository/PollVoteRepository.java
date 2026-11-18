@@ -1,6 +1,7 @@
 package com.nhom8.nien_luan_nganh.repository;
 
 import com.nhom8.nien_luan_nganh.entity.PollVote;
+import com.nhom8.nien_luan_nganh.entity.PollVoteId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.*;
 
 @Repository
-public interface PollVoteRepository extends JpaRepository<PollVote, UUID> {
+public interface PollVoteRepository extends JpaRepository<PollVote, PollVoteId> {
     // phiếu hiện tại của một người trong một poll
     List<PollVote> findByPollOption_Poll_PollIdAndUser_UserId(UUID pollId, UUID userId);
 

@@ -25,9 +25,22 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_id")
+    private User actor;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "notification_type", nullable = false)
+    @Column(name = "notification_type", length = 50, nullable = false, columnDefinition = "VARCHAR(50)")
     private NotificationType notificationType;
+
+    @Column(name = "title")
+    private String title;
+
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
+
+    @Column(name = "room_id")
+    private UUID roomId;
 
     @Column(name = "reference_id")
     private UUID referenceId;

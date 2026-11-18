@@ -5,6 +5,7 @@ import com.nhom8.nien_luan_nganh.dto.response.FriendshipResponse;
 import com.nhom8.nien_luan_nganh.entity.Friendship;
 import com.nhom8.nien_luan_nganh.entity.User;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
+import com.nhom8.nien_luan_nganh.enums.NotificationType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.mapper.FriendshipMapper;
@@ -38,6 +39,9 @@ public class FriendshipService {
 
     @Autowired
     private FriendshipMapper friendshipMapper;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Nghiệp vụ 1: Gửi lời mời kết bạn
@@ -88,6 +92,18 @@ public class FriendshipService {
                 friendship.setFriend(targetUser);
                 friendship.setFriendshipStatus(FriendshipStatus.PENDING);
                 Friendship saved = friendshipRepository.save(friendship);
+
+                //Thong bao gui loi moi ket ban - sau khi bi tu choi
+                notificationService.createAndSendNotification(
+                        targetUser,
+                        currentUser,
+                        NotificationType.FRIEND_REQUEST,
+                        "Lời mời kết bạn",
+                        currentUser.getUsername() + " đã gửi cho bạn lời mời kết bạn.",
+                        null,
+                        saved.getFriendshipId()
+                );
+
                 return friendshipMapper.toFriendshipResponse(saved, currentUserId);
             }
         }
@@ -100,6 +116,17 @@ public class FriendshipService {
                 .build();
 
         Friendship saved = friendshipRepository.save(newFriendship);
+        // Gui loi moi ket ban
+        notificationService.createAndSendNotification(
+                targetUser,
+                currentUser,
+                NotificationType.FRIEND_REQUEST,
+                "Lời mời kết bạn",
+                currentUser.getUsername() + " đã gửi cho bạn lời mời kết bạn.",
+                null,
+                saved.getFriendshipId()
+        );
+
         return friendshipMapper.toFriendshipResponse(saved, currentUserId);
     }
         
@@ -135,6 +162,17 @@ public class FriendshipService {
 
         friendship.setFriendshipStatus(FriendshipStatus.ACCEPTED);
         Friendship updated = friendshipRepository.save(friendship);
+        // Duoc chap nhan loi moi ket ban tu doi phuong
+        notificationService.createAndSendNotification(
+                friendship.getUser(),
+                friendship.getFriend(),
+                NotificationType.FRIEND_ACCEPTED,
+                "Chấp nhận kết bạn",
+                friendship.getFriend().getUsername() + " đã chấp nhận lời mời kết bạn của bạn.",
+                null,
+                updated.getFriendshipId()
+        );
+
         return friendshipMapper.toFriendshipResponse(updated, currentUserId);
     }
 

@@ -24,6 +24,9 @@ import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
 import AddMemberModal from '@/components/chat/AddMemberModal.vue'
 import CreateReminderModal from '@/components/chat/CreateReminderModal.vue'
+import CreatePollModal from '@/components/chat/CreatePollModal.vue'
+import PollMessageCard from '@/components/chat/PollMessageCard.vue'
+import PollDetailModal from '@/components/chat/PollDetailModal.vue'
 import MediaLightboxModal from '@/components/chat/MediaLightboxModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
@@ -46,6 +49,80 @@ const isInfoSidebarOpen = ref(localStorage.getItem('isChatInfoSidebarOpen') === 
 const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
 const showCreateReminderModal = ref(false)
+const showCreatePollModal = ref(false)
+
+// Quản lý Modal Xem chi tiết bình chọn (được nâng lên cấp ChatView để không bị unmount khi danh sách tin nhắn thay đổi)
+const activeDetailPollId = ref(null)
+const showPollDetailModal = ref(false)
+const detailClosingPoll = ref(false)
+
+const activeDetailPoll = computed(() => {
+  if (!activeDetailPollId.value) return null
+  const rId = String(chatStore.activeRoomId || '')
+  const list = chatStore.pollsByRoom[rId] || []
+  return list.find((p) => String(p.pollId) === String(activeDetailPollId.value)) || null
+})
+
+const handleOpenPollDetail = (poll) => {
+  if (!poll?.pollId) return
+  activeDetailPollId.value = poll.pollId
+  showPollDetailModal.value = true
+}
+
+const handleDetailToggleOption = async (option) => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive || !option) return
+  const pollId = poll.pollId
+  const roomId = chatStore.activeRoomId
+  if (!pollId || !roomId) return
+
+  let wantedOptionIds = []
+  const currentVotedIds = (poll.options || [])
+    .filter((o) => o.votedByMe)
+    .map((o) => o.pollOptionId)
+
+  if (option.votedByMe) {
+    wantedOptionIds = currentVotedIds.filter((id) => id !== option.pollOptionId)
+  } else {
+    wantedOptionIds = [...currentVotedIds, option.pollOptionId]
+  }
+
+  try {
+    await chatStore.voteRoomPoll(roomId, pollId, wantedOptionIds)
+  } catch (err) {
+    console.error('Lỗi bỏ phiếu từ modal chi tiết:', err)
+  }
+}
+
+const handleDetailAddOption = async (text) => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive || !text) return
+  try {
+    await chatStore.addOptionToRoomPoll(chatStore.activeRoomId, poll.pollId, text)
+  } catch (err) {
+    console.error('Lỗi thêm phương án từ modal chi tiết:', err)
+  }
+}
+
+const handleDetailClosePoll = async () => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive) return
+  if (!confirm('Bạn có chắc chắn muốn kết thúc cuộc bình chọn này không?')) return
+
+  try {
+    detailClosingPoll.value = true
+    await chatStore.closeRoomPoll(chatStore.activeRoomId, poll.pollId)
+  } catch (err) {
+    console.error('Lỗi đóng poll từ modal chi tiết:', err)
+  } finally {
+    detailClosingPoll.value = false
+  }
+}
+
+const handleOpenCreatePoll = () => {
+  if (!chatStore.activeRoomId) return
+  showCreatePollModal.value = true
+}
 
 // Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
 const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value))
@@ -544,10 +621,59 @@ const getSystemMessageIcon = (msg) => {
   if (content.includes('phê duyệt thành viên mới') || content.includes('quản trị viên')) {
     return 'user-shield'
   }
+  if (content.includes('thêm phương án') || content.includes('cuộc bình chọn') || content.includes('bình chọn')) {
+    if (content.includes('đã khóa') || content.includes('đã khoá') || content.includes('đã kết thúc')) {
+      return 'lock'
+    }
+    return 'chart-simple'
+  }
   if (content.includes('thêm') || content.includes('vào nhóm') || content.includes('phê duyệt')) {
     return 'user-plus'
   }
   return 'thumbtack'
+}
+
+// Kiểm tra tin nhắn POLL có phải là tin nhắn POLL mới nhất của cuộc bình chọn này hay không
+const isLatestPollMessage = (msg) => {
+  if (!msg || msg.messageType !== 'POLL') return false
+  const p = chatStore.getPollForMessage(msg)
+  if (!p) return true
+  // Duyệt từ cuối messages lên, tin nhắn đầu tiên có type == 'POLL' khớp với poll này là tin nhắn mới nhất
+  const msgs = chatStore.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m.messageType === 'POLL') {
+      const targetP = chatStore.getPollForMessage(m)
+      if (targetP && String(targetP.pollId) === String(p.pollId)) {
+        return String(m.messageId) === String(msg.messageId)
+      }
+    }
+  }
+  return true
+}
+
+const getLatestPollMessageId = (msg) => {
+  if (!msg || msg.messageType !== 'POLL') return null
+  const p = chatStore.getPollForMessage(msg)
+  if (!p) return msg.messageId
+  const msgs = chatStore.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m.messageType === 'POLL') {
+      const targetP = chatStore.getPollForMessage(m)
+      if (targetP && String(targetP.pollId) === String(p.pollId)) {
+        return m.messageId
+      }
+    }
+  }
+  return msg.messageId
+}
+
+const scrollToLatestPoll = (msg) => {
+  const targetId = getLatestPollMessageId(msg)
+  if (targetId) {
+    handleScrollToMessage(targetId)
+  }
 }
 
 /**
@@ -1216,7 +1342,7 @@ watch(
       <ChatListSidebar></ChatListSidebar>
     </div>
     <div class="chat-view">
-      <div class="chat-main-area">
+      <div v-if="chatStore.activeRoomId && chatStore.activeRoom" class="chat-main-area">
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
           :avatarUrl="chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl"
@@ -1302,7 +1428,31 @@ watch(
               </div>
             </div>
 
-            <!-- 2. Dòng tin nhắn thông thường -->
+            <!-- 2. Thẻ Bình chọn (Poll Message Card) - Căn giữa toàn khung chat -->
+            <div
+              v-else-if="msg.messageType === 'POLL'"
+              :id="msg.messageId ? 'msg-' + msg.messageId : null"
+              class="chat-poll-wrapper-row"
+            >
+              <div v-if="isLatestPollMessage(msg)" class="chat-poll-center-row">
+                <PollMessageCard
+                  :message="msg"
+                  :poll="chatStore.getPollForMessage(msg)"
+                  :current-user-id="authStore.user?.userId"
+                  :can-manage-room="chatStore.canManageActiveRoom"
+                  :is-highlighted="highlightedMessageId === String(msg.messageId)"
+                  @open-detail="handleOpenPollDetail"
+                />
+              </div>
+              <div v-else class="system-message-row chat-event-row" style="margin: 4px 0;">
+                <div class="system-message-badge chat-event-pill poll-system-pill" @click="scrollToLatestPoll(msg)">
+                  <font-awesome-icon icon="chart-simple" class="event-pin-icon" />
+                  <span>Cuộc bình chọn: <strong>{{ msg.content }}</strong> - <span class="poll-link-action">Xem bình chọn mới nhất</span></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Dòng tin nhắn thông thường -->
             <MessageList
               v-else-if="!isLegacyTimeLogMessage(msg)"
               :messageType="msg.messageType"
@@ -1405,6 +1555,16 @@ watch(
             <div class="spinner-small"></div>
             <span>Đang tải tin nhắn mới hơn...</span>
           </div>
+
+          <!-- Trạng thái đang soạn tin nhắn (Typing indicator) -->
+          <div v-if="chatStore.activeTypingText" class="floating-typing-bar">
+            <span class="typing-text">{{ chatStore.activeTypingText }}</span>
+            <span class="dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </span>
+          </div>
         </div>
 
         <!-- Nút mũi tên nổi cuộn tới tin nhắn mới nhất khi vượt lên trên -->
@@ -1423,7 +1583,21 @@ watch(
         <ChatInput
           @messageSent="handleMessageSent"
           @openCreateReminder="handleOpenCreateReminder"
+          @openCreatePoll="handleOpenCreatePoll"
         ></ChatInput>
+      </div>
+
+      <!-- Khung hiển thị khi chưa chọn phòng chat hoặc tài khoản mới chưa có cuộc trò chuyện nào -->
+      <div v-else class="chat-empty-area">
+        <div class="chat-empty-card">
+          <div class="empty-icon-bubble">
+            <font-awesome-icon icon="comment" class="empty-comment-icon" />
+          </div>
+          <h2 class="empty-title">Chào mừng đến với BlueSpace!</h2>
+          <p class="empty-desc">
+            Chọn một cuộc trò chuyện từ danh sách bên trái hoặc bấm nút <strong>+</strong> để bắt đầu trò chuyện mới.
+          </p>
+        </div>
       </div>
 
       <!-- Sidebar tìm kiếm tin nhắn bên phải (Search Drawer phong cách Telegram / Discord / Zalo) -->
@@ -1448,6 +1622,7 @@ watch(
           @toggle-notification="handleMuteNotification"
           @add-member="showAddMemberModal = true"
           @create-reminder="handleOpenCreateReminder"
+          @create-poll="handleOpenCreatePoll"
           @jump-to-message="handleScrollToMessage"
           @members-updated="refreshRoomMembers"
           @preview-media="handleOpenMediaPreview"
@@ -1466,6 +1641,27 @@ watch(
     :current-user-id="authStore.user?.userId"
     @close="showCreateReminderModal = false"
     @created="handleMessageSent"
+  />
+
+  <!-- Popup Modal tạo bình chọn (Poll) mới -->
+  <CreatePollModal
+    :is-open="showCreatePollModal"
+    :room-id="String(chatStore.activeRoomId || '')"
+    @close="showCreatePollModal = false"
+    @created="handleMessageSent"
+  />
+
+  <!-- Popup Modal xem chi tiết bình chọn (đặt tại ChatView để không bị gián đoạn hay đóng khi realtime update) -->
+  <PollDetailModal
+    :is-open="showPollDetailModal"
+    :poll="activeDetailPoll"
+    :current-user-id="authStore.user?.userId"
+    :can-close="chatStore.canManageActiveRoom || activeDetailPoll?.createdById === authStore.user?.userId"
+    :closing-poll="detailClosingPoll"
+    @close="showPollDetailModal = false"
+    @toggle-option="handleDetailToggleOption"
+    @close-poll="handleDetailClosePoll"
+    @add-option="handleDetailAddOption"
   />
 
   <!-- Popup Modal thêm thành viên vào nhóm chat -->
@@ -1525,6 +1721,60 @@ watch(
   height: 100%;
   position: relative;
   overflow: hidden;
+}
+
+.chat-empty-area {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fd;
+  padding: 40px 20px;
+}
+
+.chat-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  background: #ffffff;
+  padding: 48px 36px;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  border: 1px solid #eef2f6;
+}
+
+.empty-icon-bubble {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-comment-icon {
+  font-size: 32px;
+  color: #4b7bec;
+}
+
+.empty-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+}
+
+.empty-desc {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
 }
 
 .chat-body {
@@ -1989,5 +2239,104 @@ watch(
 .receipt-fade-leave-to {
   opacity: 0;
   transform: translateY(2px);
+}
+
+.poll-system-pill {
+  cursor: pointer;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 4px 14px;
+  transition: all 0.2s ease;
+}
+
+.poll-system-pill:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.poll-system-pill .poll-link-action {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-left: 2px;
+}
+
+.poll-system-pill strong {
+  color: #1e293b;
+  font-weight: 700;
+}
+
+/* Khối hiển thị thẻ bình chọn căn giữa 100% dòng chat */
+.chat-poll-center-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+.chat-poll-center-row:empty {
+  display: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Hiệu ứng focus / highlight khi nhảy tới thẻ Poll */
+.chat-poll-wrapper-row.highlight-msg {
+  position: relative;
+  z-index: 15;
+  border-radius: 20px;
+  animation: rowElectricHighlight 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-poll-wrapper-row.highlight-msg :deep(.poll-card) {
+  animation: pollCardElectricBounce 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pollCardElectricBounce {
+  0% {
+    transform: scale(1);
+  }
+  22% {
+    transform: scale(1.03) translateY(-3px);
+    box-shadow:
+      0 0 0 2.5px #ffffff,
+      0 0 0 5px #2563eb,
+      0 14px 30px rgba(37, 99, 235, 0.45);
+  }
+  60% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 2px #ffffff,
+      0 0 0 3.5px rgba(37, 99, 235, 0.35),
+      0 6px 18px rgba(37, 99, 235, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+  }
+}
+
+@keyframes rowElectricHighlight {
+  0% {
+    background-color: rgba(37, 99, 235, 0);
+  }
+  20% {
+    background-color: rgba(37, 99, 235, 0.16);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.16);
+  }
+  50% {
+    background-color: rgba(37, 99, 235, 0.08);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.08);
+  }
+  100% {
+    background-color: rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
 }
 </style>

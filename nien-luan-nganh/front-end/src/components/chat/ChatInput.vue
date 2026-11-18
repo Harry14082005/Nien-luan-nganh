@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
-const emit = defineEmits(['messageSent', 'openCreateReminder']);
+const emit = defineEmits(['messageSent', 'openCreateReminder', 'openCreatePoll']);
 const text = ref(''); // Nội dung văn bản đang soạn trong ô textarea
 const drafts = ref({}); // Lưu trữ nội dung nháp riêng cho từng phòng chat: { [roomId]: string }
 const textareaRef = ref(null); // Ref tới ô textarea để tự động focus
@@ -328,6 +328,16 @@ const handleSend = async () => {
           icon="calendar-plus" 
           title="Tạo lịch hẹn / nhắc nhở"
           @click="emit('openCreateReminder')" 
+      />
+
+      <!-- Nút tạo cuộc bình chọn (Poll) chỉ hiện trong phòng nhóm -->
+      <font-awesome-icon 
+          v-if="chatStore.activeRoom?.roomType === 'GROUP'"
+          class="icon_input" 
+          id="createPollBtn" 
+          icon="chart-simple" 
+          title="Tạo cuộc bình chọn"
+          @click="emit('openCreatePoll')" 
       />
       
       <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint" title="Chọn biểu cảm" />

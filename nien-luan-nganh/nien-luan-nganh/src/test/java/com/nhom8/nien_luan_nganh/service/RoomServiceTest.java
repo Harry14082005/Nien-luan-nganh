@@ -144,7 +144,7 @@ class RoomServiceTest {
         Page<Room> roomPage = new PageImpl<>(List.of(groupRoom, directRoom));
 
         when(userRepository.existsById(currentUserId)).thenReturn(true);
-        when(roomRepository.findDistinctByRoomMembers_User_UserId(eq(currentUserId), any(Pageable.class)))
+        when(roomRepository.findDistinctByRoomMembers_User_UserIdAndStatus(eq(currentUserId), eq(RoomMemberStatus.ACTIVE), any(Pageable.class)))
                 .thenReturn(roomPage);
         when(roomMapper.toRoomListResponse(groupRoom)).thenReturn(
                 RoomListResponse.builder()

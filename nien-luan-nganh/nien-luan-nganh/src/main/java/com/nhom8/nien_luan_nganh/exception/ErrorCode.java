@@ -85,7 +85,8 @@ public enum ErrorCode {
     INVALID_REQUEST_STATUS(1118, "Trạng thái yêu cầu không hợp lệ", HttpStatus.BAD_REQUEST),
     CANNOT_BLOCK_YOURSELF(1119, "Không thể tự chặn chính bản thân", HttpStatus.BAD_REQUEST),
     BLOCKED_BY_USER(1120, "Bạn đã bị người dùng này chặn", HttpStatus.FORBIDDEN),
-    ALREADY_BLOCKED(1121, "Người dùng này đã bị chặn từ trước", HttpStatus.BAD_REQUEST);
+    ALREADY_BLOCKED(1121, "Người dùng này đã bị chặn từ trước", HttpStatus.BAD_REQUEST),
+    NOTIFICATION_NOT_FOUND(1122, "Không tìm thấy thông báo", HttpStatus.NOT_FOUND);
 
     private final int code;
     private final String message;
