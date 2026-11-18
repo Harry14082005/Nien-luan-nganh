@@ -1737,3 +1737,85 @@ TASK & INSTRUCTIONS:
 {"id":"chatcmpl-ae78b16a-1809-4d48-8187-5c1fb9d7a67e","object":"chat.completion","created":1794994290,"model":"openai/gpt-oss-20b","choices":[{"index":0,"message":{"role":"assistant","content":"{\"found\":true,\"question\":\"Bạn muốn ăn pizza hay mỳ cay?\",\"options\":[\"pizza\",\"mỳ cay\"],\"source_codes\":[\"m1\"]}","reasoning":"We need to produce JSON. The target anchor message: \"bạn muốn ăn pizza hay mỳ cay\". This is Vietnamese: \"Do you want to eat pizza or spicy noodles?\" So it's a question with alternatives: pizza and spicy noodles. So we should extract options: \"pizza\" and \"mỳ cay\". The question: \"Bạn muốn ăn gì?\" or \"Bạn muốn ăn pizza hay mỳ cay?\" But we need a natural, concise, polite question. Maybe \"Bạn muốn ăn gì?\" or \"Bạn muốn ăn pizza hay mỳ cay?\" The instructions: \"question\": Formulate a natural, concise, polite question for the poll in Vietnamese. So we can use \"Bạn muốn ăn gì?\" or \"Bạn muốn ăn pizza hay mỳ cay?\" The latter is more direct. But maybe \"Bạn muốn ăn pizza hay mỳ cay?\" is fine. Options: [\"pizza\", \"mỳ cay\"]. Source codes: [\"m1\"].\n\nWe must output JSON with found: true. Ensure no markdown. Use compact JSON. Let's produce:\n\n{\n  \"found\": true,\n  \"question\": \"Bạn muốn ăn pizza hay mỳ cay?\",\n  \"options\": [\"pizza\", \"mỳ cay\"],\n  \"source_codes\": [\"m1\"]\n}\n\nCheck length: options \u003c= 40 chars each. Good. Output."},"logprobs":null,"finish_reason":"stop"}],"usage":{"queue_time":0.368856819,"prompt_tokens":568,"prompt_time":0.037942769,"completion_tokens":314,"completion_time":0.330613355,"total_tokens":882,"total_time":0.368556124,"completion_tokens_details":{"reasoning_tokens":272}},"usage_breakdown":null,"system_fingerprint":"fp_5979a0e1b7","x_groq":{"id":"req_01m7pzyezserc8df4bz7k4wd5x","seed":1691167445},"service_tier":"on_demand"}
 
 2026-11-18 16:31:30.018 [http-nio-8080-exec-1] INFO  c.n.n.service.AiSuggestionService - AI Suggestion content parsed from response for POLL: {"found":true,"question":"Bạn muốn ăn pizza hay mỳ cay?","options":["pizza","mỳ cay"],"source_codes":["m1"]}
+2026-11-18 17:24:21.843 [http-nio-8080-exec-9] INFO  c.n.n.service.AiSuggestionService - Bắt đầu gọi AI gợi ý POLL cho tin nhắn [740458ff-00e1-42e1-b9aa-0fd7d98fddde] với Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Watanabe Toru: mỳ cay
+[m2] Watanabe Toru: có lẽ
+[m3] Watanabe Toru: ồ
+[m4] Watanabe Toru: giữa 9.3 và 9.9 bạn thích điểm nào hơn
+[m5] Watanabe Toru: 9.3 hay 9.9
+
+TARGET ANCHOR MESSAGE:
+Sender: Watanabe Toru
+Message: "9.3 hay 9.9"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-18 17:24:21.848 [http-nio-8080-exec-9] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI REQUEST] ==========
+2026-11-18 17:24:21.849 [http-nio-8080-exec-9] INFO  c.n.n.service.ai.GroqAiServiceImpl - Model: openai/gpt-oss-20b, Temperature: 0.1, JSON mode: true
+2026-11-18 17:24:21.850 [http-nio-8080-exec-9] DEBUG c.n.n.service.ai.GroqAiServiceImpl - Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Watanabe Toru: mỳ cay
+[m2] Watanabe Toru: có lẽ
+[m3] Watanabe Toru: ồ
+[m4] Watanabe Toru: giữa 9.3 và 9.9 bạn thích điểm nào hơn
+[m5] Watanabe Toru: 9.3 hay 9.9
+
+TARGET ANCHOR MESSAGE:
+Sender: Watanabe Toru
+Message: "9.3 hay 9.9"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-18 17:24:24.182 [http-nio-8080-exec-9] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI RESPONSE RAW] ==========
+{"id":"chatcmpl-525177c7-bf47-498b-9b34-f33b8eeafe48","object":"chat.completion","created":1794997464,"model":"openai/gpt-oss-20b","choices":[{"index":0,"message":{"role":"assistant","content":"{\"found\":true,\"question\":\"Bạn thích điểm nào hơn, 9.3 hay 9.9?\",\"options\":[\"9.3\",\"9.9\"],\"source_codes\":[\"m4\",\"m5\"]}","reasoning":"We need to produce JSON. The conversation: messages m1 to m5. The target anchor message is m5: \"9.3 hay 9.9\". The conversation context: m4: \"giữa 9.3 và 9.9 bạn thích điểm nào hơn\". So the target message is asking which of 9.3 or 9.9. So we need to detect alternatives: 9.3 and 9.9. So we need to produce JSON with found true, question: a natural concise polite question in Vietnamese. For example: \"Bạn thích điểm nào hơn, 9.3 hay 9.9?\" But the instruction: \"question\": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. \"Mọi người muốn đi du lịch ở đâu?\" or \"Nên đi Ý, Nhật hay HongKong?\"). So we can produce \"Bạn thích điểm nào hơn, 9.3 hay 9.9?\" That is a question. Options: [\"9.3\", \"9.9\"]. Source codes: which messages contributed to the choices? The target message m5 includes both options. Also m4 includes both. So we can include [\"m4\", \"m5\"]. The instruction: \"source_codes\": An array of message codes from the context that directly contributed to the choices. So we include m4 and m5. The options array: 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned. Each option \u003c= 40 chars. So [\"9.3\", \"9.9\"].\n\nWe need to output JSON. Ensure compact formatting. So:\n\n{\"found\":true,\"question\":\"Bạn thích điểm nào hơn, 9.3 hay 9.9?\",\"options\":[\"9.3\",\"9.9\"],\"source_codes\":[\"m4\",\"m5\"]}\n\nCheck: The question is a natural, concise, polite question. It's okay. The options are correct. The source codes are correct. The JSON is valid. Let's produce."},"logprobs":null,"finish_reason":"stop"}],"usage":{"queue_time":0.366651019,"prompt_tokens":631,"prompt_time":0.037331428,"completion_tokens":476,"completion_time":0.51146195,"total_tokens":1107,"total_time":0.548793378,"completion_tokens_details":{"reasoning_tokens":422}},"usage_breakdown":null,"system_fingerprint":"fp_ce54c53bd5","x_groq":{"id":"req_01m7q2zamfe0trnym8xy9te8zx","seed":386562611},"service_tier":"on_demand"}
+
+2026-11-18 17:24:24.211 [http-nio-8080-exec-9] INFO  c.n.n.service.AiSuggestionService - AI Suggestion content parsed from response for POLL: {"found":true,"question":"Bạn thích điểm nào hơn, 9.3 hay 9.9?","options":["9.3","9.9"],"source_codes":["m4","m5"]}
