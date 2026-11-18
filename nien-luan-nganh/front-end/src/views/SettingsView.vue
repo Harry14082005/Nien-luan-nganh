@@ -125,7 +125,6 @@ async function handleLogout() {
       <!-- App Header -->
       <section class="nameApp">
         <div class="logo-title">bluespace.</div>
-        <font-awesome-icon icon="bars" class="menu-icon" />
       </section>
 
       <!-- Sidebar Section Header -->
@@ -250,17 +249,6 @@ async function handleLogout() {
       </div>
 
       <!-- Bottom Mini Profile -->
-      <div class="sidebar-user-footer">
-        <div class="footer-avatar">
-          <img v-if="avatarSrc" :src="avatarSrc" :alt="userProfile.displayName" class="footer-avatar-img" />
-          <span v-else>{{ userProfile.initials || 'HN' }}</span>
-        </div>
-        <div class="footer-info">
-          <div class="footer-name">{{ userProfile.displayName }}</div>
-          <div class="footer-status">{{ userProfile.statusText || 'Đang hoạt động' }}</div>
-        </div>
-        <span class="footer-dot"></span>
-      </div>
     </div>
 
     <!-- Cột 3: Nội dung chính của Cài đặt -->
@@ -668,64 +656,6 @@ async function handleLogout() {
   color: #2563eb;
 }
 
-/* Sidebar Bottom Mini Profile */
-.sidebar-user-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #f1f5f9;
-  background-color: #ffffff;
-}
-
-.footer-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background-color: #3b82f6;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.footer-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.footer-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.footer-status {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.footer-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #10b981;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.footer-avatar-img {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
-  object-fit: cover;
-  display: block;
-}
 
 /* Cột 3: Main Settings View */
 .settings-content-view {

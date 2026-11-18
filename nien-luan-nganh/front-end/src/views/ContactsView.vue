@@ -223,7 +223,6 @@ async function handleMessageContact(contact) {
       <!-- Header / Topbar -->
       <div class="contacts-topbar">
         <div class="topbar-actions">
-          <UserAvatar :name="me?.username || 'User'" :src="resolveFileUrl(me?.avatarUrl)" :size="38" />
         </div>
       </div>
 

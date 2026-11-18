@@ -205,7 +205,6 @@ const displayRooms = computed(() => {
   <div class="ChatListSidebar">
     <section class="nameApp">
       <div class="logo-title">bluespace.</div>
-      <font-awesome-icon icon="bars" class="menu-icon" />
     </section>
     <section class="namePage">
       <section class="left-namePage">
