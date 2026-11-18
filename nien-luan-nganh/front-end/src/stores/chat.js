@@ -3,6 +3,7 @@ import * as roomApi from '@/api/room.api'
 import * as messageApi from '@/api/message.api'
 import * as reminderApi from '@/api/reminder.api'
 import * as pollApi from '@/api/poll.api'
+import * as aiSuggestionApi from '@/api/aiSuggestion.api'
 import { wsService, subscribeToRoom } from '@/services/websocket'
 import { useAuthStore } from './auth'
 
@@ -2785,6 +2786,15 @@ export const useChatStore = defineStore('chat', {
         requireApproval: boolVal,
       }
       saveRoomOverrides(this.roomActivityOverrides)
+    },
+
+    // =========================================================================
+    // ████████████  PHẦN 8: GỢI Ý NỘI DUNG TỪ AI (POLL & REMINDER)  ███████████
+    // =========================================================================
+    async suggestAiContent(roomId, type, anchorMessageId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !type || !anchorMessageId) return null
+      return await aiSuggestionApi.getAiSuggestions(targetRoomId, type, anchorMessageId)
     },
   },
 })

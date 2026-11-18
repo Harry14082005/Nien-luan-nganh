@@ -32,6 +32,11 @@ import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import { resolveFileUrl } from '@/api/storage.api';
+import {
+  scorePoll,
+  detectPollFromConversation,
+  isEligibleForPollButton,
+} from '@/utils/intent-detection'
 
 // =============================================================================
 // ███  PHẦN 1: KHỞI TẠO STORE, SIDEBAR PHẢI, TÌM KIẾM & MODAL (REMINDER)  █████
@@ -50,6 +55,12 @@ const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
 const showCreateReminderModal = ref(false)
 const showCreatePollModal = ref(false)
+
+// State quản lý Gợi ý Poll bằng AI
+const pollPrefillData = ref(null)
+const suggestingPollMessageId = ref(null) // ID tin nhắn đang loading gợi ý poll
+const conversationClusterAnchorIds = ref(new Set()) // Lưu các anchorId từ phát hiện cụm hội thoại
+const aiSuggestionCache = new Map() // Cache gợi ý AI theo "POLL:msgId" hoặc "REMINDER:msgId"
 
 // Quản lý Modal Xem chi tiết bình chọn (được nâng lên cấp ChatView để không bị unmount khi danh sách tin nhắn thay đổi)
 const activeDetailPollId = ref(null)
@@ -132,7 +143,137 @@ const handleOpenCreateReminder = async () => {
 
 const handleOpenCreatePoll = () => {
   if (!chatStore.activeRoomId) return
+  pollPrefillData.value = null
   showCreatePollModal.value = true
+}
+
+/// ---- XỬ LÝ AI CHO POLL ---- ///
+// Tập hợp các messageId đã từng làm nguồn cho Poll (lấy từ dữ liệu liên kết nếu có)
+const usedAsPollSourceSet = computed(() => {
+  const rId = String(chatStore.activeRoomId || '')
+  const polls = chatStore.pollsByRoom[rId] || []
+  const set = new Set()
+  polls.forEach((p) => {
+    if (p.messageId) set.add(String(p.messageId))
+    if (Array.isArray(p.sourceMessageIds)) {
+      p.sourceMessageIds.forEach((id) => set.add(String(id)))
+    }
+  })
+  return set
+})
+
+// Bộ nhớ đệm tính điểm regex cho từng tin nhắn (tránh tính lại khi render)
+const messagePollScores = new Map()
+
+// Kiểm tra xem tin nhắn có nên hiển thị nút Tạo poll (tại hàng thời gian) hay không
+const shouldShowPollButtonForMessage = (msg) => {
+  if (!msg || !msg.messageId || !msg.content) return false
+  if (chatStore.activeRoom?.roomType === 'DIRECT') return false // Direct chat không có poll
+
+  const msgId = String(msg.messageId)
+
+  // 1. Kiểm tra điều kiện hợp lệ chung
+  const eligible = isEligibleForPollButton(
+    {
+      type: msg.messageType,
+      revoked: Boolean(msg.isRevoked),
+      createdAt: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+      id: msgId,
+    },
+    {
+      usedAsPollSource: usedAsPollSourceSet.value,
+    },
+  )
+  if (!eligible) return false
+
+  // 2. Nếu nằm trong danh sách anchor của cụm hội thoại -> hiện nút
+  if (conversationClusterAnchorIds.value.has(msgId)) {
+    return true
+  }
+
+  // 3. Chấm điểm theo từng tin (cache lại kết quả)
+  if (!messagePollScores.has(msgId)) {
+    const res = scorePoll(msg.content)
+    messagePollScores.set(msgId, res.shouldSuggest)
+  }
+  return messagePollScores.get(msgId)
+}
+
+// Bắt cụm hội thoại khi danh sách tin nhắn thay đổi
+watch(
+  () => chatStore.messages.length,
+  () => {
+    if (chatStore.activeRoom?.roomType === 'DIRECT') return
+    const rawList = chatStore.messages || []
+    if (rawList.length < 3) return
+
+    const normalizedMsgs = rawList.map((m) => ({
+      id: String(m.messageId),
+      senderId: String(m.sender?.userId || m.senderId || ''),
+      text: m.content || '',
+      createdAt: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+      type: m.messageType || 'TEXT',
+      revoked: Boolean(m.isRevoked),
+    }))
+
+    const cluster = detectPollFromConversation(normalizedMsgs)
+    if (cluster && cluster.anchorId) {
+      conversationClusterAnchorIds.value.add(String(cluster.anchorId))
+    }
+  },
+  { immediate: true },
+)
+
+// Xử lý khi người dùng bấm nút Tạo poll từ tin nhắn (hoặc menu 3 chấm)
+const handleSuggestPollFromMessage = async (messageId) => {
+  if (!chatStore.activeRoomId || !messageId) return
+  if (suggestingPollMessageId.value) return // Đang phân tích
+
+  const cacheKey = `POLL:${messageId}`
+  if (aiSuggestionCache.has(cacheKey)) {
+    pollPrefillData.value = aiSuggestionCache.get(cacheKey)
+    showCreatePollModal.value = true
+    return
+  }
+
+  try {
+    suggestingPollMessageId.value = messageId
+    const res = await chatStore.suggestAiContent(chatStore.activeRoomId, 'POLL', messageId)
+
+    if (res && res.found && res.data) {
+      const dataToFill = {
+        question: res.data.question || '',
+        options: res.data.options || ['', ''],
+        sourceMessageIds: res.sourceMessageIds || [messageId],
+        isAiGenerated: true,
+      }
+      aiSuggestionCache.set(cacheKey, dataToFill)
+      pollPrefillData.value = dataToFill
+      showCreatePollModal.value = true
+    } else {
+      // AI không phát hiện đủ phương án -> mở modal với câu hỏi là nội dung tin nhắn để tạo thủ công
+      const targetMsg = chatStore.messages.find((m) => String(m.messageId) === String(messageId))
+      pollPrefillData.value = {
+        question: targetMsg?.content ? targetMsg.content.slice(0, 100) : '',
+        options: ['', ''],
+        sourceMessageIds: [messageId],
+        isAiGenerated: false,
+      }
+      showCreatePollModal.value = true
+    }
+  } catch (err) {
+    console.error('Lỗi nhận diện bình chọn bằng AI:', err)
+    const targetMsg = chatStore.messages.find((m) => String(m.messageId) === String(messageId))
+    pollPrefillData.value = {
+      question: targetMsg?.content ? targetMsg.content.slice(0, 100) : '',
+      options: ['', ''],
+      sourceMessageIds: [messageId],
+      isAiGenerated: false,
+    }
+    showCreatePollModal.value = true
+  } finally {
+    suggestingPollMessageId.value = null
+  }
 }
 
 // Quản lý trình xem ảnh / video toàn màn hình (Media Lightbox)
@@ -1523,6 +1664,8 @@ watch(
               "
               :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
               :canManageRoom="chatStore.canManageActiveRoom"
+              :showPollSuggestBtn="shouldShowPollButtonForMessage(msg)"
+              :isSuggestingPoll="suggestingPollMessageId === String(msg.messageId)"
               @togglePin="handleTogglePin"
               @editMessage="handleEditMessage"
               @revokeMessage="handleRevokeMessage"
@@ -1530,6 +1673,7 @@ watch(
               @replyMessage="handleReplyMessage"
               @scrollToMessage="handleScrollToMessage"
               @preview-media="handleOpenMediaPreview"
+              @suggestPoll="handleSuggestPollFromMessage"
             />
 
             <!-- 2.5. Thanh trạng thái Đã gửi / Đã nhận / Đã xem dưới tin nhắn của mình -->
@@ -1671,6 +1815,7 @@ watch(
   <!-- Popup Modal tạo bình chọn (Poll) mới -->
   <CreatePollModal
     :is-open="showCreatePollModal"
+    :initial-data="pollPrefillData"
     :room-id="String(chatStore.activeRoomId || '')"
     @close="showCreatePollModal = false"
     @created="handleMessageSent"

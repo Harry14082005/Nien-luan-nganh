@@ -89,13 +89,36 @@ public class PollService {
         poll.setMessage(message);
         pollRepository.flush();
 
-        // Lưu liên kết PollResource
+        // Lưu liên kết PollResource cho chính tin nhắn POLL vừa tạo
         PollResource pollResource = PollResource.builder()
                 .id(new PollResourceId(message.getMessageId(), poll.getPollId()))
                 .message(message)
                 .poll(poll)
                 .build();
         pollResourceRepository.save(pollResource);
+
+        // Lưu liên kết PollResource cho các tin nhắn nguồn (sourceMessageIds) từ gợi ý
+        // AI nếu có
+        if (request.getSourceMessageIds() != null && !request.getSourceMessageIds().isEmpty()) {
+            for (UUID srcMsgId : request.getSourceMessageIds()) {
+                if (srcMsgId != null && !srcMsgId.equals(message.getMessageId())) {
+                    messageRepository.findById(srcMsgId).ifPresent(srcMsg -> {
+                        // Bảo vệ: Kiểm tra tin nhắn nguồn phải thuộc cùng phòng chat
+                        if (srcMsg.getRoom() != null && srcMsg.getRoom().getRoomId().equals(roomId)) {
+                            PollResourceId resId = new PollResourceId(srcMsg.getMessageId(), poll.getPollId());
+                            if (!pollResourceRepository.existsById(resId)) {
+                                PollResource pr = PollResource.builder()
+                                        .id(resId)
+                                        .message(srcMsg)
+                                        .poll(poll)
+                                        .build();
+                                pollResourceRepository.save(pr);
+                            }
+                        }
+                    });
+                }
+            }
+        }
 
         /// xử lý Websocket
 

@@ -341,7 +341,7 @@
             <div class="header-left">
               <font-awesome-icon icon="chart-simple" class="section-icon poll-header-icon" />
               <span class="section-title">
-                Bình chọn nhóm ({{ allPollsList.length }})
+                Bình chọn nhóm
               </span>
             </div>
             <font-awesome-icon
@@ -418,7 +418,7 @@
             <div class="header-left">
               <font-awesome-icon icon="calendar-days" class="section-icon" />
               <span class="section-title">
-                Lịch hẹn nhắc nhở ({{ upcomingRemindersList.length }})
+                Lịch hẹn nhắc nhở
               </span>
             </div>
             <font-awesome-icon

@@ -12,10 +12,16 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, UUID> {
+
+        @Query("SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.messageId = :messageId")
+        Optional<Message> findByIdWithSender(@Param("messageId") UUID messageId);
 
         // Lay tin nhan moi nhat (lan dau load)
         @Query(value = "SELECT m FROM Message m " +
