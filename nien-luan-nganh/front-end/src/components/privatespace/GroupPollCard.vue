@@ -27,18 +27,19 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['vote', 'viewGroup'])
+const emit = defineEmits(['vote', 'viewGroup', 'click'])
 
 const selectedOption = ref(null)
 
 function selectOption(optId) {
   selectedOption.value = optId
   emit('vote', optId)
+  emit('click')
 }
 </script>
 
 <template>
-  <div class="poll-card">
+  <div class="poll-card" @click="emit('click')">
     <!-- Header -->
     <div class="card-header">
       <div class="badge-tag">
@@ -103,7 +104,7 @@ function selectOption(optId) {
     <!-- Footer -->
     <div class="card-footer">
       <span class="votes-count">{{ totalVotes }} người đã bình chọn</span>
-      <button class="btn-view-group" @click="emit('viewGroup')">
+      <button class="btn-view-group" @click.stop="emit('click')">
         <span>Xem nhóm</span>
         <svg
           class="arrow-icon"
@@ -137,6 +138,7 @@ function selectOption(optId) {
   display: flex;
   flex-direction: column;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .poll-card:hover {

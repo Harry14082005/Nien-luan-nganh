@@ -1583,7 +1583,7 @@ export const useChatStore = defineStore('chat', {
 
         // Lưu override để syncRoomsSilently (4s/lần) giữ nguyên trạng thái mới ở đầu danh sách
         this.roomActivityOverrides[msgRoomId] = {
-          ...(this.roomActivityOverrides[msgRoomId] || {}),
+          ...this.roomActivityOverrides[msgRoomId],
           lastMessageId: updatedRoom.lastMessageId,
           lastMessageContent: updatedRoom.lastMessageContent,
           lastMessageSenderId: updatedRoom.lastMessageSenderId,
@@ -1667,7 +1667,7 @@ export const useChatStore = defineStore('chat', {
       const rId = String(event.roomId).toLowerCase()
       const uId = String(event.userId || event.username || 'unknown').toLowerCase()
 
-      const currentRoomTyping = { ...(this.typingMap[rId] || {}) }
+      const currentRoomTyping = { ...this.typingMap[rId] }
 
       if (isTyping) {
         // Xóa bộ đếm thời gian cũ nếu còn
@@ -1677,7 +1677,7 @@ export const useChatStore = defineStore('chat', {
 
         // Tự động hủy trạng thái sau 2giây nếu đối phương ngừng gõ hoặc rớt mạng
         const timer = setTimeout(() => {
-          const nextRoom = { ...(this.typingMap[rId] || {}) }
+          const nextRoom = { ...this.typingMap[rId] }
           delete nextRoom[uId]
           this.typingMap = {
             ...this.typingMap,
@@ -3239,7 +3239,7 @@ export const useChatStore = defineStore('chat', {
         String(r.roomId) === rKey ? { ...r, requireApproval: boolVal } : r,
       )
       this.roomActivityOverrides[rKey] = {
-        ...(this.roomActivityOverrides[rKey] || {}),
+        ...this.roomActivityOverrides[rKey],
         requireApproval: boolVal,
       }
       saveRoomOverrides(this.roomActivityOverrides)

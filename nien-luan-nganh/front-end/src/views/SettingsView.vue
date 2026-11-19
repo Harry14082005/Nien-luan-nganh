@@ -666,8 +666,6 @@ async function handleLogout() {
 .menu-item.active .chevron-icon {
   color: #2563eb;
 }
-
-
 /* Cột 3: Main Settings View */
 .settings-content-view {
   flex: 1;

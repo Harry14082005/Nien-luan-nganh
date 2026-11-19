@@ -13,6 +13,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore, formatSystemMessageText } from '@/stores/chat'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import PinnedMessage from '@/components/chat/PinnedMessage.vue'
@@ -45,6 +46,7 @@ import {
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
+const route = useRoute()
 
 // Quản lý tìm kiếm tin nhắn trong phòng (In-Room Message Search)
 const showSearchBar = ref(false)
@@ -1406,9 +1408,76 @@ const handleMessageSent = async () => {
 // ████  PHẦN 6: VÒNG ĐỜI COMPONENT & WATCHERS ĐỒNG BỘ TỰ ĐỘNG (LIFECYCLE)  ████
 // =============================================================================
 
+const handleNavigateFromQuery = async (query) => {
+  const targetRoomId = query?.roomId ? String(query.roomId) : null
+  const targetMessageId = query?.messageId ? String(query.messageId) : null
+  const targetPollId = query?.pollId ? String(query.pollId) : null
+  const targetReminderId = query?.reminderId ? String(query.reminderId) : null
+
+  if (!targetRoomId) return false
+
+  // 1. Chuyển sang đúng phòng chat nếu chưa ở phòng đó
+  if (String(chatStore.activeRoomId) !== targetRoomId) {
+    await chatStore.selectRoom(targetRoomId)
+  }
+
+  // 2. Xác định messageId cần scroll & highlight
+  let msgId = targetMessageId
+
+  // Nếu chưa có messageId trực tiếp nhưng có pollId: tìm tin nhắn của poll đó
+  if (!msgId && targetPollId) {
+    const msgs = chatStore.messages || []
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m.messageType === 'POLL') {
+        const mPoll = chatStore.getPollForMessage(m)
+        const mPollId = mPoll?.pollId || m.pollId
+        if (mPollId && String(mPollId) === String(targetPollId)) {
+          msgId = m.messageId
+          break
+        }
+      }
+    }
+  }
+
+  // Nếu chưa có messageId nhưng có reminderId: tìm tin nhắn của reminder đó
+  if (!msgId && targetReminderId) {
+    const msgs = chatStore.messages || []
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (
+        (m.reminderId && String(m.reminderId) === String(targetReminderId)) ||
+        (m.messageType === 'REMINDER' &&
+          (m.reminder?.reminderId === targetReminderId ||
+            String(m.content || '').includes(targetReminderId)))
+      ) {
+        msgId = m.messageId
+        break
+      }
+    }
+  }
+
+  if (msgId) {
+    isJumpingToMessage.value = true
+    await nextTick()
+    setTimeout(() => {
+      handleScrollToMessage(msgId)
+    }, 350)
+    return true
+  }
+
+  return false
+}
+
 onMounted(async () => {
-  // Khởi tạo phòng đang mở (các dữ liệu rooms, user và WebSocket đã được ChatListSidebar kích hoạt)
-  await scrollOrJumpToLatestActivity()
+  let jumped = false
+  if (route.query?.roomId) {
+    jumped = await handleNavigateFromQuery(route.query)
+  }
+
+  if (!jumped) {
+    await scrollOrJumpToLatestActivity()
+  }
 
   // Kích hoạt timer cập nhật trạng thái offline mỗi 30s
   tickerTimer = setInterval(() => {
@@ -1424,6 +1493,16 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeyDown)
 })
 
+watch(
+  () => route.query,
+  async (newQuery) => {
+    if (newQuery?.roomId) {
+      await handleNavigateFromQuery(newQuery)
+    }
+  },
+  { deep: true },
+)
+
 // Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
   () => chatStore.messages,
@@ -1436,10 +1515,12 @@ watch(
     const currentLastMsg = newMessages[newMessages.length - 1]
     const currentLastMsgId = currentLastMsg?.messageId ? String(currentLastMsg.messageId) : null
 
-    // 1. Lần đầu nạp danh sách tin nhắn phòng (từ 0 -> 20 tin dau tien) -> cuon xuong đáy
+    // 1. Lần đầu nạp danh sách tin nhắn phòng (từ 0 -> 20 tin dau tien) -> cuon xuong đáy (nếu không phải đang jump tới tin nhắn)
     if (!previousLastMessageId) {
       previousLastMessageId = currentLastMsgId
-      await scrollOrJumpToLatestActivity()
+      if (!isJumpingToMessage.value && !route.query?.messageId && !route.query?.pollId && !route.query?.reminderId) {
+        await scrollOrJumpToLatestActivity()
+      }
       return
     }
 
@@ -1499,7 +1580,9 @@ watch(
     handleCloseSearch()
     previousLastMessageId = null
     showScrollBottomBtn.value = false
-    await scrollOrJumpToLatestActivity()
+    if (!isJumpingToMessage.value && !route.query?.messageId && !route.query?.pollId && !route.query?.reminderId) {
+      await scrollOrJumpToLatestActivity()
+    }
   },
 )
 

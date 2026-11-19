@@ -5,9 +5,37 @@ import { http } from './http'
 // =============================================================================
 
 /**
+ * Kiểm tra xem lịch hẹn đã kết thúc hay chưa:
+ * - Trạng thái là DONE hoặc CANCELLED
+ * - Hoặc thời gian deadline (endAt nếu có, hoặc startAt) đã trôi qua so với hiện tại
+ */
+export const isReminderEnded = (rem) => {
+  if (!rem) return true
+  const status = rem.reminderStatus || rem.status
+  if (status === 'DONE' || status === 'CANCELLED') return true
+  const deadline = new Date(rem.endAt || rem.startAt).getTime()
+  return !isNaN(deadline) && deadline <= Date.now()
+}
+
+/**
+ * Kiểm tra xem ngày có phải là hôm nay (theo giờ local của trình duyệt)
+ */
+export const isToday = (dateInput) => {
+  if (!dateInput) return false
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
+/**
  * 0. Lấy TẤT CẢ lịch hẹn của người dùng hiện tại từ tất cả các phòng
  *    Chiến lược: lấy danh sách phòng trước, rồi lấy reminder của từng phòng song song.
- *    @param {{ filterToday?: boolean }} options
+ *    @param {{ filterToday?: boolean, includePast?: boolean }} options
  */
 export const getAllMyReminders = async (options = {}) => {
   // Lấy danh sách phòng (tối đa 50 phòng)
@@ -26,12 +54,17 @@ export const getAllMyReminders = async (options = {}) => {
         .get(`/rooms/${room.roomId}/reminders`)
         .then((res) => {
           const list = res.data?.data ?? res.data?.result ?? res.data ?? []
-          return (Array.isArray(list) ? list : []).map((r) => ({
-            ...r,
-            roomId: room.roomId,
-            roomName: room.roomName,
-            roomAvatarURL: room.roomAvatarURL,
-          }))
+          return (Array.isArray(list) ? list : []).map((r) => {
+            const rawStatus = r.reminderStatus || r.status || 'PENDING'
+            return {
+              ...r,
+              status: rawStatus,
+              reminderStatus: rawStatus,
+              roomId: room.roomId,
+              roomName: room.roomName,
+              roomAvatarURL: room.roomAvatarURL,
+            }
+          })
         })
         .catch(() => []),
     ),
@@ -41,23 +74,22 @@ export const getAllMyReminders = async (options = {}) => {
   let all = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
 
   // Chỉ lấy reminder chưa bị huỷ
-  all = all.filter((r) => r.status !== 'CANCELLED')
+  all = all.filter((r) => r.status !== 'CANCELLED' && r.reminderStatus !== 'CANCELLED')
 
   // Lọc theo ngày hôm nay nếu cần
   if (options.filterToday) {
-    const todayStr = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
     all = all.filter((r) => {
-      const start = r.startAt ? r.startAt.slice(0, 10) : null
-      return start === todayStr
+      // 1. Phải diễn ra trong ngày hôm nay theo giờ local
+      const occursToday = isToday(r.startAt) || (r.endAt && isToday(r.endAt))
+      if (!occursToday) return false
+
+      // 2. Phải là sự kiện sắp tới (chưa kết thúc/chưa DONE/chưa quá giờ)
+      if (!options.includePast && isReminderEnded(r)) return false
+      return true
     })
-  } else {
-    // Chỉ lấy reminder tương lai (startAt >= hôm nay)
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-    all = all.filter((r) => {
-      if (!r.startAt) return false
-      return new Date(r.startAt) >= now
-    })
+  } else if (!options.includePast) {
+    // Mặc định chỉ lấy các lịch hẹn sắp tới (chưa kết thúc)
+    all = all.filter((r) => !isReminderEnded(r))
   }
 
   // Sắp xếp theo startAt tăng dần

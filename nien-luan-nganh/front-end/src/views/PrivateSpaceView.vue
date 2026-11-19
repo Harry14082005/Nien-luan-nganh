@@ -5,9 +5,12 @@ import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import StatCard from '@/components/privatespace/StatCard.vue'
 import UpcomingEventCard from '@/components/privatespace/UpcomingEventCard.vue'
 import UpcomingEventList from '@/components/privatespace/UpcomingEventList.vue'
+import GroupPollCard from '@/components/privatespace/GroupPollCard.vue'
+import PollList from '@/components/privatespace/PollList.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-import { getAllMyReminders } from '@/api/reminder.api'
+import { getAllMyReminders, isReminderEnded } from '@/api/reminder.api'
+import { getAllMyPolls } from '@/api/poll.api'
 import { resolveFileUrl } from '@/api/storage.api'
 
 const chatStore = useChatStore()
@@ -18,20 +21,30 @@ const formattedTotalUnreadCount = computed(() =>
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Tab khám phá: 'overview' | 'calendar'
-// 'polls' bị ẩn tạm thời (chức năng tích hợp sau)
+// Tab khám phá: 'overview' | 'calendar' | 'polls'
 const activeSubTab = ref('overview')
 
 const userProfile = ref({ displayName: '' })
+const currentUser = ref({
+  fullName: '',
+  displayName: '',
+  initials: 'HN',
+  avatarUrl: null,
+})
 
-// Lịch hẹn hôm nay dùng cho StatCard tổng quan
+// Lịch hẹn hôm nay dùng cho StatCard và preview
 const todayReminders = ref([])
 const isLoadingToday = ref(false)
 const todayReminderCount = computed(() =>
   String(todayReminders.value.length).padStart(2, '0'),
 )
-// Lịch hẹn gần nhất (1 cái) để hiển thị card preview
-const nextReminder = computed(() => todayReminders.value[0] ?? null)
+
+// Bình chọn đang mở dùng cho StatCard và preview tổng quan
+const openPolls = ref([])
+const isLoadingPolls = ref(false)
+const openPollsCount = computed(() =>
+  String(openPolls.value.length).padStart(2, '0'),
+)
 
 function getShortName(name = '') {
   const words = name.trim().split(/\s+/).filter(Boolean)
@@ -39,11 +52,25 @@ function getShortName(name = '') {
   return words[words.length - 1]
 }
 
+function getInitials(name = '') {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return 'U'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
+}
+
 async function loadName() {
   try {
     const me = (await authStore.initUser()) || authStore.user
     if (me) {
-      userProfile.value = { displayName: getShortName(me.username || '') }
+      const full = me.fullName || me.username || ''
+      currentUser.value = {
+        fullName: full,
+        displayName: getShortName(full),
+        initials: getInitials(full),
+        avatarUrl: me.avatarUrl ? resolveFileUrl(me.avatarUrl) : null,
+      }
+      userProfile.value = { displayName: getShortName(full) }
     }
   } catch (e) {
     console.warn('Không tải tên người dùng', e)
@@ -53,11 +80,23 @@ async function loadName() {
 async function loadTodayReminders() {
   isLoadingToday.value = true
   try {
-    todayReminders.value = await getAllMyReminders({ filterToday: true })
+    const list = await getAllMyReminders({ filterToday: true })
+    todayReminders.value = (list || []).filter((r) => !isReminderEnded(r))
   } catch (e) {
     console.warn('Không tải được lịch hẹn hôm nay:', e)
   } finally {
     isLoadingToday.value = false
+  }
+}
+
+async function loadOpenPolls() {
+  isLoadingPolls.value = true
+  try {
+    openPolls.value = await getAllMyPolls({ openOnly: true })
+  } catch (e) {
+    console.warn('Không tải được bình chọn đang mở:', e)
+  } finally {
+    isLoadingPolls.value = false
   }
 }
 
@@ -97,6 +136,22 @@ function getParticipantMembers(reminder) {
   })
 }
 
+function formatPollSubtitle(poll) {
+  const room = poll.roomName || 'Nhóm'
+  if (poll.isActive) {
+    return `${room} · Đang diễn ra`
+  }
+  return `${room} · Đã đóng`
+}
+
+function formatPollOptions(options = []) {
+  if (!Array.isArray(options)) return []
+  return options.slice(0, 3).map((o) => ({
+    id: o.optionId ?? o.id,
+    text: o.optionText ?? o.text ?? '(Lựa chọn)',
+  }))
+}
+
 function goToChat() {
   router.push('/chat')
 }
@@ -113,13 +168,30 @@ function goToChatWithReminder(item) {
   })
 }
 
+function goToChatWithPoll(poll) {
+  if (!poll?.roomId) return
+  router.push({
+    path: '/chat',
+    query: {
+      roomId: poll.roomId,
+      messageId: poll.messageId || undefined,
+      pollId: poll.pollId || undefined,
+    },
+  })
+}
+
 function goToCalendar() {
   activeSubTab.value = 'calendar'
+}
+
+function goToPolls() {
+  activeSubTab.value = 'polls'
 }
 
 onMounted(async () => {
   await loadName()
   loadTodayReminders()
+  loadOpenPolls()
 })
 </script>
 
@@ -198,8 +270,34 @@ onMounted(async () => {
           </svg>
         </div>
 
-        <!--  Bình chọn ẩn tạm thời  -->
+        <!-- Mục 3: Bình chọn -->
+        <div
+          class="menu-item"
+          :class="{ active: activeSubTab === 'polls' }"
+          role="button"
+          tabindex="0"
+          @click="activeSubTab = 'polls'"
+          @keydown.enter="activeSubTab = 'polls'"
+        >
+          <div class="item-left">
+            <svg class="item-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="21" x2="4" y2="14" />
+              <line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" />
+              <line x1="20" y1="12" x2="20" y2="3" />
+            </svg>
+            <span class="item-text">Bình chọn</span>
+          </div>
+          <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </div>
       </div>
+
+      <!-- Promo banner card at sidebar bottom -->
+      <!-- User footer profile -->
     </div>
 
     <!-- Cột 3: Nội dung chính -->
@@ -236,7 +334,7 @@ onMounted(async () => {
                   <span class="sparkle-icon">✨</span>
                 </h1>
                 <p class="hero-subtitle">
-                  Xem nhanh tin nhắn mới và nhắc hẹn trong các nhóm của bạn.
+                  Mọi điều quan trọng từ các cuộc trò chuyện của bạn, ngay tại đây.
                 </p>
                 <button class="btn-to-chat" @click="goToChat">
                   <span>Đến tin nhắn</span>
@@ -276,7 +374,7 @@ onMounted(async () => {
                 <span class="date-tag">Hôm nay</span>
               </div>
 
-              <!-- 2 Stat Cards: Tin nhắn + Lịch hẹn hôm nay (bỏ Bình chọn) -->
+              <!-- 3 Stat Cards: Tin nhắn + Lịch hẹn + Bình chọn -->
               <div class="stat-cards-grid">
                 <StatCard
                   :count="formattedTotalUnreadCount"
@@ -288,39 +386,78 @@ onMounted(async () => {
 
                 <StatCard
                   :count="isLoadingToday ? '...' : todayReminderCount"
-                  label="Lịch hẹn hôm nay"
+                  label="Lịch hẹn sắp tới"
                   action-text="Xem lịch hẹn"
                   variant="purple"
                   @action="goToCalendar"
                 />
+
+                <StatCard
+                  :count="isLoadingPolls ? '...' : openPollsCount"
+                  label="Bình chọn đang mở"
+                  action-text="Tham gia ngay"
+                  variant="teal"
+                  @action="goToPolls"
+                />
               </div>
             </div>
 
-            <!-- 3. Tất cả lịch hẹn hôm nay (bố cục 1 hàng 2 card) -->
-            <div v-if="todayReminders.length > 0" class="today-reminders-grid">
-              <UpcomingEventCard
-                v-for="(item, idx) in todayReminders"
-                :key="item.reminderId ?? idx"
-                badge-text="HÔM NAY"
-                :title="item.title ?? '(Không có tiêu đề)'"
-                :description="item.description ?? ''"
-                :time-text="formatTimeRange(item.startAt, item.endAt)"
-                :group-name="item.roomName ?? 'Nhóm'"
-                :members="getParticipantMembers(item)"
-                @click="goToChatWithReminder(item)"
-              />
-            </div>
+            <!-- 3. Dual Section: Lịch hẹn & Bình chọn trong nhóm -->
+            <div class="overview-content-grid">
+              <!-- Cột trái: Lịch hẹn sắp tới / hôm nay -->
+              <div class="overview-column">
+                <div v-if="todayReminders.length > 0" class="column-cards-stack">
+                  <UpcomingEventCard
+                    v-for="(item, idx) in todayReminders"
+                    :key="item.reminderId ?? idx"
+                    badge-text="LỊCH SẮP TỚI"
+                    :title="item.title ?? '(Không có tiêu đề)'"
+                    :description="item.description ?? ''"
+                    :time-text="formatTimeRange(item.startAt, item.endAt)"
+                    :group-name="item.roomName ?? 'Nhóm'"
+                    :members="getParticipantMembers(item)"
+                    @click="goToChatWithReminder(item)"
+                  />
+                </div>
+                <div v-else-if="!isLoadingToday" class="no-event-hint">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <span>Hôm nay không có lịch hẹn nào sắp tới.</span>
+                  <button class="link-btn" @click="goToCalendar">Xem tất cả lịch →</button>
+                </div>
+              </div>
 
-            <!-- Không có lịch hẹn hôm nay -->
-            <div v-else-if="!isLoadingToday" class="no-event-hint">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              <span>Hôm nay không có lịch hẹn nào.</span>
-              <button class="link-btn" @click="goToCalendar">Xem tất cả lịch →</button>
+              <!-- Cột phải: Bình chọn trong nhóm (đang mở) -->
+              <div class="overview-column">
+                <div v-if="openPolls.length > 0" class="column-cards-stack">
+                  <GroupPollCard
+                    v-for="(poll, pIdx) in openPolls"
+                    :key="poll.pollId ?? pIdx"
+                    badge-text="BÌNH CHỌN TRONG NHÓM"
+                    :title="poll.question"
+                    :subtitle="formatPollSubtitle(poll)"
+                    :options="formatPollOptions(poll.options)"
+                    :total-votes="poll.totalVoters || 0"
+                    @click="goToChatWithPoll(poll)"
+                  />
+                </div>
+                <div v-else-if="!isLoadingPolls" class="no-event-hint">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14" />
+                    <line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" />
+                    <line x1="20" y1="12" x2="20" y2="3" />
+                  </svg>
+                  <span>Hiện chưa có bình chọn nào đang mở.</span>
+                  <button class="link-btn" @click="goToPolls">Xem tất cả bình chọn →</button>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -329,8 +466,10 @@ onMounted(async () => {
             <UpcomingEventList />
           </template>
 
-          <!-- ==================== TAB: BÌNH CHỌN (ẩn) ==================== -->
-          <!-- Bình chọn bị ẩn tạm thời — sẽ tích hợp sau -->
+          <!-- ==================== TAB: BÌNH CHỌN ==================== -->
+          <template v-else-if="activeSubTab === 'polls'">
+            <PollList />
+          </template>
 
         </div>
       </div>
@@ -532,25 +671,6 @@ onMounted(async () => {
   color: #1e293b;
 }
 
-.user-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  background-color: #4b88f6;
-  color: #ffffff;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.user-badge:hover {
-  transform: scale(1.05);
-}
-
 /* Scroll Area */
 .main-body-scroll {
   flex: 1;
@@ -727,33 +847,44 @@ onMounted(async () => {
   color: #94a3b8;
 }
 
-/* Stat cards: 2 cột thay vì 3 (đã bỏ Bình chọn) */
+/* Stat cards: 3 cột (Tin nhắn, Lịch hẹn, Bình chọn) */
 .stat-cards-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
-/* 3. Interactive Cards Grid */
-.interactive-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-}
-
-.today-reminders-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-@media (max-width: 860px) {
-  .today-reminders-grid {
+@media (max-width: 900px) {
+  .stat-cards-grid {
     grid-template-columns: 1fr;
   }
 }
 
-/* Hint khi không có lịch hẹn */
+/* 3. Section 2 cột: Lịch hẹn & Bình chọn */
+.overview-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.overview-column {
+  min-width: 0;
+}
+
+.column-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .overview-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hint khi không có lịch hẹn hoặc bình chọn */
 .no-event-hint {
   display: flex;
   align-items: center;
