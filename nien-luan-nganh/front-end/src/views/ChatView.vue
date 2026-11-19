@@ -13,7 +13,6 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore, formatSystemMessageText } from '@/stores/chat'
-import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import PinnedMessage from '@/components/chat/PinnedMessage.vue'
