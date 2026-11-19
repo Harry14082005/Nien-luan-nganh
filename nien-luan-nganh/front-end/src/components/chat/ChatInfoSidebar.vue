@@ -19,7 +19,7 @@
             <font-awesome-icon icon="chevron-left" />
           </button>
           <div class="header-title subview-title">
-            <h3>Lịch hẹn nhắc nhở</h3>
+            <h3>Lời nhắc</h3>
           </div>
         </div>
         <div class="rem-subview-header-actions">
@@ -38,7 +38,60 @@
         </div>
       </div>
 
-      <!-- C. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
+      <!-- C. Header Sub-view Quản lý Bình chọn nhóm -->
+      <div v-else-if="currentView === 'POLLS'" class="sidebar-header subview-header">
+        <div class="subview-header-left" @click="backToInfoView">
+          <button class="btn-back" title="Quay lại thông tin">
+            <font-awesome-icon icon="chevron-left" />
+          </button>
+          <div class="header-title subview-title">
+            <h3>Bình chọn</h3>
+          </div>
+        </div>
+        <div class="rem-subview-header-actions">
+          <button
+            type="button"
+            class="btn-header-create-rem"
+            title="Tạo bình chọn mới"
+            @click="$emit('create-poll')"
+          >
+            <font-awesome-icon icon="plus" />
+            <span>Tạo poll</span>
+          </button>
+          <button class="btn-close" title="Đóng (Esc)" @click="$emit('close')">
+            <font-awesome-icon icon="x" />
+          </button>
+        </div>
+      </div>
+
+      <!-- D. Header Sub-view Quản lý Thành viên phòng chat -->
+      <div v-else-if="currentView === 'MEMBERS'" class="sidebar-header subview-header">
+        <div class="subview-header-left" @click="backToInfoView">
+          <button class="btn-back" title="Quay lại thông tin">
+            <font-awesome-icon icon="chevron-left" />
+          </button>
+          <div class="header-title subview-title">
+            <h3>Thành viên ({{ displayMembers.length }})</h3>
+          </div>
+        </div>
+        <div class="rem-subview-header-actions">
+          <button
+            v-if="isGroupRoom"
+            type="button"
+            class="btn-header-create-rem"
+            title="Thêm thành viên mới"
+            @click="$emit('add-member')"
+          >
+            <font-awesome-icon icon="user-plus" />
+            <span>Thêm</span>
+          </button>
+          <button class="btn-close" title="Đóng (Esc)" @click="$emit('close')">
+            <font-awesome-icon icon="x" />
+          </button>
+        </div>
+      </div>
+
+      <!-- E. Header Sub-view xem toàn bộ File phương tiện (Chuẩn Zalo PC / Telegram Desktop) -->
       <div v-else class="sidebar-header subview-header">
         <div class="subview-header-left" @click="backToInfoView">
           <button class="btn-back" title="Quay lại thông tin">
@@ -140,39 +193,100 @@
               </button>
             </div>
           </div>
-        </div>
-
-        <!-- 2.2 BẬT / TẮT THÔNG BÁO -->
-        <div class="setting-item notification-box">
-          <div class="setting-info">
-            <div class="setting-icon-wrapper" :class="{ muted: isNotificationMuted }">
-              <font-awesome-icon :icon="isNotificationMuted ? 'bell-slash' : 'bell'" />
+          <!-- HÀNG NÚT THAO TÁC NHANH DƯỚI AVATAR (TELEGRAM / MESSENGER STYLE) -->
+          <div class="profile-quick-actions">
+            <!-- NÚT BẬT / TẮT THÔNG BÁO -->
+            <div
+              class="quick-action-item"
+              :class="{ active: !isNotificationMuted, muted: isNotificationMuted }"
+              role="button"
+              tabindex="0"
+              :title="isNotificationMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+              @click="toggleNotification"
+            >
+              <div class="quick-action-circle">
+                <font-awesome-icon :icon="isNotificationMuted ? 'bell-slash' : 'bell'" />
+              </div>
+              <span class="quick-action-label">{{ isNotificationMuted ? 'Bật thông báo' : 'Tắt thông báo' }}</span>
             </div>
-            <div class="setting-text">
-              <span class="setting-title">Thông báo</span>
-              <span class="setting-subtext">{{ isNotificationMuted ? 'Đang tắt thông báo' : 'Đang bật thông báo' }}</span>
+
+            <!-- NÚT THÊM THÀNH VIÊN (CHO PHÒNG NHÓM) -->
+            <div
+              v-if="isGroupRoom"
+              class="quick-action-item"
+              role="button"
+              tabindex="0"
+              title="Thêm thành viên vào nhóm"
+              @click="$emit('add-member')"
+            >
+              <div class="quick-action-circle">
+                <font-awesome-icon icon="user-plus" />
+              </div>
+              <span class="quick-action-label">Thêm thành viên</span>
             </div>
           </div>
-          <!-- Toggle Switch UI -->
-          <label class="switch">
-            <input
-              type="checkbox"
-              :checked="!isNotificationMuted"
-              @change="handleToggleNotification"
-            />
-            <span class="slider round"></span>
-          </label>
         </div>
 
-        <hr class="divider" />
+        <!-- 2.2 TÙY CHỌN NHÓM (ACCORDION SỔ XUỐNG - CHỈ HIỂN THỊ CHO ADMIN NHÓM CHAT) -->
+        <template v-if="isGroupRoom && isMyRoleAdmin">
+          <hr class="divider" />
+          <div class="accordion-section">
+            <div class="accordion-header" @click="isGroupOptionsExpanded = !isGroupOptionsExpanded">
+              <div class="header-left">
+                <font-awesome-icon icon="gear" class="section-icon" />
+                <span class="section-title">Tùy chọn nhóm</span>
+              </div>
+              <font-awesome-icon
+                icon="chevron-right"
+                class="arrow-icon"
+                :class="{ 'arrow--down': isGroupOptionsExpanded }"
+              />
+            </div>
+
+            <div class="accordion-collapse" :class="{ 'is-expanded': isGroupOptionsExpanded }">
+              <div class="accordion-collapse-inner">
+                <div class="accordion-body">
+                  <!-- BẬT / TẮT PHÊ DUYỆT THÀNH VIÊN (CHỈ ADMIN MỚI ĐƯỢC CHỈNH) -->
+                  <div class="setting-item approval-box" :class="{ 'disabled-setting': !isMyRoleAdmin }">
+                    <div class="setting-info">
+                      <div class="setting-icon-wrapper" :class="{ muted: !isApprovalRequired }">
+                        <font-awesome-icon icon="user-shield" />
+                      </div>
+                      <div class="setting-text">
+                        <span class="setting-title">Phê duyệt thành viên</span>
+                        <span class="setting-subtext">
+                          {{ isApprovalRequired ? 'Cần duyệt thành viên mới' : 'Tự do tham gia nhóm' }}
+                        </span>
+                      </div>
+                    </div>
+                    <!-- Toggle Switch UI -->
+                    <label class="switch">
+                      <input
+                        type="checkbox"
+                        :checked="isApprovalRequired"
+                        :disabled="!isMyRoleAdmin"
+                        @change="handleToggleRequireApproval"
+                      />
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
 
         <!-- 2.3 DANH SÁCH THÀNH VIÊN (COLLAPSIBLE ACCORDION) - CHỈ CHO NHÓM CHAT -->
         <template v-if="isGroupRoom">
+          <hr class="divider" />
           <div class="accordion-section">
             <div class="accordion-header" @click="isMembersExpanded = !isMembersExpanded">
               <div class="header-left">
                 <font-awesome-icon icon="user-group" class="section-icon" />
                 <span class="section-title">Thành viên phòng ({{ displayMembers.length }})</span>
+                <span v-if="isMyRoleAdmin && pendingMembers.length > 0" class="pending-count-pill">
+                  +{{ pendingMembers.length }} chờ duyệt
+                </span>
               </div>
 
               <font-awesome-icon
@@ -194,14 +308,57 @@
                     <span class="add-member-text">Thêm thành viên</span>
                   </div>
 
+                  <!-- Danh sách Chờ phê duyệt (Chỉ Admin mới thấy) -->
+                  <div v-if="isMyRoleAdmin && pendingMembers.length > 0" class="pending-approval-box">
+                    <div class="pending-box-header">
+                      <span class="pending-box-title">Chờ duyệt</span>
+                      <span class="pending-box-badge">{{ pendingMembers.length }}</span>
+                    </div>
+                    <div
+                      v-for="pMember in pendingMembers"
+                      :key="pMember.userId"
+                      class="pending-member-row"
+                    >
+                      <UserAvatar
+                        :name="pMember.username || 'Thành viên'"
+                        :src="resolveFileUrl(pMember.avatarUrl)"
+                        :size="32"
+                      />
+                      <div class="pending-member-meta">
+                        <span class="pending-member-name">{{ pMember.username || 'Thành viên' }}</span>
+                        <span class="pending-member-sub">Chờ phê duyệt</span>
+                      </div>
+                      <div class="pending-member-btns">
+                        <button
+                          type="button"
+                          class="btn-approve-pending"
+                          title="Phê duyệt vào nhóm"
+                          @click.stop="handleApprovePendingMember(pMember)"
+                        >
+                          <font-awesome-icon icon="check" />
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-reject-pending"
+                          title="Từ chối yêu cầu"
+                          @click.stop="handleRejectPendingMember(pMember)"
+                        >
+                          <font-awesome-icon icon="x" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div v-if="displayMembers.length === 0" class="empty-members-hint">
                     Chưa có danh sách thành viên
                   </div>
+
+                  <!-- Chỉ hiển thị tối đa 5 thành viên đầu tiên ở màn hình chính -->
                   <div
-                    v-for="member in displayMembers"
+                    v-for="member in sortedDisplayMembers.slice(0, 5)"
                     :key="member.userId || member.username"
                     class="member-item member-item--clickable"
-                    title="Bấm để xem thông tin thành viên"
+                    title="Bấm để xem thông tin & tùy chọn thành viên"
                     @click="openMemberProfile(member)"
                   >
                     <UserAvatar
@@ -210,15 +367,41 @@
                       :size="34"
                     />
                     <div class="member-info">
-                      <span class="member-name">{{ member.username || 'Thành viên' }}</span>
+                      <span class="member-name">
+                        {{ member.username || 'Thành viên' }}
+                        <span
+                          v-if="authStore.user?.userId && String(member.userId) === String(authStore.user.userId)"
+                          class="me-tag"
+                        >(Bạn)</span>
+                      </span>
                       <span
-                        v-if="member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN'"
-                        class="role-badge"
+                        v-if="isRoomCreator(member)"
+                        class="role-badge role-badge--creator"
                       >
-                        Trưởng nhóm
+                        <font-awesome-icon icon="crown" class="badge-icon" />
+                        <span>Người tạo nhóm</span>
+                      </span>
+                      <span
+                        v-else-if="isMemberAdmin(member)"
+                        class="role-badge role-badge--admin"
+                      >
+                        <font-awesome-icon icon="user-shield" class="badge-icon" />
+                        <span>Quản trị viên</span>
                       </span>
                     </div>
                   </div>
+
+                  <!-- Nút Xem tất cả thành viên (chuyển sang Sub-view) -->
+                  <button
+                    v-if="displayMembers.length > 5"
+                    type="button"
+                    class="btn-open-gallery"
+                    style="margin-top: 8px"
+                    @click="openMembersView"
+                  >
+                    <span>Xem tất cả ({{ displayMembers.length }} thành viên)</span>
+                    <font-awesome-icon icon="chevron-right" class="btn-arrow" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -227,13 +410,90 @@
           <hr class="divider" />
         </template>
 
+        <!-- 2.3.6 BÌNH CHỌN NHÓM (ACCORDION + PREVIEW + XEM TẤT CẢ) -->
+        <div v-if="isGroupRoom" class="accordion-section">
+          <div class="accordion-header" @click="isPollsExpanded = !isPollsExpanded">
+            <div class="header-left">
+              <font-awesome-icon icon="chart-simple" class="section-icon poll-header-icon" />
+              <span class="section-title">
+                Bình chọn nhóm
+              </span>
+            </div>
+            <font-awesome-icon
+              icon="chevron-right"
+              class="arrow-icon"
+              :class="{ 'arrow--down': isPollsExpanded }"
+            />
+          </div>
+
+          <div class="accordion-collapse" :class="{ 'is-expanded': isPollsExpanded }">
+            <div class="accordion-collapse-inner">
+              <div class="accordion-body">
+                <!-- Thanh tạo bình chọn mới -->
+                <div class="add-member-action-bar" @click="$emit('create-poll')">
+                  <div class="add-member-icon-circle poll-add-icon-circle">
+                    <font-awesome-icon icon="chart-simple" />
+                  </div>
+                  <span class="add-member-text">Tạo bình chọn mới</span>
+                </div>
+
+                <!-- Danh sách preview: Chỉ hiển thị 1 cuộc bình chọn mới nhất ở ngoài theo yêu cầu -->
+                <div v-if="allPollsList.length === 0" class="empty-members-hint">
+                  Chưa có cuộc bình chọn nào trong nhóm
+                </div>
+
+                <div v-else class="poll-preview-list">
+                  <div
+                    v-for="poll in allPollsList.slice(0, 1)"
+                    :key="poll.pollId"
+                    class="poll-preview-card"
+                    @click="handleJumpToPoll(poll)"
+                  >
+                    <div class="poll-mini-icon-box" :class="{ 'is-closed': !poll.isActive }">
+                      <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
+                    </div>
+
+                    <div class="poll-preview-info">
+                      <div class="poll-preview-top">
+                        <p class="poll-preview-title">{{ poll.question }}</p>
+                        <span class="poll-preview-pill" :class="{ 'pill-closed': !poll.isActive }">
+                          {{ poll.isActive ? 'ĐANG MỞ' : 'KẾT THÚC' }}
+                        </span>
+                      </div>
+                      <div class="poll-preview-meta">
+                        <span>{{ poll.totalVoters || 0 }} người tham gia</span>
+                        <span>·</span>
+                        <span>{{ poll.options?.length || 0 }} phương án</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Nút Xem tất cả bình chọn -->
+                <button
+                  v-if="allPollsList.length > 0"
+                  type="button"
+                  class="btn-open-gallery"
+                  style="margin-top: 8px"
+                  @click="openPollsView('ACTIVE')"
+                >
+                  <!-- <span>Xem tất cả bình chọn ({{ allPollsList.length }})</span> -->
+                  <span>Xem tất cả bình chọn</span>
+
+                  <font-awesome-icon icon="chevron-right" class="btn-arrow" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 2.3.5 LỊCH HẸN & NHẮC NHỞ (ACCORDION + PREVIEW + XEM TẤT CẢ) -->
         <div class="accordion-section">
           <div class="accordion-header" @click="isRemindersExpanded = !isRemindersExpanded">
             <div class="header-left">
               <font-awesome-icon icon="calendar-days" class="section-icon" />
               <span class="section-title">
-                Lịch hẹn nhắc nhở ({{ upcomingRemindersList.length }})
+                Lịch hẹn nhắc nhở
               </span>
             </div>
             <font-awesome-icon
@@ -299,7 +559,9 @@
                   style="margin-top: 8px"
                   @click="openRemindersView('UPCOMING')"
                 >
-                  <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span>
+                  <!-- <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span> -->
+                  <span>Xem tất cả lịch hẹn</span>
+
                   <font-awesome-icon icon="chevron-right" class="btn-arrow" />
                 </button>
               </div>
@@ -436,6 +698,22 @@
             </div>
           </div>
         </div>
+
+        <!-- 2.5 NÚT RỜI KHỎI NHÓM (CHỈ HIỂN THỊ CHO NHÓM CHAT) -->
+        <template v-if="isGroupRoom">
+          <hr class="divider" />
+          <div class="leave-room-section">
+            <button
+              type="button"
+              class="btn-leave-group"
+              :disabled="leavingRoom"
+              @click="handleClickLeaveGroup"
+            >
+              <font-awesome-icon icon="right-from-bracket" class="leave-icon" />
+              <span>{{ leavingRoom ? 'Đang xử lý...' : 'Rời khỏi nhóm' }}</span>
+            </button>
+          </div>
+        </template>
       </div>
 
       <!-- VIEW 2: SUB-VIEW QUẢN LÝ LỊCH HẸN & NHẮC NHỞ PHÒNG CHAT -->
@@ -584,7 +862,83 @@
         </div>
       </div>
 
-      <!-- VIEW 3: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
+      <!-- VIEW 3: SUB-VIEW QUẢN LÝ BÌNH CHỌN NHÓM PHÒNG CHAT -->
+      <div v-else-if="currentView === 'POLLS'" class="subview-media-content">
+        <!-- Sub-tabs: ĐANG MỞ | ĐÃ KẾT THÚC (CHUẨN SUBVIEW TABS BAR) -->
+        <div class="subview-tabs-bar">
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentPollTab === 'ACTIVE' }"
+            @click="currentPollTab = 'ACTIVE'"
+          >
+            <font-awesome-icon icon="chart-simple" />
+            <span>Đang mở ({{ activePollsList.length }})</span>
+          </button>
+          <button
+            type="button"
+            class="subview-tab-btn"
+            :class="{ active: currentPollTab === 'CLOSED' }"
+            @click="currentPollTab = 'CLOSED'"
+          >
+            <font-awesome-icon icon="lock" />
+            <span>Đã kết thúc ({{ closedPollsList.length }})</span>
+          </button>
+        </div>
+
+        <div class="subview-gallery-scroll rem-subview-list">
+          <div v-if="currentTabPollsList.length === 0" class="empty-media-hint">
+            {{
+              currentPollTab === 'ACTIVE'
+                ? 'Không có cuộc bình chọn nào đang diễn ra'
+                : 'Không có cuộc bình chọn nào đã kết thúc'
+            }}
+          </div>
+
+          <div
+            v-for="poll in currentTabPollsList"
+            :key="poll.pollId"
+            class="poll-subview-card"
+            :class="{ 'is-closed': !poll.isActive }"
+            @click="handleJumpToPoll(poll)"
+          >
+            <div class="poll-subview-top">
+              <div class="poll-mini-icon-box poll-leaf-lg" :class="{ 'is-closed': !poll.isActive }">
+                <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
+              </div>
+
+              <div class="rem-subview-main">
+                <div class="rem-subview-badges">
+                  <span
+                    class="rem-badge-status"
+                    :class="poll.isActive ? 'st-active' : 'st-closed'"
+                  >
+                    {{ poll.isActive ? 'ĐANG MỞ' : 'ĐÃ KẾT THÚC' }}
+                  </span>
+                  <span class="poll-subview-creator">
+                    Tạo bởi {{ poll.createdByName || 'Thành viên' }}
+                  </span>
+                </div>
+
+                <h4 class="rem-subview-title">{{ poll.question }}</h4>
+
+                <div class="poll-subview-stats">
+                  <span><strong>{{ poll.totalVoters || 0 }}</strong> người tham gia</span>
+                  <span>·</span>
+                  <span><strong>{{ poll.options?.length || 0 }}</strong> phương án</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="poll-subview-footer">
+              <span class="poll-jump-hint">Nhấp để xem bình chọn</span>
+              <font-awesome-icon icon="chevron-right" class="poll-chevron-right" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
       <div v-else class="subview-media-content">
         <!-- THANH TAB SEGMENTED CONTROL TO RÕ TRÊN ĐẦU SUBVIEW -->
         <div class="subview-tabs-bar">
@@ -718,6 +1072,29 @@
                   <span>Xem trong danh bạ</span>
                 </button>
 
+                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy và không áp dụng lên Người tạo nhóm) -->
+                <template v-if="isGroupRoom && isMyRoleAdmin && !selectedMemberProfile.isCreator">
+                  <button
+                    type="button"
+                    class="menu-dropdown-item item-primary"
+                    @click="handleToggleMemberRoleFromProfile(selectedMemberProfile)"
+                  >
+                    <font-awesome-icon icon="user-shield" class="item-icon" />
+                    <span>
+                      {{ selectedMemberProfile.isAdmin ? 'Gỡ quyền Quản trị viên' : 'Cấp quyền Quản trị viên' }}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="menu-dropdown-item item-danger"
+                    @click="handleKickMemberFromProfile(selectedMemberProfile)"
+                  >
+                    <font-awesome-icon icon="user-xmark" class="item-icon" />
+                    <span>Xóa khỏi nhóm</span>
+                  </button>
+                </template>
+
                 <!-- 2. Hủy kết bạn (chỉ hiện khi đã là bạn bè) -->
                 <button
                   v-if="selectedMemberProfile.isFriend"
@@ -765,6 +1142,79 @@
           />
         </div>
       </div>
+
+      <!-- Modal chọn Quản trị viên kế nhiệm trước khi rời nhóm (khi là Admin duy nhất) -->
+      <div
+        v-if="showTransferAdminModal"
+        class="profile-modal-backdrop"
+        @click.self="showTransferAdminModal = false"
+      >
+        <div class="transfer-admin-modal">
+          <div class="transfer-modal-header">
+            <div class="transfer-header-left">
+              <div class="transfer-icon-badge">
+                <font-awesome-icon icon="user-shield" />
+              </div>
+              <div>
+                <h4 class="transfer-title">Chọn Quản trị viên mới</h4>
+                <p class="transfer-subtitle">
+                  Bạn là Quản trị viên duy nhất. Vui lòng chọn 1 thành viên kế nhiệm trước khi rời nhóm.
+                </p>
+              </div>
+            </div>
+            <button type="button" class="btn-close" @click="showTransferAdminModal = false">
+              <font-awesome-icon icon="x" />
+            </button>
+          </div>
+
+          <div class="transfer-members-list">
+            <div
+              v-for="candidate in otherActiveMembers"
+              :key="candidate.userId"
+              class="transfer-candidate-row"
+              :class="{ selected: String(selectedSuccessorId) === String(candidate.userId) }"
+              @click="selectedSuccessorId = candidate.userId"
+            >
+              <UserAvatar
+                :name="candidate.username || 'Thành viên'"
+                :src="resolveFileUrl(candidate.avatarUrl)"
+                :size="36"
+              />
+              <div class="candidate-info">
+                <span class="candidate-name">{{ candidate.username || 'Thành viên' }}</span>
+                <span class="candidate-sub">Thành viên nhóm</span>
+              </div>
+              <input
+                type="radio"
+                name="successorAdmin"
+                class="candidate-radio"
+                :checked="String(selectedSuccessorId) === String(candidate.userId)"
+                @change="selectedSuccessorId = candidate.userId"
+              />
+            </div>
+          </div>
+
+          <div class="transfer-modal-footer">
+            <button
+              type="button"
+              class="btn-cancel-transfer"
+              :disabled="leavingRoom"
+              @click="showTransferAdminModal = false"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              class="btn-confirm-transfer"
+              :disabled="!selectedSuccessorId || leavingRoom"
+              @click="handleConfirmTransferAndLeave"
+            >
+              <font-awesome-icon icon="right-from-bracket" />
+              <span>{{ leavingRoom ? 'Đang rời nhóm...' : 'Chuyển quyền & Rời nhóm' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </Teleport>
 
     <!-- 4. MODAL CẮT VÀ TẢI LÊN AVATAR NHÓM -->
@@ -788,6 +1238,13 @@ import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
 import { uploadRoomAvatar, updateRoomName } from '@/api/room.api';
 import {
+  getRoomMembers,
+  approveRoomMember,
+  removeRoomMember,
+  changeRoomMemberRole,
+  toggleRoomApproval,
+} from '@/api/room.api';
+import {
   getFriends,
   getPendingFriendships,
   sendFriendRequest,
@@ -797,8 +1254,11 @@ import {
   unblockUser
 } from '@/api/contacts.api';
 
-const router = useRouter();
+// =============================================================================
+// ████  PHẦN 1: KHỞI TẠO STORE, PROPS, EMITS & ĐIỀU HƯỚNG VIEW SIDEBAR  ███████
+// =============================================================================
 
+const router = useRouter();
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 
@@ -823,12 +1283,47 @@ const emit = defineEmits([
   'preview-media',
   'add-member',
   'create-reminder',
+  'create-poll',
   'jump-to-message',
+  'members-updated',
 ]);
 
-// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn)
+// Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn) | 'POLLS' (quản lý bình chọn) | 'MEMBERS' (quản lý thành viên)
 const currentView = ref('INFO');
 const currentReminderTab = ref('UPCOMING'); // 'UPCOMING' | 'PAST'
+const currentPollTab = ref('ACTIVE'); // 'ACTIVE' | 'CLOSED'
+const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
+
+// State quản lý Accordion đóng/mở các mục trên Sidebar
+const isMembersExpanded = ref(true);
+const isGroupOptionsExpanded = ref(false);
+const isRemindersExpanded = ref(true);
+const isPollsExpanded = ref(true);
+const isMediaExpanded = ref(true);
+
+// State tìm kiếm thành viên trong Sub-view
+const memberSearchQuery = ref('');
+
+const openMembersView = () => {
+  memberSearchQuery.value = '';
+  currentView.value = 'MEMBERS';
+};
+
+const filteredMembersList = computed(() => {
+  const q = memberSearchQuery.value.trim().toLowerCase();
+  if (!q) return sortedDisplayMembers.value;
+  return sortedDisplayMembers.value.filter((m) =>
+    (m.username || '').toLowerCase().includes(q)
+  );
+});
+
+// State bật/tắt thông báo
+const isNotificationMuted = ref(false);
+
+const toggleNotification = () => {
+  isNotificationMuted.value = !isNotificationMuted.value;
+  emit('toggle-notification', isNotificationMuted.value);
+};
 
 const openMediaView = (tab = 'IMAGE') => {
   currentMediaTab.value = tab;
@@ -840,8 +1335,22 @@ const openRemindersView = (tab = 'UPCOMING') => {
   currentView.value = 'REMINDERS';
 };
 
+const openPollsView = (tab = 'ACTIVE') => {
+  currentPollTab.value = tab;
+  currentView.value = 'POLLS';
+};
+
 const backToInfoView = () => {
   currentView.value = 'INFO';
+};
+
+const handleToggleNotification = (e) => {
+  if (e && e.target && e.target.checked !== undefined) {
+    isNotificationMuted.value = !e.target.checked;
+  } else {
+    isNotificationMuted.value = !isNotificationMuted.value;
+  }
+  emit('toggle-notification', isNotificationMuted.value);
 };
 
 // Tự động điều hướng trở lại màn hình Thông tin hội thoại khi chuyển sang phòng chat khác
@@ -855,6 +1364,14 @@ watch(
 // Phân biệt nhóm hay phòng trực tiếp 1-1
 const isGroupRoom = computed(() => {
   return props.room?.roomType === 'GROUP';
+});
+
+const displayRoomName = computed(() => {
+  return chatStore.activeRoom?.roomName || props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
+});
+
+const displayRoomAvatar = computed(() => {
+  return chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl || props.room?.roomAvatarURL || props.room?.avatarUrl || '';
 });
 
 // ==========================================
@@ -976,10 +1493,9 @@ const saveEditRoomName = async () => {
   }
 };
 
-// State quản lý Accordion
-const isMembersExpanded = ref(true);
-const isRemindersExpanded = ref(true);
-const isMediaExpanded = ref(true);
+// =============================================================================
+// ██████████████  PHẦN 2: REMINDER (LỊCH HẸN & NHẮC NHỞ)  █████████████████████
+// =============================================================================
 
 // Danh sách lịch hẹn của phòng đang mở từ Pinia Store
 const allRemindersList = computed(() => {
@@ -1004,7 +1520,6 @@ const pastRemindersList = computed(() => {
     .filter((r) => isReminderPast(r))
     .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
 });
-
 
 const currentTabRemindersList = computed(() => {
   return currentReminderTab.value === 'UPCOMING'
@@ -1045,9 +1560,7 @@ const canCancelReminder = (rem) => {
   if (!rem || rem.reminderStatus !== 'PENDING' || isReminderPast(rem)) return false;
   const myId = authStore.user?.userId;
   if (myId && String(rem.createdById) === String(myId)) return true;
-  const myMember = displayMembers.value.find((m) => myId && String(m.userId) === String(myId));
-  const role = myMember?.role || myMember?.roomMemberRole;
-  return role === 'ADMIN' || role === 'OWNER';
+  return isMyRoleAdmin.value;
 };
 
 const handleSidebarRsvp = async (rem, status) => {
@@ -1069,23 +1582,254 @@ const handleSidebarCancelReminder = async (rem) => {
   }
 };
 
-// State bật/tắt thông báo
-const isNotificationMuted = ref(false);
+// =============================================================================
+// ██████████████  PHẦN 2.5: BÌNH CHỌN (POLL TRONG NHÓM CHAT)  █████████████████
+// =============================================================================
 
-// State tab Phương tiện
-const currentMediaTab = ref('IMAGE'); // 'IMAGE' | 'VIDEO' | 'FILE'
-
-const displayRoomName = computed(() => {
-  return chatStore.activeRoom?.roomName || props.room?.roomName || props.room?.name || 'Phòng trò chuyện';
+const allPollsList = computed(() => {
+  return chatStore.roomPolls || [];
 });
 
-const displayRoomAvatar = computed(() => {
-  return chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl || props.room?.roomAvatarURL || props.room?.avatarUrl || '';
+const activePollsList = computed(() => {
+  return chatStore.activeRoomPolls || [];
 });
+
+const closedPollsList = computed(() => {
+  return chatStore.closedRoomPolls || [];
+});
+
+const currentTabPollsList = computed(() => {
+  return currentPollTab.value === 'ACTIVE'
+    ? activePollsList.value
+    : closedPollsList.value;
+});
+
+// Nhảy đến vị trí tin nhắn của Poll trong phòng chat
+const handleJumpToPoll = (poll) => {
+  if (!poll) return;
+  // Tìm messageId mới nhất của poll này trong messages của store
+  const msgs = chatStore.messages || [];
+  let targetMsgId = null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (m.messageType === 'POLL') {
+      const p = chatStore.getPollForMessage(m);
+      if (String(p?.pollId) === String(poll.pollId) || String(m.pollId) === String(poll.pollId)) {
+        targetMsgId = m.messageId;
+        break;
+      }
+    }
+  }
+
+  // Nếu không tìm thấy trong messages hiện tại, lấy messageId được lưu trên poll (nếu có)
+  if (!targetMsgId && poll.messageId) {
+    targetMsgId = poll.messageId;
+  }
+
+  if (targetMsgId) {
+    emit('jump-to-message', targetMsgId);
+  } else {
+    // Nếu chưa load tin nhắn chứa poll thì mở view chi tiết
+    openPollsView(poll.isActive ? 'ACTIVE' : 'CLOSED');
+  }
+};
+
+// =============================================================================
+// ████  PHẦN 3: THÀNH VIÊN NHÓM, PHÂN QUYỀN & PHÊ DUYỆT THÀNH VIÊN MỚI  ███████
+// =============================================================================
 
 const displayMembers = computed(() => {
   return Array.isArray(props.members) ? props.members : [];
 });
+
+// ID của người tạo nhóm (truy vấn từ room.createdBy)
+const roomCreatorId = computed(() => {
+  return props.room?.createdBy || chatStore.activeRoom?.createdBy || null;
+});
+
+const isRoomCreator = (member) => {
+  if (!member || !roomCreatorId.value) return false;
+  return String(member.userId) === String(roomCreatorId.value);
+};
+
+const isMemberAdmin = (member) => {
+  if (!member) return false;
+  const r = member.roomMemberRole || member.role;
+  return r === 'ADMIN' || isRoomCreator(member);
+};
+
+// Kiểm tra người dùng hiện tại có phải là Quản trị viên nhóm hay không
+const isMyRoleAdmin = computed(() => {
+  const myId = authStore.user?.userId;
+  if (!myId) return false;
+  if (roomCreatorId.value && String(roomCreatorId.value) === String(myId)) return true;
+  const me = displayMembers.value.find((m) => String(m.userId) === String(myId));
+  return isMemberAdmin(me);
+});
+
+// Sắp xếp danh sách thành viên: Người tạo nhóm -> Quản trị viên -> Thành viên thường
+const sortedDisplayMembers = computed(() => {
+  return [...displayMembers.value].sort((a, b) => {
+    const score = (m) => (isRoomCreator(m) ? 3 : isMemberAdmin(m) ? 2 : 1);
+    return score(b) - score(a);
+  });
+});
+
+// Trạng thái bật/tắt xét duyệt thành viên mới (Optimistic UI giống nút Thông báo)
+const isApprovalRequired = ref(false);
+const togglingApproval = ref(false);
+const pendingMembers = ref([]);
+
+watch(
+  () => props.room?.requireApproval ?? chatStore.activeRoom?.requireApproval,
+  (val) => {
+    if (!togglingApproval.value && val !== undefined) {
+      isApprovalRequired.value = Boolean(val);
+    }
+  },
+  { immediate: true }
+);
+
+const fetchPendingRoomMembers = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !isGroupRoom.value || !isMyRoleAdmin.value || ['1', '2', '3'].includes(String(rId))) {
+    pendingMembers.value = [];
+    return;
+  }
+  try {
+    const list = await getRoomMembers(rId, 'PENDING');
+    pendingMembers.value = Array.isArray(list) ? list : [];
+  } catch {
+    pendingMembers.value = [];
+  }
+};
+
+watch(
+  [() => props.room?.roomId, () => chatStore.activeRoomId, () => isMyRoleAdmin.value, () => chatStore.messages.length, () => chatStore.pendingApprovalVersion],
+  () => {
+    fetchPendingRoomMembers();
+  },
+  { immediate: true }
+);
+
+const handleToggleRequireApproval = async (e) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || togglingApproval.value) {
+    if (e?.target) e.target.checked = isApprovalRequired.value;
+    return;
+  }
+  const prevVal = isApprovalRequired.value;
+  const nextVal = e?.target ? Boolean(e.target.checked) : !prevVal;
+
+  // Cập nhật Optimistic tức thời để nút gạt chuyển mượt 0ms (không bị giật ngược khi Vue re-render)
+  isApprovalRequired.value = nextVal;
+  chatStore.updateRoomRequireApproval(rId, nextVal);
+  togglingApproval.value = true;
+
+  try {
+    const resVal = await toggleRoomApproval(rId, nextVal);
+    const finalVal = typeof resVal === 'boolean' ? resVal : nextVal;
+    isApprovalRequired.value = finalVal;
+    chatStore.updateRoomRequireApproval(rId, finalVal);
+  } catch (err) {
+    // Khôi phục trạng thái cũ nếu API lỗi
+    isApprovalRequired.value = prevVal;
+    chatStore.updateRoomRequireApproval(rId, prevVal);
+    if (e?.target) e.target.checked = prevVal;
+    alert(err?.response?.data?.message || 'Không thể thay đổi chế độ phê duyệt thành viên (hãy đảm bảo Backend đã được khởi động lại).');
+  } finally {
+    togglingApproval.value = false;
+  }
+};
+
+const handleApprovePendingMember = async (pMember) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !pMember?.userId) return;
+  try {
+    await approveRoomMember(rId, pMember.userId);
+    pendingMembers.value = pendingMembers.value.filter((m) => String(m.userId) !== String(pMember.userId));
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể phê duyệt thành viên này.');
+  }
+};
+
+const handleRejectPendingMember = async (pMember) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !pMember?.userId) return;
+  try {
+    await removeRoomMember(rId, pMember.userId);
+    pendingMembers.value = pendingMembers.value.filter((m) => String(m.userId) !== String(pMember.userId));
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể từ chối yêu cầu tham gia.');
+  }
+};
+
+// =============================================================================
+// ██████████  PHẦN 4: RỜI NHÓM & CHUYỂN QUYỀN QUẢN TRỊ VIÊN KẾ NHIỆM  █████████
+// =============================================================================
+
+const leavingRoom = ref(false);
+const showTransferAdminModal = ref(false);
+const selectedSuccessorId = ref(null);
+
+const otherActiveMembers = computed(() => {
+  const myId = authStore.user?.userId;
+  return displayMembers.value.filter((m) => !myId || String(m.userId) !== String(myId));
+});
+
+const otherAdmins = computed(() => {
+  return otherActiveMembers.value.filter((m) => isMemberAdmin(m));
+});
+
+const handleClickLeaveGroup = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || leavingRoom.value) return;
+
+  // Nếu mình là Admin duy nhất và trong nhóm vẫn còn các thành viên khác -> Mở Modal chọn Admin mới
+  if (isMyRoleAdmin.value && otherActiveMembers.value.length > 0 && otherAdmins.value.length === 0) {
+    selectedSuccessorId.value = otherActiveMembers.value[0]?.userId || null;
+    showTransferAdminModal.value = true;
+    return;
+  }
+
+  const confirmMsg =
+    otherActiveMembers.value.length === 0
+      ? 'Bạn là thành viên cuối cùng trong nhóm. Rời nhóm sẽ xóa vĩnh viễn nhóm chat này. Bạn có chắc chắn không?'
+      : `Bạn có chắc chắn muốn rời khỏi nhóm "${displayRoomName.value}" không?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  leavingRoom.value = true;
+  try {
+    await chatStore.leaveGroupRoom(rId, null);
+    emit('close');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể rời khỏi nhóm.');
+  } finally {
+    leavingRoom.value = false;
+  }
+};
+
+const handleConfirmTransferAndLeave = async () => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !selectedSuccessorId.value || leavingRoom.value) return;
+  leavingRoom.value = true;
+  try {
+    await chatStore.leaveGroupRoom(rId, selectedSuccessorId.value);
+    showTransferAdminModal.value = false;
+    emit('close');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể chuyển quyền và rời nhóm.');
+  } finally {
+    leavingRoom.value = false;
+  }
+};
+
+// =============================================================================
+// ██████████  PHẦN 5: KHO FILE PHƯƠNG TIỆN (ẢNH, VIDEO, TÀI LIỆU)  ████████████
+// =============================================================================
 
 const switchMediaTab = (tab) => {
   currentMediaTab.value = tab;
@@ -1105,11 +1849,6 @@ const currentTabMediaList = computed(() => {
   });
 });
 
-const handleToggleNotification = (e) => {
-  isNotificationMuted.value = !e.target.checked;
-  emit('toggle-notification', isNotificationMuted.value);
-};
-
 // Quản lý các ảnh/video bị lỗi không load được
 const failedMediaUrls = ref(new Set());
 const handleMediaError = (item) => {
@@ -1126,6 +1865,10 @@ const isMediaFailed = (item) => {
 const openMediaPreview = (item) => {
   emit('preview-media', item);
 };
+
+// =============================================================================
+// ██  PHẦN 6: HỒ SƠ THÀNH VIÊN, KẾT BẠN, CHẶN & QUẢN TRỊ TỪ POPUP PROFILE  ████
+// =============================================================================
 
 // Quản lý quan hệ bạn bè để hiển thị trạng thái và nút kết bạn / thu hồi / hủy kết bạn / chặn
 const friendIds = ref(new Set());
@@ -1189,15 +1932,26 @@ const openMemberProfile = (member) => {
   const isBlocked = blockedIds.value.has(targetId);
   const friendshipId = pendingMap.value.get(targetId) || friendShipMap.value.get(targetId) || null;
 
+  const isCreator = isRoomCreator(member);
+  const isAdmin = isMemberAdmin(member);
+
   selectedMemberProfile.value = {
     id: targetId,
     name: member.username || 'Thành viên',
-    role: (member.role === 'ADMIN' || member.roomMemberRole === 'ADMIN') ? 'Trưởng nhóm' : (isMe ? 'Bạn (Thành viên)' : 'Thành viên'),
+    role: isCreator
+      ? 'Người tạo nhóm'
+      : isAdmin
+        ? 'Quản trị viên'
+        : isMe
+          ? 'Bạn (Thành viên)'
+          : 'Thành viên',
     avatar: resolveFileUrl(member.avatarUrl || member.avatar || ''),
     online: member.status === 'ACTIVE' || member.isOnline || false,
     statusText: member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
     bio: member.bio || member.description || 'Thành viên trong phòng trò chuyện.',
     isMe,
+    isCreator,
+    isAdmin,
     isFriend,
     isPending,
     isBlocked,
@@ -1365,6 +2119,41 @@ const handleDirectMessageWithMember = async (contact) => {
   }
   emit('close');
   await chatStore.startDirectChat(contact.id);
+};
+
+// Cấp / Gỡ quyền Quản trị viên (ADMIN <-> MEMBER) từ popup hồ sơ
+const handleToggleMemberRoleFromProfile = async (contact) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !contact?.id || contact.isCreator) return;
+  isProfileMenuOpen.value = false;
+  const nextRole = contact.isAdmin ? 'MEMBER' : 'ADMIN';
+  try {
+    await changeRoomMemberRole(rId, contact.id, nextRole);
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+    if (selectedMemberProfile.value && selectedMemberProfile.value.id === contact.id) {
+      selectedMemberProfile.value.isAdmin = nextRole === 'ADMIN';
+      selectedMemberProfile.value.role = nextRole === 'ADMIN' ? 'Quản trị viên' : 'Thành viên';
+    }
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể thay đổi vai trò của thành viên.');
+  }
+};
+
+// Xóa thành viên khỏi nhóm từ popup hồ sơ
+const handleKickMemberFromProfile = async (contact) => {
+  const rId = props.room?.roomId || chatStore.activeRoomId;
+  if (!rId || !contact?.id || contact.isCreator) return;
+  isProfileMenuOpen.value = false;
+  if (!confirm(`Bạn có chắc chắn muốn xóa "${contact.name}" khỏi nhóm không?`)) return;
+  try {
+    await removeRoomMember(rId, contact.id);
+    closeMemberProfile();
+    await chatStore.fetchRoomMembers(rId);
+    emit('members-updated');
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Không thể xóa thành viên khỏi nhóm.');
+  }
 };
 </script>
 
@@ -1543,9 +2332,10 @@ const handleDirectMessageWithMember = async (contact) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   margin-top: 8px;
-  padding: 0 4px;
+  padding: 0 12px;
 }
 
 .room-title {
@@ -1556,7 +2346,8 @@ const handleDirectMessageWithMember = async (contact) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: calc(100% - 36px);
+  max-width: 250px;
+  text-align: center;
 }
 
 .room-title-interactive {
@@ -1663,24 +2454,157 @@ const handleDirectMessageWithMember = async (contact) => {
   transform: none;
 }
 
-/* 3. Notification Setting */
-.notification-box {
+/* HÀNG NÚT THAO TÁC NHANH DƯỚI AVATAR (TELEGRAM / MESSENGER STYLE) */
+.profile-quick-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.quick-action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.quick-action-item:hover {
+  transform: translateY(-2px);
+}
+
+.quick-action-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background-color: #f1f5f9;
+  color: #475569;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.quick-action-item:hover .quick-action-circle {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.quick-action-item.active .quick-action-circle {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.quick-action-item.muted .quick-action-circle {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
+
+.quick-action-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  font-family: 'Quicksand', sans-serif;
+  text-align: center;
+}
+
+.quick-action-item.active .quick-action-label {
+  color: #2563eb;
+}
+
+.quick-action-item.muted .quick-action-label {
+  color: #ef4444;
+}
+
+/* THANH TÌM KIẾM THÀNH VIÊN TRONG SUB-VIEW */
+.subview-member-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px 6px;
+  padding: 8px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.subview-member-search-box:focus-within {
+  background-color: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.member-search-icon {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.member-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12.5px;
+  color: #1e293b;
+}
+
+.btn-clear-member-search {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.btn-clear-member-search:hover {
+  color: #475569;
+}
+
+.disabled-setting {
+  opacity: 0.7;
+}
+
+/* 3. Notification & Approval Settings */
+.setting-item,
+.notification-box,
+.approval-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 18px;
+  gap: 12px;
+  padding: 7px 18px;
   margin: 0;
+  transition: background-color 0.15s ease;
+}
+
+.setting-item:hover {
+  background-color: #f8fafc;
 }
 
 .setting-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .setting-icon-wrapper {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   border-radius: 8px;
   background: #eff6ff;
   color: #3b82f6;
@@ -1699,6 +2623,7 @@ const handleDirectMessageWithMember = async (contact) => {
 .setting-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .setting-title {
@@ -1718,6 +2643,7 @@ const handleDirectMessageWithMember = async (contact) => {
   display: inline-block;
   width: 38px;
   height: 22px;
+  flex-shrink: 0;
 }
 
 .switch input {
@@ -1878,6 +2804,10 @@ input:checked + .slider:before {
 }
 
 .member-item--clickable:hover .member-name {
+  color: #2563eb;
+}
+
+.member-item--clickable:hover .me-tag {
   color: #2563eb;
 }
 
@@ -2714,5 +3644,555 @@ input:checked + .slider:before {
   font-size: 11.5px;
   font-weight: 600;
   color: #64748b;
+}
+
+/* =========================================================================
+   PHÊ DUYỆT THÀNH VIÊN, VAI TRÒ & RỜI NHÓM
+   ========================================================================= */
+.pending-count-pill {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pending-approval-box {
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 2px;
+}
+
+.pending-box-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: 0.2px;
+}
+
+.pending-box-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pending-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+}
+
+.pending-member-row:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.pending-member-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-member-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pending-member-sub {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.pending-member-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-approve-pending {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-approve-pending:hover {
+  background: #1d4ed8;
+  transform: scale(1.05);
+}
+
+.btn-reject-pending {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reject-pending:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: scale(1.05);
+}
+
+.me-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-icon {
+  font-size: 10px;
+}
+
+.role-badge--creator {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.role-badge--admin {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.leave-room-section {
+  padding: 6px 16px 20px;
+}
+
+.btn-leave-group {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #e11d48;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-leave-group:hover:not(:disabled) {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  transform: translateY(-1px);
+}
+
+.btn-leave-group:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.transfer-admin-modal {
+  width: 420px;
+  max-width: 92vw;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.transfer-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.transfer-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.transfer-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.transfer-title {
+  margin: 0 0 4px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.transfer-subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.transfer-members-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.transfer-candidate-row:hover {
+  background: #f8fafc;
+}
+
+.transfer-candidate-row.selected {
+  background: #eff6ff;
+  border-color: #60a5fa;
+}
+
+.candidate-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.candidate-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.candidate-sub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.candidate-radio {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.transfer-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.btn-cancel-transfer {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-confirm-transfer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #e11d48;
+  color: #ffffff;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-confirm-transfer:hover:not(:disabled) {
+  background: #be123c;
+}
+
+.btn-confirm-transfer:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================================
+   STYLE CHO POLL TRÊN SIDEBAR (ĐỒNG BỘ 100% VỚI REMINDER)
+   ========================================================================= */
+.poll-header-icon {
+  color: #2563eb;
+}
+
+.poll-add-icon-circle {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.poll-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.poll-preview-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.poll-preview-card:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.poll-mini-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  border: 1px solid #bfdbfe;
+}
+
+.poll-mini-icon-box.is-closed {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.poll-mini-icon-box.poll-leaf-lg {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+.poll-preview-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.poll-preview-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.poll-preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.poll-preview-pill {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  flex-shrink: 0;
+}
+
+.poll-preview-pill.pill-closed {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.poll-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Sub-view Poll Cards */
+.poll-subview-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.poll-subview-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+.poll-subview-card.is-closed {
+  background: #f8fafc;
+  opacity: 0.9;
+}
+
+.poll-subview-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.poll-subview-creator {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.poll-subview-stats {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.poll-subview-stats strong {
+  color: #0f172a;
+}
+
+.poll-subview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.poll-jump-hint {
+  transition: color 0.15s;
+}
+
+.poll-chevron-right {
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.poll-subview-card:hover .poll-chevron-right {
+  transform: translateX(3px);
 }
 </style>

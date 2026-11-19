@@ -3,6 +3,10 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { resolveFileUrl } from '@/api/storage.api'
 
+// =============================================================================
+// ████  PHẦN 1: KHỞI TẠO PROPS, EMITS, STORE & STATE FORM TẠO LỊCH HẸN  ███████
+// =============================================================================
+
 const props = defineProps({
   isOpen: {
     type: Boolean,
@@ -46,9 +50,10 @@ const activePreset = ref('30m')
 const submitting = ref(false)
 const errorMessage = ref('')
 
-// =========================================================================
-// CUSTOM DATE-TIME PICKER STATE (ZALO PC / GOOGLE CALENDAR STYLE)
-// =========================================================================
+// =============================================================================
+// ████  PHẦN 2: BỘ CHỌN NGÀY GIỜ TÙY CHỈNH (CUSTOM DATE-TIME PICKER)  █████████
+// =============================================================================
+
 const activePickerField = ref(null) // null | 'START' | 'END'
 const pickerViewYear = ref(new Date().getFullYear())
 const pickerViewMonth = ref(new Date().getMonth()) // 0 - 11
@@ -307,6 +312,10 @@ function handleManualMinuteBlur() {
   selectMinute(minuteInputText.value)
 }
 
+// =============================================================================
+// ████  PHẦN 3: XEM TRƯỚC TỜ LỊCH, MỐC CHỌN NHANH (PRESETS) & WATCHERS  ███████
+// =============================================================================
+
 // Xem trước tờ lịch (Tháng, Ngày, Thứ) theo thời gian bắt đầu đang chọn
 const calendarPreview = computed(() => {
   const d = startAtInput.value ? new Date(startAtInput.value) : new Date()
@@ -387,6 +396,10 @@ watch(hasEndAt, (enabled) => {
     }
   }
 })
+
+// =============================================================================
+// ████  PHẦN 4: CHỌN THÀNH VIÊN THAM GIA & GỬI YÊU CẦU TẠO LỊCH HẸN  ██████████
+// =============================================================================
 
 const otherMembers = computed(() => {
   return (props.members || []).filter(
@@ -552,7 +565,7 @@ async function handleSubmit() {
                   @click="reminderType = 'GROUP'"
                 >
                   <font-awesome-icon icon="user-group" />
-                  <span>{{ roomType === 'GROUP' ? 'Cả nhóm / Mọi người' : 'Cả hai người' }}</span>
+                  <span>{{ roomType === 'GROUP' ? 'Tất cả' : 'Cả hai người' }}</span>
                 </button>
                 <button
                   type="button"
@@ -561,7 +574,7 @@ async function handleSubmit() {
                   @click="reminderType = 'PERSONAL'"
                 >
                   <font-awesome-icon icon="lock" />
-                  <span>Chỉ nhắc riêng tôi</span>
+                  <span>Chỉ mình tôi</span>
                 </button>
               </div>
             </div>

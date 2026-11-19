@@ -1,5 +1,9 @@
 import { http } from './http'
 
+// =============================================================================
+// ██████  PHẦN 1: TẢI LỊCH SỬ TIN NHẮN & PHÂN TRANG CON TRỎ (PAGINATION)  █████
+// =============================================================================
+
 /**
  * Lấy lịch sử tin nhắn trong phòng theo phân trang con trỏ (Cursor Pagination).
  * @param {string} roomId UUID của phòng chat
@@ -44,27 +48,9 @@ export const getMessageContext = (roomId, messageId) => {
     .then((res) => res.data?.data ?? res.data)
 }
 
-/**
- * Tìm kiếm tin nhắn trong phòng chat theo từ khóa (Lightweight Metadata).
- * @param {string} roomId UUID của phòng chat
- * @param {string} q Từ khóa tìm kiếm
- */
-export const searchMessages = (roomId, q) => {
-  return http
-    .get(`/rooms/${roomId}/messages/search`, { params: { q } })
-    .then((res) => res.data?.data ?? res.data)
-}
-
-/**
- * Tìm kiếm tin nhắn chi tiết cho Sidebar Drawer bên phải (Search Preview).
- * @param {string} roomId UUID của phòng chat
- * @param {string} q Từ khóa tìm kiếm
- */
-export const searchMessagesSidebar = (roomId, q) => {
-  return http
-    .get(`/rooms/${roomId}/messages/search/sidebar`, { params: { q } })
-    .then((res) => res.data?.data ?? res.data)
-}
+// =============================================================================
+// ██████████  PHẦN 2: GỬI TIN NHẮN, HÌNH ẢNH, TỆP & KHO PHƯƠNG TIỆN  ██████████
+// =============================================================================
 
 /**
  * Gửi tin nhắn vào phòng chat qua REST API (dự phòng khi WebSocket chưa sẵn sàng).
@@ -76,47 +62,44 @@ export const sendMessage = (roomId, data) => {
 }
 
 /**
- * Đánh dấu đã đọc tất cả tin nhắn trong phòng chat.
+ * Gửi hình ảnh vào phòng chat qua REST API.
  * @param {string} roomId UUID của phòng chat
- * @param {string|null} messageId UUID của tin nhắn mốc đã đọc (tùy chọn)
+ * @param {FormData} formData Chứa file ảnh và optional repliedMessageId
  */
-export const markAsRead = (roomId, messageId = null) => {
+export const sendImageMessage = (roomId, formData) => {
   return http
-    .put(`/rooms/${roomId}/members/me/read`, messageId ? { messageId } : {})
+    .post(`/rooms/${roomId}/messages/images`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Gửi tệp đính kèm vào phòng chat qua REST API.
+ * @param {string} roomId UUID của phòng chat
+ * @param {FormData} formData Chứa file tài liệu và optional repliedMessageId
+ */
+export const sendFileMessage = (roomId, formData) => {
+  return http
+    .post(`/rooms/${roomId}/messages/files`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
+ * @param {string} roomId UUID của phòng chat
+ */
+export const getRoomMedia = (roomId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/media`)
     .then((res) => res.data?.data ?? res.data)
 }
 
-/**
- * Lấy danh sách tin nhắn đã ghim trong phòng chat.
- * @param {string} roomId UUID của phòng chat
- */
-export const getPinnedMessages = (roomId) => {
-  return http
-    .get(`/rooms/${roomId}/messages/pins`)
-    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
-}
-
-/**
- * Ghim một tin nhắn trong phòng chat.
- * @param {string} roomId UUID của phòng chat
- * @param {string} messageId UUID của tin nhắn cần ghim
- */
-export const pinMessage = (roomId, messageId) => {
-  return http
-    .post(`/rooms/${roomId}/messages/${messageId}/pins`)
-    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
-}
-
-/**
- * Bỏ ghim một tin nhắn trong phòng chat.
- * @param {string} roomId UUID của phòng chat
- * @param {string} messageId UUID của tin nhắn cần bỏ ghim
- */
-export const unpinMessage = (roomId, messageId) => {
-  return http
-    .delete(`/rooms/${roomId}/messages/${messageId}/pins`)
-    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
-}
+// =============================================================================
+// ██████████  PHẦN 3: CHỈNH SỬA, THU HỒI & LỊCH SỬ CHỈNH SỬA TIN NHẮN  ████████
+// =============================================================================
 
 /**
  * Chỉnh sửa nội dung tin nhắn của chính mình.
@@ -151,6 +134,68 @@ export const getMessageHistory = (roomId, messageId) => {
     .get(`/rooms/${roomId}/messages/${messageId}/history`)
     .then((res) => res.data?.data ?? res.data?.result ?? res.data)
 }
+
+// =============================================================================
+// ██████████  PHẦN 4: GHIM TIN NHẮN & TÌM KIẾM TRONG PHÒNG CHAT  ██████████████
+// =============================================================================
+
+/**
+ * Lấy danh sách tin nhắn đã ghim trong phòng chat.
+ * @param {string} roomId UUID của phòng chat
+ */
+export const getPinnedMessages = (roomId) => {
+  return http
+    .get(`/rooms/${roomId}/messages/pins`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Ghim một tin nhắn trong phòng chat.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn cần ghim
+ */
+export const pinMessage = (roomId, messageId) => {
+  return http
+    .post(`/rooms/${roomId}/messages/${messageId}/pins`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Bỏ ghim một tin nhắn trong phòng chat.
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} messageId UUID của tin nhắn cần bỏ ghim
+ */
+export const unpinMessage = (roomId, messageId) => {
+  return http
+    .delete(`/rooms/${roomId}/messages/${messageId}/pins`)
+    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+}
+
+/**
+ * Tìm kiếm tin nhắn trong phòng chat theo từ khóa (Lightweight Metadata).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} q Từ khóa tìm kiếm
+ */
+export const searchMessages = (roomId, q) => {
+  return http
+    .get(`/rooms/${roomId}/messages/search`, { params: { q } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Tìm kiếm tin nhắn chi tiết cho Sidebar Drawer bên phải (Search Preview).
+ * @param {string} roomId UUID của phòng chat
+ * @param {string} q Từ khóa tìm kiếm
+ */
+export const searchMessagesSidebar = (roomId, q) => {
+  return http
+    .get(`/rooms/${roomId}/messages/search/sidebar`, { params: { q } })
+    .then((res) => res.data?.data ?? res.data)
+}
+
+// =============================================================================
+// ██████  PHẦN 5: CẢM XÚC, DỊCH AI & ĐÃ NHẬN / ĐÃ XEM (RECEIPTS)  █████████████
+// =============================================================================
 
 /**
  * Thả hoặc đổi cảm xúc trên tin nhắn (LIKE, LOVE, HAHA, WOW, SAD, ANGRY).
@@ -187,38 +232,24 @@ export const getMessageReactions = (roomId, messageId) => {
 }
 
 /**
- * Gửi hình ảnh vào phòng chat qua REST API.
+ * Đánh dấu đã đọc tất cả tin nhắn trong phòng chat.
  * @param {string} roomId UUID của phòng chat
- * @param {FormData} formData Chứa file ảnh và optional repliedMessageId
+ * @param {string|null} messageId UUID của tin nhắn mốc đã đọc (tùy chọn)
  */
-export const sendImageMessage = (roomId, formData) => {
+export const markAsRead = (roomId, messageId = null) => {
   return http
-    .post(`/rooms/${roomId}/messages/images`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
+    .put(`/rooms/${roomId}/members/me/read`, messageId ? { messageId } : {})
+    .then((res) => res.data?.data ?? res.data)
 }
 
 /**
- * Gửi tệp đính kèm vào phòng chat qua REST API.
+ * Đánh dấu đã nhận tin nhắn trong phòng chat.
  * @param {string} roomId UUID của phòng chat
- * @param {FormData} formData Chứa file tài liệu và optional repliedMessageId
+ * @param {string|null} messageId UUID của tin nhắn mốc đã nhận
  */
-export const sendFileMessage = (roomId, formData) => {
+export const markAsDelivered = (roomId, messageId = null) => {
   return http
-    .post(`/rooms/${roomId}/messages/files`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    .then((res) => res.data?.data ?? res.data?.result ?? res.data)
-}
-
-/**
- * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho Sidebar Thông tin.
- * @param {string} roomId UUID của phòng chat
- */
-export const getRoomMedia = (roomId) => {
-  return http
-    .get(`/rooms/${roomId}/messages/media`)
+    .put(`/rooms/${roomId}/members/me/delivered`, messageId ? { messageId } : {})
     .then((res) => res.data?.data ?? res.data)
 }
 

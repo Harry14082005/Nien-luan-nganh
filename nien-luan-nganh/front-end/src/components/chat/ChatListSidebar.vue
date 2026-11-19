@@ -1,40 +1,25 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT & KHỞI TẠO STORE / STATE
+// █████████████████████████████████████████████████████████████████████████████
+import { ref, onMounted, onUnmounted } from 'vue'
 import ChatItem from './ChatItem.vue'
 import NewChatModal from './NewChatModal.vue'
 import SearchBar from '../common/SearchBar.vue'
-import { useChatStore } from '@/stores/chat'
+import { useChatStore, formatSystemMessageText } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { resolveFileUrl } from '@/api/storage.api'
 
-defineProps({
-  Label: {
-    type: String,
-    default: 'Tin nhắn đã ghim',
-  },
-  Content_PinnedMessage: {
-    type: String,
-    default:
-      'Họp review giao diện lúc 14:00 thứ Sáu tuần này nha cả nhà thân yêu của em em yêu cả nhà nhiều lắm hihi dài đủ chưa vậy',
-  },
-  NoMessages: {
-    type: [Number, Object],
-    default: 5,
-  },
-  currentFilter: {
-    type: String,
-    default: 'SelectAll',
-  },
-})
-
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 
-const activeFilter = ref('SelectAll') // 'SelectAll' | 'Unread'
-const searchQuery = ref('') // Từ khóa tìm kiếm phòng chat
 const showNewChatModal = ref(false) // Trạng thái hiển thị popup tạo chat mới
 let syncTimer = null // Timer chạy ngầm đồng bộ phòng định kỳ mỗi 4 giây
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: VÒNG ĐỜI COMPONENT & ĐỒNG BỘ DANH SÁCH PHÒNG / WEBSOCKET
+// █████████████████████████████████████████████████████████████████████████████
 
 onMounted(async () => {
   // 0. Đảm bảo thông tin user đã sẵn sàng để đối chiếu chính xác "Bạn" vs "Tên đối phương"
@@ -60,6 +45,10 @@ onUnmounted(() => {
   // Dọn dẹp timer khi component bị unmount
   if (syncTimer) clearInterval(syncTimer)
 })
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: ĐỊNH DẠNG THỜI GIAN & NỘI DUNG TIN NHẮN CUỐI CÙNG TRÊN SIDEBAR
+// █████████████████████████████████████████████████████████████████████████████
 
 /**
  * Định dạng thời gian hiển thị gọn gàng (vd: 14:30 hôm nay, Hôm qua, hoặc 02/11)
@@ -121,43 +110,43 @@ function getLastMessageText(room) {
   }
   if (!room.lastMessageContent) return 'Chưa có tin nhắn'
 
-  // 2. Hiển thị thông báo khi có tin nhắn được ghim hoặc gỡ ghim (SYSTEM Message hoặc Preview)
+  // 3. Hiển thị thông báo khi có tin nhắn hệ thống (ghim/bỏ ghim, thêm/phê duyệt/xóa/rời nhóm, bật/tắt phê duyệt, đổi tên/ảnh nhóm, bình chọn)
   const content = room.lastMessageContent || ''
   const myUsername = authStore.user?.username
+  const myUserId = authStore.user?.userId
   const senderName = room.lastMessageSenderName
+  const senderId = room.lastMessageSenderId
   const isMyAction =
     senderName === 'Bạn' ||
+    (myUserId && senderId && String(senderId) === String(myUserId)) ||
     (myUsername && (senderName === myUsername || content.startsWith(myUsername)))
 
-  // 2.1 Tin nhắn hệ thống: Đổi tên nhóm
-  if (content.includes('đã đổi tên nhóm thành')) {
-    if (isMyAction) {
-      return myUsername ? content.replace(new RegExp('^' + myUsername), 'Bạn') : content
-    }
-    return content
+  const isSystemOrEvent =
+    content.includes('ghim') ||
+    content.includes('gỡ') ||
+    content.includes('bình chọn') ||
+    content.includes('Bình chọn') ||
+    content.includes('đã thêm') ||
+    content.includes('đã phê duyệt') ||
+    content.includes('đã xóa') ||
+    content.includes('đã rời khỏi nhóm') ||
+    content.includes('phê duyệt thành viên mới') ||
+    content.includes('đã bật') ||
+    content.includes('đã tắt') ||
+    content.includes('đã đổi tên nhóm') ||
+    content.includes('đã thay đổi ảnh đại diện')
+
+  if (isSystemOrEvent) {
+    return formatSystemMessageText(content, {
+      senderUserId: senderId,
+      senderName: isMyAction ? 'Bạn' : senderName,
+      actorUsername: isMyAction ? 'Bạn' : senderName,
+      currentUser: authStore.user,
+      isPreview: true,
+    })
   }
 
-  // 2.2 Tin nhắn hệ thống: Đổi avatar nhóm
-  if (content.includes('đã thay đổi ảnh đại diện nhóm')) {
-    return isMyAction ? 'Bạn đã thay đổi ảnh đại diện nhóm' : content
-  }
-
-  // 2.3 Tin nhắn hệ thống: Ghim hoặc Bỏ ghim tin nhắn
-  if (content.includes('ghim') || content.includes('gỡ') || content.includes('bỏ ghim')) {
-    let sender = isMyAction ? 'Bạn' : senderName
-    if (!sender || sender === 'Thành viên') {
-      const firstWord = content.split(' ')[0]
-      sender =
-        firstWord && !firstWord.includes('đã') && !firstWord.includes('ghim')
-          ? firstWord
-          : 'Thành viên'
-    }
-
-    const isUnpin = content.includes('bỏ') || content.includes('gỡ')
-    return `${sender} ${isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'}`
-  }
-
-  // 3. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
+  // 4. Tin nhắn bình thường (luôn là tin nhắn mới nhất)
   let text = room.lastMessageContent
   const isVid = /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(text)
   const isImg = !isVid && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(text)
@@ -170,35 +159,6 @@ function getLastMessageText(room) {
   }
   return text
 }
-
-/**
- * Danh sách phòng chat sau khi lọc theo Tab (Tất cả / Chưa đọc) và Từ khóa tìm kiếm
- */
-const displayRooms = computed(() => {
-  let list = [...chatStore.rooms]
-
-  // Luôn sắp xếp phòng có hoạt động mới nhất lên vị trí đầu tiên (giống như khi có tin nhắn mới)
-  list.sort((a, b) => {
-    const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
-    const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
-    return timeB - timeA
-  })
-
-  if (activeFilter.value === 'Unread') {
-    list = list.filter((r) => r.hasUnread || (r.unreadCount && r.unreadCount > 0))
-  }
-
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q) {
-    list = list.filter(
-      (r) =>
-        (r.roomName && r.roomName.toLowerCase().includes(q)) ||
-        (r.lastMessageContent && r.lastMessageContent.toLowerCase().includes(q)),
-    )
-  }
-
-  return list
-})
 </script>
 
 <template>
@@ -220,19 +180,19 @@ const displayRooms = computed(() => {
         <font-awesome-icon icon="plus"></font-awesome-icon>
       </section>
     </section>
-    <div class="search_bar"><SearchBar v-model="searchQuery"></SearchBar></div>
+    <div class="search_bar"><SearchBar v-model="chatStore.searchQuery"></SearchBar></div>
     <div class="filter">
       <div
         class="SelectedFilter"
-        :class="{ active: activeFilter === 'SelectAll' }"
-        @click="activeFilter = 'SelectAll'"
+        :class="{ active: chatStore.currentFilter === 'SelectAll' }"
+        @click="chatStore.currentFilter = 'SelectAll'"
       >
         Tất cả
       </div>
       <div
         class="SelectedFilter"
-        :class="{ active: activeFilter === 'Unread' }"
-        @click="activeFilter = 'Unread'"
+        :class="{ active: chatStore.currentFilter === 'Unread' }"
+        @click="chatStore.currentFilter = 'Unread'"
       >
         Chưa đọc
       </div>
@@ -240,7 +200,7 @@ const displayRooms = computed(() => {
     <span>GẦN ĐÂY</span>
     <div class="ChatList">
       <ChatItem
-        v-for="c in displayRooms"
+        v-for="c in chatStore.filteredRooms"
         :key="c.roomId"
         :name="c.roomName || 'Cuộc trò chuyện'"
         :avatar="resolveFileUrl(c.roomAvatarURL || c.avatarUrl || '')"

@@ -1,6 +1,10 @@
 import { http } from './http'
 import { resolveFileUrl } from './storage.api'
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: API QUẢN LÝ BẠN BÈ & LỜI MỜI KẾT BẠN
+// █████████████████████████████████████████████████████████████████████████████
+
 export const getFriends = ({ page = 0, size = 100 } = {}) =>
   http.get('/friendships', { params: { status: 'ACCEPTED', page, size } }).then((r) => r.data.data)
 
@@ -25,6 +29,10 @@ export const cancelFriendRequest = (friendshipId) =>
 export const getFriendshipStatus = (userId) =>
   http.get(`/friendships/status/${userId}`).then((r) => r.data.data)
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: API CHẶN & BỎ CHẶN NGƯỜI DÙNG (BLOCK / UNBLOCK)
+// █████████████████████████████████████████████████████████████████████████████
+
 export const blockUser = (userIdOrContact) => {
   const userId =
     typeof userIdOrContact === 'object' && userIdOrContact !== null
@@ -45,6 +53,11 @@ export const getBlockedUsers = ({ page = 0, size = 50 } = {}) =>
   http.get('/friendships', { params: { status: 'BLOCKED', page, size } }).then((r) => r.data.data)
 
 export const blockFriendship = blockUser
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU DANH BẠ & TRẠNG THÁI ONLINE
+// █████████████████████████████████████████████████████████████████████████████
+
 // Coi là online nếu lastSeenAt trong vòng 5 phút gần nhất
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
 

@@ -3,16 +3,16 @@
  * =========================================================================
  * View: ChatView.vue
  * =========================================================================
- * - Màn hình chính của ứng dụng Chat (Bố cục 3 cột: NavigationSidebar | ChatListSidebar | ChatView).
- * - Kết nối dữ liệu phòng đang mở (activeRoom), danh sách tin nhắn (messages), và tin ghim (pinnedMessages).
- * - Tự động cuộn xuống đáy khi có tin nhắn mới hoặc khi chuyển phòng (scrollToBottom).
- * - Tự động cuộn mượt và highlight tới tin nhắn khi bấm vào thanh ghim (handleScrollToMessage).
- * - Lắng nghe sự kiện ghim/bỏ ghim tin nhắn bất kỳ (handleTogglePin).
- * - Hiển thị trạng thái đang gõ phím của đối phương với hiệu ứng chấm nhảy (Typing indicator).
+ * - PHẦN 1: KHỞI TẠO STORE, SIDEBAR PHẢI, TÌM KIẾM & MODAL (REMINDER / THÀNH VIÊN)
+ * - PHẦN 2: TRẠNG THÁI ONLINE / OFFLINE, ĐỊNH DẠNG THỜI GIAN & GỘP BONG BÓNG CHAT
+ * - PHẦN 3: THÔNG BÁO HỆ THỐNG, GHIM, CHỈNH SỬA, THU HỒI, TRẢ LỜI & LỊCH SỬ SỬA
+ * - PHẦN 4: HỆ THỐNG TRẠNG THÁI ĐÃ GỬI / ĐÃ NHẬN / ĐÃ XEM (MESSAGE RECEIPTS)
+ * - PHẦN 5: CUỘN KHUNG CHAT, PHÂN TRANG 2 CHIỀU & NHẢY TỚI TIN NHẮN (SCROLL & JUMP)
+ * - PHẦN 6: VÒNG ĐỜI COMPONENT & WATCHERS ĐỒNG BỘ TỰ ĐỘNG (LIFECYCLE & WATCHERS)
  */
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useChatStore } from '@/stores/chat'
+import { useChatStore, formatSystemMessageText } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import PinnedMessage from '@/components/chat/PinnedMessage.vue'
@@ -25,53 +25,256 @@ import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
 import MessageHistoryModal from '@/components/chat/MessageHistoryModal.vue'
 import AddMemberModal from '@/components/chat/AddMemberModal.vue'
 import CreateReminderModal from '@/components/chat/CreateReminderModal.vue'
+import CreatePollModal from '@/components/chat/CreatePollModal.vue'
+import PollMessageCard from '@/components/chat/PollMessageCard.vue'
+import PollDetailModal from '@/components/chat/PollDetailModal.vue'
 import MediaLightboxModal from '@/components/chat/MediaLightboxModal.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import { resolveFileUrl } from '@/api/storage.api';
+import {
+  scorePoll,
+  detectPollFromConversation,
+  isEligibleForPollButton,
+} from '@/utils/intent-detection'
+
+// =============================================================================
+// ███  PHẦN 1: KHỞI TẠO STORE, SIDEBAR PHẢI, TÌM KIẾM & MODAL (REMINDER)  █████
+// =============================================================================
 
 const chatStore = useChatStore()
 const authStore = useAuthStore()
-const chatBodyRef = ref(null) // Tham chiếu tới vùng cuộn tin nhắn (.chat-body)
-const isLoadingOlder = ref(false) // Cờ chặn scrollToBottom khi tải tin nhắn cũ
-const showScrollBottomBtn = ref(false) // Trạng thái hiển thị nút cuộn xuống đáy
-const isSmoothScrollingToBottom = ref(false) // Cờ hiệu ứng cuộn mượt về đáy tin nhắn mới nhất
-const ticker = ref(Date.now()) // Bộ đếm thời gian cập nhật lại thời gian offline mỗi 30 giây
-let tickerTimer = null
-let previousLastMessageId = null // Lưu id của tin nhắn cuối cùng để phân biệt tải tin cũ vs tin nhắn mới
-
-// Quản lý popup lịch sử chỉnh sửa tin nhắn
-const showHistoryModal = ref(false)
-const selectedHistoryList = ref([])
-const historyCurrentContent = ref('')
-const historySenderName = ref('')
 
 // Quản lý tìm kiếm tin nhắn trong phòng (In-Room Message Search)
 const showSearchBar = ref(false)
 const currentSearchKeyword = ref('')
 
-// Quản lý thanh thông tin phòng chat bên phải (Chat Info Sidebar)
+// Quản lý thanh thông tin phòng chat bên phải (Chat Info Sidebar) & Modal Thêm thành viên / Tạo lịch hẹn
 const isInfoSidebarOpen = ref(localStorage.getItem('isChatInfoSidebarOpen') === 'true')
-const currentRoomMembers = ref([])
 const isNotificationMuted = ref(false)
 const showAddMemberModal = ref(false)
 const showCreateReminderModal = ref(false)
+const showCreatePollModal = ref(false)
 
-// Kiểm tra quyền Admin/Owner của người dùng hiện tại trong phòng đang mở
-const canManageCurrentRoom = computed(() => {
-  const myId = authStore.user?.userId
-  if (!myId || !Array.isArray(currentRoomMembers.value)) return false
-  const me = currentRoomMembers.value.find((m) => String(m.userId) === String(myId))
-  const role = me?.role || me?.roomMemberRole
-  return role === 'ADMIN' || role === 'OWNER'
+// State quản lý Gợi ý Poll bằng AI
+const pollPrefillData = ref(null)
+const suggestingPollMessageId = ref(null) // ID tin nhắn đang loading gợi ý poll
+const conversationClusterAnchorIds = ref(new Set()) // Lưu các anchorId từ phát hiện cụm hội thoại
+const aiSuggestionCache = new Map() // Cache gợi ý AI theo "POLL:msgId" hoặc "REMINDER:msgId"
+
+// Quản lý Modal Xem chi tiết bình chọn (được nâng lên cấp ChatView để không bị unmount khi danh sách tin nhắn thay đổi)
+const activeDetailPollId = ref(null)
+const showPollDetailModal = ref(false)
+const detailClosingPoll = ref(false)
+
+const activeDetailPoll = computed(() => {
+  if (!activeDetailPollId.value) return null
+  const rId = String(chatStore.activeRoomId || '')
+  const list = chatStore.pollsByRoom[rId] || []
+  return list.find((p) => String(p.pollId) === String(activeDetailPollId.value)) || null
 })
+
+const handleOpenPollDetail = (poll) => {
+  if (!poll?.pollId) return
+  activeDetailPollId.value = poll.pollId
+  showPollDetailModal.value = true
+}
+
+const handleDetailToggleOption = async (option) => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive || !option) return
+  const pollId = poll.pollId
+  const roomId = chatStore.activeRoomId
+  if (!pollId || !roomId) return
+
+  let wantedOptionIds = []
+  const currentVotedIds = (poll.options || [])
+    .filter((o) => o.votedByMe)
+    .map((o) => o.pollOptionId)
+
+  if (option.votedByMe) {
+    wantedOptionIds = currentVotedIds.filter((id) => id !== option.pollOptionId)
+  } else {
+    wantedOptionIds = [...currentVotedIds, option.pollOptionId]
+  }
+
+  try {
+    await chatStore.voteRoomPoll(roomId, pollId, wantedOptionIds)
+  } catch (err) {
+    console.error('Lỗi bỏ phiếu từ modal chi tiết:', err)
+  }
+}
+
+const handleDetailAddOption = async (text) => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive || !text) return
+  try {
+    await chatStore.addOptionToRoomPoll(chatStore.activeRoomId, poll.pollId, text)
+  } catch (err) {
+    console.error('Lỗi thêm phương án từ modal chi tiết:', err)
+  }
+}
+
+const handleDetailClosePoll = async () => {
+  const poll = activeDetailPoll.value
+  if (!poll || !poll.isActive) return
+  if (!confirm('Bạn có chắc chắn muốn kết thúc cuộc bình chọn này không?')) return
+
+  try {
+    detailClosingPoll.value = true
+    await chatStore.closeRoomPoll(chatStore.activeRoomId, poll.pollId)
+  } catch (err) {
+    console.error('Lỗi đóng poll từ modal chi tiết:', err)
+  } finally {
+    detailClosingPoll.value = false
+  }
+}
+
+// Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
+const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value))
 
 const handleOpenCreateReminder = async () => {
   if (!chatStore.activeRoomId) return
-  if (chatStore.activeRoom?.roomType === 'GROUP' && currentRoomMembers.value.length === 0) {
-    await fetchCurrentRoomMembers()
+  if (chatStore.activeRoom?.roomType === 'GROUP' && chatStore.activeRoomMembers.length === 0) {
+    await chatStore.fetchRoomMembers(chatStore.activeRoomId)
   }
   showCreateReminderModal.value = true
+}
+
+const handleOpenCreatePoll = () => {
+  if (!chatStore.activeRoomId) return
+  pollPrefillData.value = null
+  showCreatePollModal.value = true
+}
+
+/// ---- XỬ LÝ AI CHO POLL ---- ///
+// Tập hợp các messageId đã từng làm nguồn cho Poll (lấy từ dữ liệu liên kết nếu có)
+const usedAsPollSourceSet = computed(() => {
+  const rId = String(chatStore.activeRoomId || '')
+  const polls = chatStore.pollsByRoom[rId] || []
+  const set = new Set()
+  polls.forEach((p) => {
+    if (p.messageId) set.add(String(p.messageId))
+    if (Array.isArray(p.sourceMessageIds)) {
+      p.sourceMessageIds.forEach((id) => set.add(String(id)))
+    }
+  })
+  return set
+})
+
+// Bộ nhớ đệm tính điểm regex cho từng tin nhắn (tránh tính lại khi render)
+const messagePollScores = new Map()
+
+// Kiểm tra xem tin nhắn có nên hiển thị nút Tạo poll (tại hàng thời gian) hay không
+const shouldShowPollButtonForMessage = (msg) => {
+  if (!msg || !msg.messageId || !msg.content) return false
+  if (chatStore.activeRoom?.roomType === 'DIRECT') return false // Direct chat không có poll
+
+  const msgId = String(msg.messageId)
+
+  // 1. Kiểm tra điều kiện hợp lệ chung
+  const eligible = isEligibleForPollButton(
+    {
+      type: msg.messageType,
+      revoked: Boolean(msg.isRevoked),
+      createdAt: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+      id: msgId,
+    },
+    {
+      usedAsPollSource: usedAsPollSourceSet.value,
+    },
+  )
+  if (!eligible) return false
+
+  // 2. Nếu nằm trong danh sách anchor của cụm hội thoại -> hiện nút
+  if (conversationClusterAnchorIds.value.has(msgId)) {
+    return true
+  }
+
+  // 3. Chấm điểm theo từng tin (cache lại kết quả)
+  if (!messagePollScores.has(msgId)) {
+    const res = scorePoll(msg.content)
+    messagePollScores.set(msgId, res.shouldSuggest)
+  }
+  return messagePollScores.get(msgId)
+}
+
+// Bắt cụm hội thoại khi danh sách tin nhắn thay đổi
+watch(
+  () => chatStore.messages.length,
+  () => {
+    if (chatStore.activeRoom?.roomType === 'DIRECT') return
+    const rawList = chatStore.messages || []
+    if (rawList.length < 3) return
+
+    const normalizedMsgs = rawList.map((m) => ({
+      id: String(m.messageId),
+      senderId: String(m.sender?.userId || m.senderId || ''),
+      text: m.content || '',
+      createdAt: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+      type: m.messageType || 'TEXT',
+      revoked: Boolean(m.isRevoked),
+    }))
+
+    const cluster = detectPollFromConversation(normalizedMsgs)
+    if (cluster && cluster.anchorId) {
+      conversationClusterAnchorIds.value.add(String(cluster.anchorId))
+    }
+  },
+  { immediate: true },
+)
+
+// Xử lý khi người dùng bấm nút Tạo poll từ tin nhắn (hoặc menu 3 chấm)
+const handleSuggestPollFromMessage = async (messageId) => {
+  if (!chatStore.activeRoomId || !messageId) return
+  if (suggestingPollMessageId.value) return // Đang phân tích
+
+  const cacheKey = `POLL:${messageId}`
+  if (aiSuggestionCache.has(cacheKey)) {
+    pollPrefillData.value = aiSuggestionCache.get(cacheKey)
+    showCreatePollModal.value = true
+    return
+  }
+
+  try {
+    suggestingPollMessageId.value = messageId
+    const res = await chatStore.suggestAiContent(chatStore.activeRoomId, 'POLL', messageId)
+
+    if (res && res.found && res.data) {
+      const dataToFill = {
+        question: res.data.question || '',
+        options: res.data.options || ['', ''],
+        sourceMessageIds: res.sourceMessageIds || [messageId],
+        isAiGenerated: true,
+      }
+      aiSuggestionCache.set(cacheKey, dataToFill)
+      pollPrefillData.value = dataToFill
+      showCreatePollModal.value = true
+    } else {
+      // AI không phát hiện đủ phương án -> mở modal với câu hỏi là nội dung tin nhắn để tạo thủ công
+      const targetMsg = chatStore.messages.find((m) => String(m.messageId) === String(messageId))
+      pollPrefillData.value = {
+        question: targetMsg?.content ? targetMsg.content.slice(0, 100) : '',
+        options: ['', ''],
+        sourceMessageIds: [messageId],
+        isAiGenerated: false,
+      }
+      showCreatePollModal.value = true
+    }
+  } catch (err) {
+    console.error('Lỗi nhận diện bình chọn bằng AI:', err)
+    const targetMsg = chatStore.messages.find((m) => String(m.messageId) === String(messageId))
+    pollPrefillData.value = {
+      question: targetMsg?.content ? targetMsg.content.slice(0, 100) : '',
+      options: ['', ''],
+      sourceMessageIds: [messageId],
+      isAiGenerated: false,
+    }
+    showCreatePollModal.value = true
+  } finally {
+    suggestingPollMessageId.value = null
+  }
 }
 
 // Quản lý trình xem ảnh / video toàn màn hình (Media Lightbox)
@@ -135,22 +338,9 @@ const handleOpenMediaPreview = (targetMedia) => {
   showMediaLightbox.value = true
 }
 
-const handleMemberAdded = () => {
-  fetchCurrentRoomMembers()
-}
-
-const fetchCurrentRoomMembers = async () => {
-  if (!chatStore.activeRoomId) {
-    currentRoomMembers.value = []
-    return
-  }
-  try {
-    const list = await getRoomMembers(chatStore.activeRoomId)
-    currentRoomMembers.value = Array.isArray(list) ? list : []
-  } catch (err) {
-    console.error('Lỗi lấy danh sách thành viên phòng:', err)
-    currentRoomMembers.value = []
-  }
+const refreshRoomMembers = async () => {
+  if (!chatStore.activeRoomId) return
+  await chatStore.fetchRoomMembers(chatStore.activeRoomId)
 }
 
 const handleToggleSearch = () => {
@@ -167,14 +357,18 @@ const handleCloseSearch = () => {
   currentSearchKeyword.value = ''
 }
 
+const handleUpdateSearchKeyword = (keyword) => {
+  currentSearchKeyword.value = keyword
+}
+
 const handleToggleInfo = () => {
   isInfoSidebarOpen.value = !isInfoSidebarOpen.value
   localStorage.setItem('isChatInfoSidebarOpen', String(isInfoSidebarOpen.value))
   if (isInfoSidebarOpen.value) {
     showSearchBar.value = false
     currentSearchKeyword.value = ''
-    fetchCurrentRoomMembers()
     if (chatStore.activeRoomId) {
+      chatStore.fetchRoomMembers(chatStore.activeRoomId)
       chatStore.fetchRoomMedia(chatStore.activeRoomId)
     }
   }
@@ -185,11 +379,22 @@ const handleCloseInfo = () => {
   localStorage.setItem('isChatInfoSidebarOpen', 'false')
 }
 
-// Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
-const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value))
-
 const handleMuteNotification = (isMuted) => {
   isNotificationMuted.value = isMuted
+}
+
+const handleGlobalKeyDown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault()
+    isInfoSidebarOpen.value = false
+    showSearchBar.value = true
+  } else if (e.key === 'Escape') {
+    if (showSearchBar.value) {
+      handleCloseSearch()
+    } else if (isInfoSidebarOpen.value) {
+      handleCloseInfo()
+    }
+  }
 }
 
 // Tổng hợp danh sách File phương tiện (Ảnh, Video, Tài liệu) từ Pinia Store (Toàn bộ trong phòng)
@@ -253,23 +458,23 @@ const roomMediaData = computed(() => {
   return { images, videos, files }
 })
 
-const handleUpdateSearchKeyword = (keyword) => {
-  currentSearchKeyword.value = keyword
-}
+// =============================================================================
+// ██  PHẦN 2: ONLINE/OFFLINE, ĐỊNH DẠNG THỜI GIAN & GỘP BONG BÓNG TIN NHẮN  ███
+// =============================================================================
 
-const handleGlobalKeyDown = (e) => {
-  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
-    e.preventDefault()
-    isInfoSidebarOpen.value = false
-    showSearchBar.value = true
-  } else if (e.key === 'Escape') {
-    if (showSearchBar.value) {
-      handleCloseSearch()
-    } else if (isInfoSidebarOpen.value) {
-      handleCloseInfo()
-    }
+const ticker = ref(Date.now()) // Bộ đếm thời gian cập nhật lại thời gian offline mỗi 30 giây
+let tickerTimer = null
+
+/**
+ * Chuẩn hóa URL hiển thị ảnh (Avatar hoặc hình ảnh đính kèm)
+ */
+const getImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
+    return path;
   }
-}
+  return resolveFileUrl(path);
+};
 
 /**
  * Định dạng trạng thái hiện diện (Online / Offline / Thời gian offline)
@@ -311,66 +516,6 @@ const formatPresenceStatus = (room) => {
   }
   const diffDays = Math.floor(diffHours / 24)
   return `Đã offline ${diffDays} ngày trước`
-}
-
-let scrollToBottomTimer1 = null
-let scrollToBottomTimer2 = null
-const isJumpingToMessage = ref(false) // Khóa cuộn tự động khi đang nhảy tới tin nhắn ghim/reply/reminder
-const isJumpingContextBadge = ref(false) // Hiển thị badge nhỏ khi đang tải ngữ cảnh tin nhắn ở xa
-let jumpLockTimer = null
-let jumpRecenterTimer = null
-
-/**
- * Cuộn khung chat xuống sát đáy mượt mà và chuẩn xác sau khi DOM cập nhật
- * (Có nhịp chờ dự phòng 60ms và 180ms để đảm bảo các badge thông báo hệ thống và avatar render xong vẫn chạm sát đáy)
- */
-const scrollToBottom = async () => {
-  //Chan ngay neu dang trong qua trinh tai tin nhan cu hoac dang nhay toi tin nhan ghim
-  if (
-    isLoadingOlder.value ||
-    chatStore.isLoadingOlder ||
-    isJumpingToMessage.value ||
-    chatStore.isJumpingToContext
-  ) {
-    return
-  }
-  
-  //uy timer cu con dang xep hang cho chay => Ngan xung dot cac lan goi cuon
-  if (scrollToBottomTimer1) clearTimeout(scrollToBottomTimer1)
-  if (scrollToBottomTimer2) clearTimeout(scrollToBottomTimer2)
-
-  await nextTick()
-  if (
-    chatBodyRef.value &&
-    !isLoadingOlder.value &&
-    !chatStore.isLoadingOlder &&
-    !isJumpingToMessage.value &&
-    !chatStore.isJumpingToContext
-  ) {
-    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
-  }
-  scrollToBottomTimer1 = setTimeout(() => {
-    if (
-      chatBodyRef.value &&
-      !isLoadingOlder.value &&
-      !chatStore.isLoadingOlder &&
-      !isJumpingToMessage.value &&
-      !chatStore.isJumpingToContext
-    ) {
-      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
-    }
-  }, 60)
-  scrollToBottomTimer2 = setTimeout(() => {
-    if (
-      chatBodyRef.value &&
-      !isLoadingOlder.value &&
-      !chatStore.isLoadingOlder &&
-      !isJumpingToMessage.value &&
-      !chatStore.isJumpingToContext
-    ) {
-      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
-    }
-  }, 180)
 }
 
 /**
@@ -589,59 +734,105 @@ const getGroupPosition = (idx) => {
   return 'single'
 }
 
+// =============================================================================
+// ███  PHẦN 3: THÔNG BÁO HỆ THỐNG, GHIM, SỬA, THU HỒI, TRẢ LỜI & LỊCH SỬ  ████
+// =============================================================================
 
+// Quản lý popup lịch sử chỉnh sửa tin nhắn
+const showHistoryModal = ref(false)
+const selectedHistoryList = ref([])
+const historyCurrentContent = ref('')
+const historySenderName = ref('')
 
-onMounted(async () => {
-  // 1. Tải thông tin tài khoản nếu chưa có
-  if (!authStore.user) {
-    await authStore.initUser()
+/**
+ * Lấy icon tương ứng cho loại tin nhắn hệ thống:
+ * - Rời nhóm: 'right-from-bracket'
+ * - Xóa thành viên: 'user-minus'
+ * - Bật/tắt phê duyệt thành viên: 'user-shield'
+ * - Thêm thành viên / Phê duyệt vào nhóm: 'user-plus'
+ * - Bình chọn: 'chart-simple'
+ * - Khóa bình chọn: 'lock'
+ * - Ghim / Bỏ ghim tin nhắn: 'thumbtack'
+ */
+const getSystemMessageIcon = (msg) => {
+  const content = msg?.content || ''
+  if (content.includes('rời khỏi nhóm')) {
+    return 'right-from-bracket'
   }
-  // 2. Kích hoạt kết nối WebSocket STOMP
-  const token = authStore.accessToken || localStorage.getItem('accessToken')
-  if (token) {
-    initGlobalWebSocket(token)
+  if (content.includes('đã xóa')) {
+    return 'user-minus'
   }
-  // 3. Tải tin nhắn, tin ghim, lịch hẹn và toàn bộ file phương tiện của phòng đang mở
-  if (chatStore.activeRoomId) {
-    if (chatStore.messages.length === 0) {
-      await chatStore.fetchMessages(chatStore.activeRoomId)
+  if (content.includes('phê duyệt thành viên mới')) {
+    return 'user-shield'
+  }
+  if (content.includes('thêm phương án') || content.includes('cuộc bình chọn') || content.includes('bình chọn')) {
+    if (content.includes('đã khóa') || content.includes('đã khoá')) {
+      return 'lock'
     }
-    await Promise.all([
-      chatStore.fetchPinnedMessages(chatStore.activeRoomId),
-      chatStore.fetchRoomMedia(chatStore.activeRoomId),
-      chatStore.fetchRoomReminders(chatStore.activeRoomId),
-    ])
-    await chatStore.markRoomAsRead(chatStore.activeRoomId)
-    if (isInfoSidebarOpen.value) {
-      fetchCurrentRoomMembers()
+    return 'chart-simple'
+  }
+  if (content.includes('thêm') || content.includes('vào nhóm') || content.includes('phê duyệt')) {
+    return 'user-plus'
+  }
+  return 'thumbtack'
+}
+
+// Kiểm tra tin nhắn POLL có phải là tin nhắn POLL mới nhất của cuộc bình chọn này hay không
+const isLatestPollMessage = (msg) => {
+  if (!msg || msg.messageType !== 'POLL') return false
+  const p = chatStore.getPollForMessage(msg)
+  if (!p) return true
+  // Duyệt từ cuối messages lên, tin nhắn đầu tiên có type == 'POLL' khớp với poll này là tin nhắn mới nhất
+  const msgs = chatStore.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m.messageType === 'POLL') {
+      const targetP = chatStore.getPollForMessage(m)
+      if (targetP && String(targetP.pollId) === String(p.pollId)) {
+        return String(m.messageId) === String(msg.messageId)
+      }
     }
   }
-  await scrollOrJumpToLatestActivity()
+  return true
+}
 
-  // 4. Kích hoạt timer cập nhật trạng thái offline mỗi 30s
-  tickerTimer = setInterval(() => {
-    ticker.value = Date.now()
-  }, 30000)
-
-  // 5. Lắng nghe phím tắt Ctrl+F / Cmd+F mở thanh tìm kiếm
-  window.addEventListener('keydown', handleGlobalKeyDown)
-})
-
-onUnmounted(() => {
-  if (tickerTimer) clearInterval(tickerTimer)
-  window.removeEventListener('keydown', handleGlobalKeyDown)
-})
-
-// Đóng và xóa từ khóa tìm kiếm khi chuyển phòng chat, tải lại thành viên nếu đang mở Info
-watch(
-  () => chatStore.activeRoomId,
-  (newId) => {
-    handleCloseSearch()
-    if (isInfoSidebarOpen.value && newId) {
-      fetchCurrentRoomMembers()
+const getLatestPollMessageId = (msg) => {
+  if (!msg || msg.messageType !== 'POLL') return null
+  const p = chatStore.getPollForMessage(msg)
+  if (!p) return msg.messageId
+  const msgs = chatStore.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m.messageType === 'POLL') {
+      const targetP = chatStore.getPollForMessage(m)
+      if (targetP && String(targetP.pollId) === String(p.pollId)) {
+        return m.messageId
+      }
     }
-  },
-)
+  }
+  return msg.messageId
+}
+
+const scrollToLatestPoll = (msg) => {
+  const targetId = getLatestPollMessageId(msg)
+  if (targetId) {
+    handleScrollToMessage(targetId)
+  }
+}
+
+/**
+ * Định dạng nội dung tin nhắn hệ thống (SYSTEM) thông qua hàm dùng chung của chatStore
+ */
+const formatSystemMessageContent = (msg) => {
+  if (!msg) return ''
+  return formatSystemMessageText(msg.content, {
+    senderUserId: msg.sender?.userId,
+    senderName: msg.sender?.username,
+    actorUsername: msg.actorUsername,
+    currentUser: authStore.user,
+    isPreview: false,
+  })
+}
 
 /**
  * Xử lý sự kiện Ghim hoặc Bỏ ghim tin nhắn bất kỳ từ danh sách tin nhắn
@@ -659,41 +850,7 @@ const handleTogglePin = async (messageId) => {
 
 const isGroupChangeSystemMessage = (msg) => {
   const content = msg?.content || ''
-  return content.includes('đã đổi tên nhóm') || content.includes('đã thay đổi ảnh đại diện');
-}
-
-/**
- * Định dạng nội dung tin nhắn hệ thống (SYSTEM):
- * Nếu là do chính mình thực hiện -> hiển thị "Bạn đã ghim/bỏ ghim một tin nhắn"
- * Nếu là thành viên khác -> hiển thị đúng tên thành viên đó
- */
-const formatSystemMessageContent = (msg) => {
-  if (!msg) return ''
-  const myUsername = authStore.user?.username
-  const myUserId = authStore.user?.userId
-  const content = msg.content || ''
-
-  const isMe =
-    (myUserId && msg.sender?.userId && String(msg.sender.userId) === String(myUserId)) ||
-    (myUsername && msg.sender?.username === myUsername) ||
-    msg.actorUsername === 'Bạn' ||
-    (myUsername && typeof content === 'string' && content.startsWith(myUsername))
-
-  if (isMe) {
-    if (content.includes('bỏ') || content.includes('gỡ')) {
-      return 'Bạn đã bỏ ghim một tin nhắn'
-    }
-    if (content.includes('ghim')) {
-      return 'Bạn đã ghim một tin nhắn'
-    }
-    if (content.includes('đã đổi tên nhóm thành')) {
-      return content.replace(new RegExp('^' + (myUsername || '')), 'Bạn')
-    }
-    if (content.includes('đã thay đổi ảnh đại diện nhóm')) {
-      return 'Bạn đã thay đổi ảnh đại diện nhóm'
-    }
-  }
-  return content
+  return content.includes('đã đổi tên nhóm') || content.includes('đã thay đổi ảnh đại diện')
 }
 
 /**
@@ -736,8 +893,216 @@ const handleReplyMessage = (message) => {
   chatStore.setReplyingMessage(message)
 }
 
+
+
+// =============================================================================
+// ████  PHẦN 4: HỆ THỐNG TRẠNG THÁI ĐÃ GỬI / ĐÃ NHẬN / ĐÃ XEM (RECEIPTS)  █████
+// =============================================================================
+
+// Map tra cứu nhanh vị trí (index) của từng messageId trong danh sách messages hiện tại
+const messageIndexById = computed(() => {
+  const map = new Map()
+  ;(chatStore.messages || []).forEach((m, index) => {
+    if (m?.messageId) {
+      map.set(String(m.messageId), index)
+    }
+  })
+  return map
+})
+
+// Tìm ID của tin nhắn thực tế cuối cùng do chính mình gửi trong phòng
+const lastMyMessageId = computed(() => {
+  const list = chatStore.messages || []
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i]
+    if (
+      m &&
+      !m.isEvent &&
+      m.messageType !== 'SYSTEM' &&
+      !m.isRevoked &&
+      isMyMessage(m) &&
+      m.messageId
+    ) {
+      return String(m.messageId)
+    }
+  }
+  return null
+})
+
+// Danh sách các thành viên khác trong phòng (không tính chính mình)
+const otherRoomMembers = computed(() => {
+  const myId = authStore.user?.userId
+  return (chatStore.activeRoomMembers || []).filter(
+    (m) => !myId || String(m.userId) !== String(myId),
+  )
+})
+
+/**
+ * Tính toán thông tin Receipt hiển thị dưới tin nhắn:
+ * - Tin nhắn cuối cùng của mình: hiện 'SENT' (✓ Đã gửi) -> 'DELIVERED' (✓✓ Đã nhận) -> 'SEEN' (✓✓ Đã xem + Avatar stack)
+ * - Tin nhắn trước đó: nếu có thành viên dừng mốc đọc (lastReadMessageId) ngay tại đó thì hiện Avatar nhỏ 'PARKED_SEEN'
+ */
+const getMessageReceiptInfo = (msg, idx) => {
+  if (!msg || msg.isEvent || msg.messageType === 'SYSTEM' || msg.isRevoked || !msg.messageId) {
+    return null
+  }
+  const msgIdStr = String(msg.messageId)
+  const indexMap = messageIndexById.value
+  const others = otherRoomMembers.value
+
+  // Trường hợp 1: Đây là tin nhắn mới nhất do chính mình gửi
+  if (lastMyMessageId.value && msgIdStr === lastMyMessageId.value) {
+    if (String(msgIdStr).startsWith('mock-')) {
+      return {
+        type: 'SENT',
+        seenUsers: [],
+        tooltip: 'Đã gửi tin nhắn',
+      }
+    }
+
+    const seenUsers = []
+    const deliveredUsers = []
+
+    others.forEach((member) => {
+      const readId = member.lastReadMessageId ? String(member.lastReadMessageId) : null
+      const delivId = member.lastDeliveredMessageId ? String(member.lastDeliveredMessageId) : null
+
+      const readIdx = readId && indexMap.has(readId) ? indexMap.get(readId) : -1
+      const delivIdx = delivId && indexMap.has(delivId) ? indexMap.get(delivId) : -1
+
+      const hasRead = readId === msgIdStr || readIdx >= idx
+      const hasDelivered = hasRead || delivId === msgIdStr || delivIdx >= idx
+
+      if (hasRead) {
+        seenUsers.push(member)
+      } else if (hasDelivered) {
+        deliveredUsers.push(member)
+      }
+    })
+
+    if (seenUsers.length > 0) {
+      const names = seenUsers.map((u) => u.username || 'Thành viên').join(', ')
+      return {
+        type: 'SEEN',
+        seenUsers,
+        tooltip: `Đã xem bởi ${names}`,
+      }
+    }
+
+    if (deliveredUsers.length > 0) {
+      const names = deliveredUsers.map((u) => u.username || 'Thành viên').join(', ')
+      return {
+        type: 'DELIVERED',
+        seenUsers: [],
+        tooltip: `Đã nhận bởi ${names}`,
+      }
+    }
+
+    return {
+      type: 'SENT',
+      seenUsers: [],
+      tooltip: 'Đã gửi thành công',
+    }
+  }
+
+  // Trường hợp 2: Các tin nhắn cũ hơn của mình mà có người dừng mốc đọc ngay tại tin nhắn đó
+  if (isMyMessage(msg) && others.length > 0) {
+    const parkedReaders = others.filter(
+      (member) => member.lastReadMessageId && String(member.lastReadMessageId) === msgIdStr,
+    )
+    if (parkedReaders.length > 0) {
+      const names = parkedReaders.map((u) => u.username || 'Thành viên').join(', ')
+      return {
+        type: 'PARKED_SEEN',
+        seenUsers: parkedReaders,
+        tooltip: `Đã xem đến đây: ${names}`,
+      }
+    }
+  }
+
+  return null
+}
+
+// =============================================================================
+// ██  PHẦN 5: CUỘN KHUNG CHAT, PHÂN TRANG 2 CHIỀU & NHẢY TỚI TIN NHẮN (SCROLL) █
+// =============================================================================
+
+const chatBodyRef = ref(null) // Tham chiếu tới vùng cuộn tin nhắn (.chat-body)
+const isLoadingOlder = ref(false) // Cờ chặn scrollToBottom khi tải tin nhắn cũ
+const isLoadingNewer = ref(false) // Cờ đang tải thêm tin nhắn mới hơn ở đáy
+const showScrollBottomBtn = ref(false) // Trạng thái hiển thị nút cuộn xuống đáy
+const isSmoothScrollingToBottom = ref(false) // Cờ hiệu ứng cuộn mượt về đáy tin nhắn mới nhất
+const isJumpingToMessage = ref(false) // Khóa cuộn tự động khi đang nhảy tới tin nhắn ghim/reply/reminder
+const isJumpingContextBadge = ref(false) // Hiển thị badge nhỏ khi đang tải ngữ cảnh tin nhắn ở xa
 const highlightedMessageId = ref(null) // ID tin nhắn đang được nhấp nháy sáng
+
+let previousLastMessageId = null // Lưu id của tin nhắn cuối cùng để phân biệt tải tin cũ vs tin nhắn mới
+let scrollToBottomTimer1 = null
+let scrollToBottomTimer2 = null
+let jumpLockTimer = null
+let jumpRecenterTimer = null
 let highlightTimer = null
+
+/**
+ * Cuộn khung chat xuống sát đáy mượt mà và chuẩn xác sau khi DOM cập nhật
+ * (Có nhịp chờ dự phòng 60ms và 180ms để đảm bảo các badge thông báo hệ thống và avatar render xong vẫn chạm sát đáy)
+ */
+const scrollToBottom = async () => {
+  //Chan ngay neu dang trong qua trinh tai tin nhan cu hoac dang nhay toi tin nhan ghim
+  if (
+    isLoadingOlder.value ||
+    chatStore.isLoadingOlder ||
+    isJumpingToMessage.value ||
+    chatStore.isJumpingToContext
+  ) {
+    return
+  }
+  
+  //uy timer cu con dang xep hang cho chay => Ngan xung dot cac lan goi cuon
+  if (scrollToBottomTimer1) clearTimeout(scrollToBottomTimer1)
+  if (scrollToBottomTimer2) clearTimeout(scrollToBottomTimer2)
+
+  await nextTick()
+  if (
+    chatBodyRef.value &&
+    !isLoadingOlder.value &&
+    !chatStore.isLoadingOlder &&
+    !isJumpingToMessage.value &&
+    !chatStore.isJumpingToContext
+  ) {
+    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+  }
+  scrollToBottomTimer1 = setTimeout(() => {
+    if (
+      chatBodyRef.value &&
+      !isLoadingOlder.value &&
+      !chatStore.isLoadingOlder &&
+      !isJumpingToMessage.value &&
+      !chatStore.isJumpingToContext
+    ) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+    }
+  }, 60)
+  scrollToBottomTimer2 = setTimeout(() => {
+    if (
+      chatBodyRef.value &&
+      !isLoadingOlder.value &&
+      !chatStore.isLoadingOlder &&
+      !isJumpingToMessage.value &&
+      !chatStore.isJumpingToContext
+    ) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+    }
+  }, 180)
+}
+
+/**
+ * Tự động cuộn khung chat xuống đáy khi vào phòng hoặc chuyển phòng
+ * để luôn hiển thị thông tin / tin nhắn / thông báo sự kiện ghim mới nhất
+ */
+const scrollOrJumpToLatestActivity = async () => {
+  await scrollToBottom()
+}
 
 /**
  * Căn giữa phần tử tin nhắn trong vùng cuộn .chat-body
@@ -816,22 +1181,47 @@ const handleScrollToMessage = async (pinnedId) => {
   if (jumpLockTimer) clearTimeout(jumpLockTimer)
   if (jumpRecenterTimer) clearTimeout(jumpRecenterTimer)
 
+  // Nếu là tin nhắn POLL: Tìm tin nhắn POLL mới nhất của cuộc bình chọn này để scroll & highlight trúng thẻ đang hiển thị
+  let targetId = pinnedId
+  const targetMsg = chatStore.messages.find((m) => String(m.messageId) === String(pinnedId))
+  if (targetMsg && targetMsg.messageType === 'POLL') {
+    const poll = chatStore.getPollForMessage(targetMsg)
+    const pollId = poll?.pollId || targetMsg.pollId
+    const question = poll?.question || targetMsg.content
+    const msgs = chatStore.messages || []
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m.messageType === 'POLL') {
+        const mPoll = chatStore.getPollForMessage(m)
+        const mPollId = mPoll?.pollId || m.pollId
+        const mQuestion = mPoll?.question || m.content
+        const isSame =
+          (pollId && mPollId && String(mPollId) === String(pollId)) ||
+          (question && mQuestion && question.trim() === mQuestion.trim())
+        if (isSame) {
+          targetId = m.messageId
+          break
+        }
+      }
+    }
+  }
+
   isJumpingToMessage.value = true
-  const exists = chatStore.messages.some((m) => String(m.messageId) === String(pinnedId))
+  const exists = chatStore.messages.some((m) => String(m.messageId) === String(targetId))
 
   if (exists) {
     await nextTick()
-    scrollToElement(pinnedId, { instantCenter: false })
+    scrollToElement(targetId, { instantCenter: false })
     jumpLockTimer = setTimeout(() => {
       isJumpingToMessage.value = false
     }, 550)
   } else {
     isJumpingContextBadge.value = true
     try {
-      const ok = await chatStore.jumpToPinnedMessageContext(pinnedId)
+      const ok = await chatStore.jumpToPinnedMessageContext(targetId)
       if (ok) {
         await nextTick()
-        scrollToElement(pinnedId, { instantCenter: true })
+        scrollToElement(targetId, { instantCenter: true })
         showScrollBottomBtn.value = true
       }
     } finally {
@@ -842,16 +1232,6 @@ const handleScrollToMessage = async (pinnedId) => {
     }
   }
 }
-
-/**
- * Tự động cuộn khung chat xuống đáy khi vào phòng hoặc chuyển phòng
- * để luôn hiển thị thông tin / tin nhắn / thông báo sự kiện ghim mới nhất
- */
-const scrollOrJumpToLatestActivity = async () => {
-  await scrollToBottom()
-}
-
-const isLoadingNewer = ref(false)
 
 /**
  * Xử lý cuộn tin nhắn hai chiều (Bi-directional Infinite Scroll):
@@ -1022,6 +1402,28 @@ const handleMessageSent = async () => {
   }, 250)
 }
 
+// =============================================================================
+// ████  PHẦN 6: VÒNG ĐỜI COMPONENT & WATCHERS ĐỒNG BỘ TỰ ĐỘNG (LIFECYCLE)  ████
+// =============================================================================
+
+onMounted(async () => {
+  // Khởi tạo phòng đang mở (các dữ liệu rooms, user và WebSocket đã được ChatListSidebar kích hoạt)
+  await scrollOrJumpToLatestActivity()
+
+  // Kích hoạt timer cập nhật trạng thái offline mỗi 30s
+  tickerTimer = setInterval(() => {
+    ticker.value = Date.now()
+  }, 30000)
+
+  // Lắng nghe phím tắt Ctrl+F / Cmd+F mở thanh tìm kiếm
+  window.addEventListener('keydown', handleGlobalKeyDown)
+})
+
+onUnmounted(() => {
+  if (tickerTimer) clearInterval(tickerTimer)
+  window.removeEventListener('keydown', handleGlobalKeyDown)
+})
+
 // Tự động cuộn xuống đáy khi có tin nhắn mới được thêm vào (bỏ qua nếu đang tải tin cũ, tải tin mới hoặc đang xem khúc giữa)
 watch(
   () => chatStore.messages,
@@ -1089,30 +1491,14 @@ watch(
   { deep: false },
 )
 
-/**
- * Chuẩn hóa URL hiển thị ảnh (Avatar hoặc hình ảnh đính kèm)
- */
-const getImageUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
-    return path;
-  }
-  return resolveFileUrl(path);
-};
-
-// Tự động tải tin ghim và điều hướng phù hợp khi chuyển đổi phòng chat
+// Khi chuyển đổi phòng chat: đóng tìm kiếm, đặt lại trạng thái cuộn và cuộn về cuối phòng
+// (Dữ liệu tin nhắn, tin ghim, media, lịch hẹn, thành viên đã được chatStore.selectRoom tải sẵn)
 watch(
   () => chatStore.activeRoomId,
-  async (newRoomId) => {
+  async () => {
+    handleCloseSearch()
     previousLastMessageId = null
     showScrollBottomBtn.value = false
-    if (newRoomId) {
-      await Promise.all([
-        chatStore.fetchPinnedMessages(newRoomId),
-        chatStore.fetchRoomMedia(newRoomId),
-        chatStore.fetchRoomReminders(newRoomId),
-      ])
-    }
     await scrollOrJumpToLatestActivity()
   },
 )
@@ -1127,7 +1513,7 @@ watch(
       <ChatListSidebar></ChatListSidebar>
     </div>
     <div class="chat-view">
-      <div class="chat-main-area">
+      <div v-if="chatStore.activeRoomId && chatStore.activeRoom" class="chat-main-area">
         <ChatHeader
           :RoomName="chatStore.activeRoom?.roomName || 'Cuộc trò chuyện'"
           :avatarUrl="chatStore.activeRoom?.roomAvatarURL || chatStore.activeRoom?.avatarUrl"
@@ -1204,12 +1590,34 @@ watch(
               class="system-message-row chat-event-row"
             >
               <div class="system-message-badge chat-event-pill">
-                <font-awesome-icon v-if="!isGroupChangeSystemMessage(msg)" icon="thumbtack" class="event-pin-icon" />
+                <font-awesome-icon
+                  v-if="!isGroupChangeSystemMessage(msg)"
+                  :icon="getSystemMessageIcon(msg)"
+                  class="event-pin-icon"
+                />
                 <span>{{ formatSystemMessageContent(msg) }}</span>
               </div>
             </div>
 
-            <!-- 2. Dòng tin nhắn thông thường -->
+            <!-- 2. Thẻ bình chọn (POLL): Chặn toàn bộ tin nhắn POLL, chỉ hiển thị thẻ mới nhất căn giữa, thẻ cũ ẩn hoàn toàn -->
+            <div
+              v-else-if="msg.messageType === 'POLL'"
+              :id="msg.messageId ? 'msg-' + msg.messageId : null"
+              class="chat-poll-wrapper-row"
+            >
+              <div v-if="isLatestPollMessage(msg)" class="chat-poll-center-row">
+                <PollMessageCard
+                  :message="msg"
+                  :poll="chatStore.getPollForMessage(msg)"
+                  :current-user-id="authStore.user?.userId"
+                  :can-manage-room="chatStore.canManageActiveRoom"
+                  :is-highlighted="highlightedMessageId === String(msg.messageId)"
+                  @open-detail="handleOpenPollDetail"
+                />
+              </div>
+            </div>
+
+            <!-- 3. Dòng tin nhắn thông thường -->
             <MessageList
               v-else-if="!isLegacyTimeLogMessage(msg)"
               :messageType="msg.messageType"
@@ -1231,7 +1639,9 @@ watch(
                 isMyMessage(msg) ? '' : getImageUrl(msg.sender?.avatar || msg.sender?.avatarUrl)
               "
               :variant="isMyMessage(msg) ? 'SendTo' : 'default'"
-              :canManageRoom="canManageCurrentRoom"
+              :canManageRoom="chatStore.canManageActiveRoom"
+              :showPollSuggestBtn="shouldShowPollButtonForMessage(msg)"
+              :isSuggestingPoll="suggestingPollMessageId === String(msg.messageId)"
               @togglePin="handleTogglePin"
               @editMessage="handleEditMessage"
               @revokeMessage="handleRevokeMessage"
@@ -1239,7 +1649,73 @@ watch(
               @replyMessage="handleReplyMessage"
               @scrollToMessage="handleScrollToMessage"
               @preview-media="handleOpenMediaPreview"
+              @suggestPoll="handleSuggestPollFromMessage"
             />
+
+            <!-- 2.5. Thanh trạng thái Đã gửi / Đã nhận / Đã xem dưới tin nhắn của mình -->
+            <div
+              v-if="!isLegacyTimeLogMessage(msg) && getMessageReceiptInfo(msg, idx)"
+              class="msg-receipt-row"
+            >
+              <Transition name="receipt-fade" mode="out-in">
+                <!-- Trạng thái 1: ĐÃ XEM (SEEN / PARKED_SEEN) -> Chỉ hiển thị avatar nhỏ trần, không chữ, không viền -->
+                <div
+                  v-if="
+                    getMessageReceiptInfo(msg, idx).type === 'SEEN' ||
+                    getMessageReceiptInfo(msg, idx).type === 'PARKED_SEEN'
+                  "
+                  :key="
+                    getMessageReceiptInfo(msg, idx).type +
+                    '-' +
+                    getMessageReceiptInfo(msg, idx).seenUsers.length
+                  "
+                  class="receipt-seen-avatars"
+                  :title="getMessageReceiptInfo(msg, idx).tooltip"
+                >
+                  <div
+                    v-for="reader in getMessageReceiptInfo(msg, idx).seenUsers.slice(0, 4)"
+                    :key="reader.userId"
+                    class="receipt-mini-avatar-wrap"
+                    :title="`Đã xem: ${reader.username}`"
+                  >
+                    <UserAvatar
+                      :name="reader.username || 'U'"
+                      :src="getImageUrl(reader.avatarUrl)"
+                      :size="16"
+                      shape="circle"
+                    />
+                  </div>
+                  <span
+                    v-if="getMessageReceiptInfo(msg, idx).seenUsers.length > 4"
+                    class="receipt-more-count"
+                  >
+                    +{{ getMessageReceiptInfo(msg, idx).seenUsers.length - 4 }}
+                  </span>
+                </div>
+
+                <!-- Trạng thái 2: ĐÃ NHẬN (DELIVERED) -->
+                <div
+                  v-else-if="getMessageReceiptInfo(msg, idx).type === 'DELIVERED'"
+                  key="delivered"
+                  class="receipt-text-status receipt-text--delivered"
+                  :title="getMessageReceiptInfo(msg, idx).tooltip"
+                >
+                  <font-awesome-icon icon="check-double" class="receipt-check-icon" />
+                  <span>Đã nhận</span>
+                </div>
+
+                <!-- Trạng thái 3: ĐÃ GỬI (SENT) -->
+                <div
+                  v-else-if="getMessageReceiptInfo(msg, idx).type === 'SENT'"
+                  key="sent"
+                  class="receipt-text-status receipt-text--sent"
+                  :title="getMessageReceiptInfo(msg, idx).tooltip"
+                >
+                  <font-awesome-icon icon="check" class="receipt-check-icon" />
+                  <span>Đã gửi</span>
+                </div>
+              </Transition>
+            </div>
           </template>
 
           <!-- Chỉ báo đang tải tin nhắn mới hơn khi cuộn xuống dưới (Bi-directional scroll) -->
@@ -1249,7 +1725,7 @@ watch(
           </div>
 
           <!-- Trạng thái đang soạn tin nhắn (Typing indicator) -->
-          <div v-if="chatStore.activeTypingText" class="typing-indicator">
+          <div v-if="chatStore.activeTypingText" class="floating-typing-bar">
             <span class="typing-text">{{ chatStore.activeTypingText }}</span>
             <span class="dots">
               <span class="dot"></span>
@@ -1275,7 +1751,21 @@ watch(
         <ChatInput
           @messageSent="handleMessageSent"
           @openCreateReminder="handleOpenCreateReminder"
+          @openCreatePoll="handleOpenCreatePoll"
         ></ChatInput>
+      </div>
+
+      <!-- Khung hiển thị khi chưa chọn phòng chat hoặc tài khoản mới chưa có cuộc trò chuyện nào -->
+      <div v-else class="chat-empty-area">
+        <div class="chat-empty-card">
+          <div class="empty-icon-bubble">
+            <font-awesome-icon icon="comment" class="empty-comment-icon" />
+          </div>
+          <h2 class="empty-title">Chào mừng đến với BlueSpace!</h2>
+          <p class="empty-desc">
+            Chọn một cuộc trò chuyện từ danh sách bên trái hoặc bấm nút <strong>+</strong> để bắt đầu trò chuyện mới.
+          </p>
+        </div>
       </div>
 
       <!-- Sidebar tìm kiếm tin nhắn bên phải (Search Drawer phong cách Telegram / Discord / Zalo) -->
@@ -1294,12 +1784,15 @@ watch(
         <ChatInfoSidebar
           v-if="isInfoSidebarOpen"
           :room="chatStore.activeRoom || {}"
-          :members="currentRoomMembers"
+          :members="chatStore.activeRoomMembers"
           :media-data="roomMediaData"
           @close="handleCloseInfo"
           @toggle-notification="handleMuteNotification"
           @add-member="showAddMemberModal = true"
           @create-reminder="handleOpenCreateReminder"
+          @create-poll="handleOpenCreatePoll"
+          @jump-to-message="handleScrollToMessage"
+          @members-updated="refreshRoomMembers"
           @preview-media="handleOpenMediaPreview"
         />
       </Transition>
@@ -1312,19 +1805,41 @@ watch(
     :room-id="String(chatStore.activeRoomId || '')"
     :room-type="chatStore.activeRoom?.roomType || 'DIRECT'"
     :room-name="chatStore.activeRoom?.roomName || ''"
-    :members="currentRoomMembers"
+    :members="chatStore.activeRoomMembers"
     :current-user-id="authStore.user?.userId"
     @close="showCreateReminderModal = false"
     @created="handleMessageSent"
+  />
+
+  <!-- Popup Modal tạo bình chọn (Poll) mới -->
+  <CreatePollModal
+    :is-open="showCreatePollModal"
+    :initial-data="pollPrefillData"
+    :room-id="String(chatStore.activeRoomId || '')"
+    @close="showCreatePollModal = false"
+    @created="handleMessageSent"
+  />
+
+  <!-- Popup Modal xem chi tiết bình chọn (đặt tại ChatView để không bị gián đoạn hay đóng khi realtime update) -->
+  <PollDetailModal
+    :is-open="showPollDetailModal"
+    :poll="activeDetailPoll"
+    :current-user-id="authStore.user?.userId"
+    :can-close="chatStore.canManageActiveRoom || activeDetailPoll?.createdById === authStore.user?.userId"
+    :closing-poll="detailClosingPoll"
+    @close="showPollDetailModal = false"
+    @toggle-option="handleDetailToggleOption"
+    @close-poll="handleDetailClosePoll"
+    @add-option="handleDetailAddOption"
   />
 
   <!-- Popup Modal thêm thành viên vào nhóm chat -->
   <AddMemberModal
     :show="showAddMemberModal"
     :roomId="chatStore.activeRoomId || ''"
-    :existingMembers="currentRoomMembers"
+    :existingMembers="chatStore.activeRoomMembers"
     @close="showAddMemberModal = false"
-    @member-added="handleMemberAdded"
+    @member-added="refreshRoomMembers"
   />
 
   <!-- Popup Modal lịch sử các lần chỉnh sửa tin nhắn -->
@@ -1377,12 +1892,66 @@ watch(
   overflow: hidden;
 }
 
+.chat-empty-area {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fd;
+  padding: 40px 20px;
+}
+
+.chat-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  background: #ffffff;
+  padding: 48px 36px;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  border: 1px solid #eef2f6;
+}
+
+.empty-icon-bubble {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-comment-icon {
+  font-size: 32px;
+  color: #4b7bec;
+}
+
+.empty-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+}
+
+.empty-desc {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
 .chat-body {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px;
+  padding: 16px 24px;
 }
 
 .chat-body::-webkit-scrollbar {
@@ -1462,6 +2031,35 @@ watch(
   /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); */
 }
 
+.poll-system-pill {
+  cursor: pointer;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 4px 14px;
+  transition: all 0.2s ease;
+}
+
+.poll-system-pill:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.poll-system-pill .poll-link-action {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-left: 2px;
+}
+
+.poll-system-pill strong {
+  color: #1e293b;
+  font-weight: 700;
+}
+
 .event-pin-icon {
   color: #4b7bec;
   font-size: 11px;
@@ -1483,21 +2081,6 @@ watch(
   width: fit-content;
   align-self: flex-start;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-}
-
-.typing-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  margin: 8px 0 4px 6px;
-  background-color: #ffffff;
-  border: 1px solid #e6eaf2;
-  border-radius: 14px;
-  font-family: 'Quicksand', sans-serif;
-  font-size: 13px;
-  color: #718096;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .typing-text {
@@ -1593,12 +2176,6 @@ watch(
   transform: translateX(-14px);
 }
 
-.chat-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px 24px;
-}
 
 .load-more-container {
   display: flex;
@@ -1752,5 +2329,177 @@ watch(
 .jumping-spinner {
   border-color: rgba(255, 255, 255, 0.35);
   border-top-color: #ffffff;
+}
+
+/* =========================================================================
+   THANH TRẠNG THÁI ĐÃ GỬI / ĐÃ NHẬN / ĐÃ XEM (CĂN THẲNG MÉP PHẢI TIN NHẮN)
+   ========================================================================= */
+.msg-receipt-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  padding: 2px 0 4px 0;
+  margin-top: 0;
+  user-select: none;
+}
+
+/* ĐÃ GỬI / ĐÃ NHẬN: Nhãn chữ gọn nhẹ, không khung viền thô */
+.receipt-text-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 2px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: default;
+}
+
+.receipt-text--sent {
+  color: #94a3b8;
+}
+
+.receipt-text--delivered {
+  color: #64748b;
+}
+
+.receipt-check-icon {
+  font-size: 10px;
+}
+
+/* ĐÃ XEM: Chỉ hiện avatar nhỏ trần dưới mép phải tin nhắn, không chữ, không viền, đè lên 1/4 (-4px) */
+.receipt-seen-avatars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+}
+
+.receipt-mini-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  margin-left: -4px;
+  transition: transform 0.18s ease;
+  animation: popInReceiptAvatar 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.receipt-mini-avatar-wrap:first-child {
+  margin-left: 0;
+}
+
+.receipt-mini-avatar-wrap:hover {
+  transform: scale(1.15) translateY(-1px);
+  z-index: 3;
+}
+
+.receipt-more-count {
+  margin-left: 2px;
+  font-family: 'Quicksand', sans-serif;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+@keyframes popInReceiptAvatar {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.receipt-fade-enter-active,
+.receipt-fade-leave-active {
+  transition: all 0.16s ease;
+}
+
+.receipt-fade-enter-from,
+.receipt-fade-leave-to {
+  opacity: 0;
+  transform: translateY(2px);
+}
+
+/* Khối hiển thị thẻ bình chọn căn giữa 100% dòng chat */
+.chat-poll-center-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+.chat-poll-center-row:empty {
+  display: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Hiệu ứng focus / highlight khi nhảy tới thẻ Poll */
+.chat-poll-wrapper-row.highlight-msg {
+  position: relative;
+  z-index: 15;
+  border-radius: 20px;
+  animation: rowElectricHighlight 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-poll-wrapper-row.highlight-msg :deep(.poll-card) {
+  animation: pollCardElectricBounce 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pollCardElectricBounce {
+  0% {
+    transform: scale(1);
+  }
+  22% {
+    transform: scale(1.03) translateY(-3px);
+    box-shadow:
+      0 0 0 2.5px #ffffff,
+      0 0 0 5px #2563eb,
+      0 14px 30px rgba(37, 99, 235, 0.45);
+  }
+  60% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 2px #ffffff,
+      0 0 0 3.5px rgba(37, 99, 235, 0.35),
+      0 6px 18px rgba(37, 99, 235, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+  }
+}
+
+@keyframes rowElectricHighlight {
+  0% {
+    background-color: rgba(37, 99, 235, 0);
+  }
+  20% {
+    background-color: rgba(37, 99, 235, 0.16);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.16);
+  }
+  50% {
+    background-color: rgba(37, 99, 235, 0.08);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.08);
+  }
+  100% {
+    background-color: rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
 }
 </style>

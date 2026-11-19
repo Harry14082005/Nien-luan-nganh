@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia'
 import * as authApi from '@/api/auth.api'
 import { initGlobalWebSocket, wsService } from '@/services/websocket'
+import { useChatStore } from '@/stores/chat'
+import { useNotificationStore } from '@/stores/notification'
 
 export const useAuthStore = defineStore('auth', {
+  // ███████████████████████████████████████████████████████████████████████████
+  // PHẦN 1: STATE & GETTERS (THÔNG TIN USER & TOKEN ĐĂNG NHẬP)
+  // ███████████████████████████████████████████████████████████████████████████
   state: () => ({
     user: JSON.parse(localStorage.getItem('currentUser') || 'null'),
     accessToken: localStorage.getItem('accessToken'),
@@ -12,6 +17,9 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (s) => !!s.accessToken,
   },
 
+  // ███████████████████████████████████████████████████████████████████████████
+  // PHẦN 2: ACTIONS (LƯU PHIÊN, ĐĂNG NHẬP, ĐĂNG KÝ & ĐĂNG XUẤT)
+  // ███████████████████████████████████████████████████████████████████████████
   actions: {
     saveSession(data) {
       if (!data) return
@@ -41,6 +49,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async login(identifier, password) {
+      const chatStore = useChatStore()
+      chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
       const data = await authApi.login({ identifier, password })
       this.saveSession(data)
       this.user = data?.user ?? (await authApi.getMe())
@@ -53,6 +65,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async register(body) {
+      const chatStore = useChatStore()
+      chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
       const data = await authApi.register(body)
       this.saveSession(data)
       this.user = data?.user ?? (await authApi.getMe())
@@ -71,6 +87,10 @@ export const useAuthStore = defineStore('auth', {
       wsService.disconnect()
       localStorage.clear()
       this.$reset()
+      const chatStore = useChatStore()
+      chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
     },
   },
 })

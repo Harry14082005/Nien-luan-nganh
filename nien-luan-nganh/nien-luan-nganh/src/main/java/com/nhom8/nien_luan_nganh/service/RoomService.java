@@ -8,6 +8,7 @@ import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.entity.User;
+import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomRole;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
@@ -117,9 +118,9 @@ public class RoomService {
         Page<Room> rooms;
 
         if (type == null) {
-            rooms = roomRepository.findDistinctByRoomMembers_User_UserId(currentUserId, pageable);
+            rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndStatus(currentUserId, RoomMemberStatus.ACTIVE, pageable);
         } else {
-            rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndRoomType(currentUserId, type, pageable);
+            rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndRoomTypeAndStatus(currentUserId, type, RoomMemberStatus.ACTIVE, pageable);
         }
 
         if (rooms.isEmpty()) {
@@ -272,6 +273,18 @@ public class RoomService {
         }
     }
 
+    private RoomMember ensureActiveMember(UUID currentUserId, UUID roomId) {
+        RoomMember member = roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+        if (member.getStatus() == RoomMemberStatus.PENDING) {
+            throw new AppException(ErrorCode.ROOM_MEMBER_PENDING);
+        }
+        if (member.getStatus() != RoomMemberStatus.ACTIVE) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+        return member;
+    }
+
     // lấy thông tin phòng
     @Transactional(readOnly = true)
     public RoomDetailResponse getRoom(UUID roomId, UUID currentUserId) {
@@ -280,10 +293,8 @@ public class RoomService {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
 
-        // 2. kiểm tra người dùng có trong room hay không
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        // 2. kiểm tra người dùng có trong room và đang ở trạng thái ACTIVE
+        ensureActiveMember(currentUserId, roomId);
 
         // 3. lấy thông tin phòng
         Room room = roomRepository.findById(roomId).orElseThrow(
@@ -315,12 +326,8 @@ public class RoomService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
-        // 1. Kiểm tra người dùng có phải thành viên của phòng không
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        // 1. Kiểm tra người dùng có phải thành viên Active của phòng không
+        ensureActiveMember(currentUserId, roomId);
 
         // NOTE: tạm thời cho phép thành viên Active đổi avatar nhóm.
         // Khi cần quyền Admin, uncomment đoạn sau:
@@ -386,12 +393,8 @@ public class RoomService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
-        // 1. Kiểm tra người dùng có phải thành viên của phòng không
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        // 1. Kiểm tra người dùng có phải thành viên Active của phòng không
+        ensureActiveMember(currentUserId, roomId);
 
         // NOTE: Tạm thời cho phép thành viên Active đổi tên nhóm.
         // Khi cần kiểm tra quyền Admin, uncomment đoạn sau:

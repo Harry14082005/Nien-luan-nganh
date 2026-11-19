@@ -13,6 +13,7 @@ import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
+import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
@@ -62,11 +63,21 @@ public class MessageService {
     private final RoomService roomService;
     private final FileStorageService fileStorageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PollResourceRepository pollResourceRepository;
+    private final ReminderResourceRepository reminderResourceRepository;
+    private final PollRepository pollRepository;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
     private static final long MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000L;
     private final Map<String, Long> roomMembershipCache = new ConcurrentHashMap<>();
+
+    private record MessageContext(User sender, Room room) {
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 1: GỬI TIN NHẮN (TEXT, IMAGE, FILE & ATTACHMENT) ██████████
+    // =========================================================================
 
     /**
      * Nghiệp vụ 1: Gửi tin nhắn vào phòng chat.
@@ -137,826 +148,11 @@ public class MessageService {
                 : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
         roomService.updateLastActivity(room, savedMessage.getMessageId(), preview, sender, savedMessage.getCreatedAt());
 
-        // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả về cho Controller
+        // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả
+        // về cho Controller
         MessageResponse response = messageMapper.toMessageResponse(savedMessage);
         eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
         return response;
-    }
-
-    /**
-     * Nghiệp vụ 2: Chỉnh sửa nội dung tin nhắn.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
-     * - Chỉ người gửi tin nhắn (Sender) mới có quyền chỉnh sửa.
-     * - Không được sửa tin nhắn đã bị thu hồi (isRevoked = true).
-     * - Chỉ hỗ trợ sửa tin nhắn dạng TEXT.
-     * - Lưu nội dung cũ vào bảng `message_histories` để bảo toàn lịch sử.
-     * - Cập nhật nội dung mới và đánh dấu `isEdited = true`.
-     *
-     * @param currentUserId Khóa chính UUID người dùng thực hiện sửa (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn cần sửa
-     * @param request       Nội dung mới của tin nhắn
-     * @return MessageResponse Chi tiết tin nhắn sau khi chỉnh sửa
-     */
-    @Transactional
-    public MessageResponse updateMessage(UUID currentUserId, UUID roomId, UUID messageId,
-            UpdateMessageRequest request) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn cần chỉnh sửa
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Kiểm tra quyền: Chỉ người gửi tin nhắn mới được phép chỉnh sửa
-        if (!message.getSender().getUserId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.CANNOT_EDIT_MESSAGE);
-        }
-
-        // 7. Kiểm tra trạng thái: Không được sửa tin nhắn đã bị thu hồi
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 8. Chỉ cho phép chỉnh sửa tin nhắn văn bản (TEXT)
-        if (message.getMessageType() != MessageType.TEXT) {
-            throw new AppException(ErrorCode.CANNOT_EDIT_MESSAGE);
-        }
-
-        // Validate nội dung chỉnh sửa không được để trống
-        if (request.getContent() == null || request.getContent().trim().isBlank()) {
-            throw new AppException(ErrorCode.MESSAGE_CONTENT_REQUIRED);
-        }
-
-        String newContent = request.getContent().trim();
-        // 9. Nếu nội dung mới khác nội dung hiện tại, tiến hành lưu lịch sử và cập nhật
-        if (!newContent.equals(message.getContent())) {
-            // Lưu bản chụp nội dung cũ vào bảng lịch sử
-            MessageHistory history = MessageHistory.builder()
-                    .message(message)
-                    .content(message.getContent())
-                    .editedAt(LocalDateTime.now())
-                    .build();
-            messageHistoryRepository.save(history);
-
-            // Cập nhật nội dung mới cho tin nhắn
-            message.setContent(newContent);
-            message.setIsEdited(true);
-            message = messageRepository.save(message);
-
-            // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
-            // Sidebar
-            roomService.updateLastActivityContentIfMatch(message.getRoom(), message.getMessageId(), newContent);
-        }
-
-        MessageResponse response = messageMapper.toMessageResponse(message);
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
-        return response;
-    }
-
-    /**
-     * Nghiệp vụ 3: Thu hồi tin nhắn (Xóa mềm - Soft Delete).
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
-     * - Tin nhắn chưa bị thu hồi trước đó.
-     * - Phân quyền:
-     * + Người gửi (Sender) có quyền thu hồi tin nhắn của chính mình.
-     * - Khi thu hồi: Đánh dấu isRevoked = true, revokedAt = now(), và xoá nội dung
-     * gốc (content = null) để bảo mật.
-     *
-     * @param currentUserId Khóa chính UUID người dùng thực hiện thu hồi (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn cần thu hồi
-     * @return MessageResponse Chi tiết tin nhắn sau khi thu hồi
-     */
-    @Transactional
-    public MessageResponse revokeMessage(UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn cần thu hồi
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Kiểm tra tin nhắn đã bị thu hồi trước đó chưa
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Kiểm tra quyền: Chỉ người gửi mới có quyền thu hồi tin nhắn của chính mình
-        if (!message.getSender().getUserId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.CANNOT_REVOKE_MESSAGE);
-        }
-
-        // 8. Đánh dấu thu hồi (xoá mềm) và xóa triệt để nội dung trong CSDL
-        message.setIsRevoked(true);
-        message.setRevokedAt(LocalDateTime.now());
-        message.setContent(null); // Gỡ nội dung gốc ra khỏi database để bảo mật thông tin
-        message.setIsPinned(false); // Gỡ ghim nếu tin nhắn đang được ghim
-
-        // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
-        // Sidebar
-        roomService.updateLastActivityContentIfMatch(message.getRoom(), messageId, "Tin nhắn đã bị thu hồi");
-
-        // Xóa sạch dữ liệu trong database
-        messageHistoryRepository.deleteByMessage_MessageId(messageId);
-        messageReactionRepository.deleteByMessageId(messageId);
-
-        // Gán mảng rỗng để không kích hoạt Lazy Loading
-        message.setMessageHistories(new ArrayList<>());
-        message.setMessageReactions(new ArrayList<>());
-        Message savedMessage = messageRepository.save(message);
-        MessageResponse response = messageMapper.toMessageResponse(savedMessage);
-        response.setReactions(Collections.emptyList());
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
-        return response;
-    }
-
-    /**
-     * Nghiệp vụ 4: Xem lịch sử chỉnh sửa của một tin nhắn.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
-     * - Ràng buộc bảo mật: Không được xem lịch sử của tin nhắn đã bị thu hồi.
-     * - Trả về danh sách các phiên bản nội dung trước đó sắp xếp theo thời gian mới
-     * nhất (DESC).
-     *
-     * @param currentUserId Khóa chính UUID người dùng yêu cầu (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn
-     * @return Danh sách các bản ghi lịch sử MessageHistoryResponse
-     */
-    @Transactional(readOnly = true)
-    public List<MessageHistoryResponse> getMessageHistory(UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Ràng buộc bảo mật: Không được xem lịch sử của tin nhắn đã bị thu hồi
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Lấy danh sách lịch sử chỉnh sửa từ repository
-        List<MessageHistory> histories = messageHistoryRepository.findHistoryByMessageId(messageId);
-
-        return messageMapper.toMessageHistoryResponseList(histories);
-    }
-
-    /**
-     * Nghiệp vụ 5: Ghim tin nhắn trong phòng chat.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
-     * - Không được ghim tin nhắn đã bị thu hồi.
-     *
-     * @param currentUserId Khóa chính UUID người dùng thực hiện ghim (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn cần ghim
-     * @return MessageResponse Chi tiết tin nhắn sau khi ghim
-     */
-    @Transactional
-    public MessageResponse pinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn cần ghim
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Không được ghim tin nhắn đã bị thu hồi
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Giới hạn tối đa 5 tin nhắn ghim mỗi phòng
-        if (!Boolean.TRUE.equals(message.getIsPinned())) {
-            long pinnedCount = messageRepository.countPinnedMessagesByRoomId(roomId);
-            if (pinnedCount >= 5) {
-                throw new AppException(ErrorCode.PIN_LIMIT_EXCEEDED);
-            }
-        }
-
-        // 8. Đánh dấu ghim trên tin nhắn gốc
-        message.setIsPinned(true);
-        messageRepository.save(message);
-
-        // 9. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG VÀO CSDL (Để người offline vào lại vẫn đọc
-        // được)
-        String systemContent = currentUser.getUsername() + " đã ghim một tin nhắn";
-        Message systemMessage = Message.builder()
-                .room(room)
-                .sender(currentUser)
-                .messageType(MessageType.SYSTEM)
-                .content(systemContent)
-                .repliedMessage(message) // Liên kết tới chính tin nhắn vừa được ghim
-                .isEdited(false)
-                .isRevoked(false)
-                .isPinned(false)
-                .createdAt(LocalDateTime.now())
-                .build();
-        Message savedSystemMessage = messageRepository.save(systemMessage);
-
-        // 10. Cập nhật hoạt động mới nhất của phòng bằng tin nhắn hệ thống này
-        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
-                savedSystemMessage.getCreatedAt());
-
-        // 11. Reset trạng thái đã đọc cho các thành viên khác
-        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
-        for (RoomMember m : members) {
-            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
-                m.setLastReadMessageId(null);
-            }
-        }
-        roomMemberRepository.saveAll(members);
-
-        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
-        return response;
-    }
-
-    /**
-     * Nghiệp vụ 6: Bỏ ghim tin nhắn trong phòng chat.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
-     *
-     * @param currentUserId Khóa chính UUID người dùng thực hiện bỏ ghim (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn cần bỏ ghim
-     * @return MessageResponse Chi tiết tin nhắn sau khi bỏ ghim
-     */
-    @Transactional
-    public MessageResponse unpinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn cần bỏ ghim
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Gỡ cờ ghim của tin nhắn gốc
-        message.setIsPinned(false);
-        messageRepository.save(message);
-
-        // 7. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG BỎ GHIM VÀO CSDL
-        String systemContent = currentUser.getUsername() + " đã bỏ ghim một tin nhắn";
-        Message systemMessage = Message.builder()
-                .room(room)
-                .sender(currentUser)
-                .messageType(MessageType.SYSTEM)
-                .content(systemContent)
-                .repliedMessage(message)
-                .isEdited(false)
-                .isRevoked(false)
-                .isPinned(false)
-                .createdAt(LocalDateTime.now())
-                .build();
-        Message savedSystemMessage = messageRepository.save(systemMessage);
-
-        // 8. Cập nhật hoạt động mới nhất của phòng
-        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
-                savedSystemMessage.getCreatedAt());
-
-        // 9. Reset trạng thái đã đọc cho các thành viên khác
-        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
-        for (RoomMember m : members) {
-            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
-                m.setLastReadMessageId(null);
-            }
-        }
-        roomMemberRepository.saveAll(members);
-
-        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
-        return response;
-    }
-
-    /**
-     * Nghiệp vụ 7: Lấy danh sách tin nhắn đã ghim trong phòng chat.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Phòng chat phải tồn tại.
-     * - Trả về danh sách các tin nhắn đang được ghim (isPinned = true) và chưa bị
-     * thu hồi.
-     *
-     * @param currentUserId Khóa chính UUID người dùng yêu cầu (từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @return Danh sách tin nhắn đã ghim (MessageResponse)
-     */
-    @Transactional(readOnly = true)
-    public List<MessageResponse> getPinnedMessages(UUID currentUserId, UUID roomId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Lấy danh sách tin nhắn đã ghim từ repository
-        List<Message> pinnedMessages = messageRepository.findPinnedMessagesByRoomId(roomId);
-
-        return messageMapper.toMessageResponseList(pinnedMessages);
-    }
-
-    /**
-     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho
-     * Sidebar Thông tin.
-     *
-     * @param currentUserId Khóa chính UUID của người yêu cầu
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @return Danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
-     */
-    @Transactional(readOnly = true)
-    public List<MessageResponse> getRoomMediaMessages(UUID currentUserId, UUID roomId) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-
-        List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
-        return messageMapper.toMessageResponseList(mediaList);
-    }
-
-    /**
-     * Nghiệp vụ 8: Thả hoặc cập nhật cảm xúc trên tin nhắn (Reactions).
-     * Hỗ trợ các cảm xúc: LIKE, LOVE, HAHA, WOW, SAD, ANGRY.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải thuộc phòng chat đó và không được ở trạng thái đã bị thu hồi.
-     * - Nếu người dùng đã thả cảm xúc trước đó: Cập nhật sang loại cảm xúc mới.
-     * - Nếu chưa thả cảm xúc: Tạo mới phản ứng cảm xúc.
-     *
-     * @param currentUserId Khóa chính UUID của người thả cảm xúc (lấy từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn
-     * @param request       Dữ liệu loại cảm xúc gửi lên (ReactionRequest)
-     * @return ReactionResponse Chi tiết cảm xúc sau khi lưu
-     */
-    @Transactional
-    public ReactionResponse reactMessage(
-            UUID currentUserId, UUID roomId, UUID messageId, ReactionRequest request) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn cần thả cảm xúc
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Ràng buộc bảo mật: Không được thả cảm xúc vào tin nhắn đã bị thu hồi
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Kiểm tra loại cảm xúc
-        if (request == null || request.getReactionType() == null) {
-            throw new AppException(ErrorCode.REACTION_INVALID);
-        }
-
-        // 8. Tìm xem người dùng đã thả cảm xúc cho tin nhắn này trước đó chưa
-        MessageReactionId reactionId = MessageReactionId.builder()
-                .messageId(messageId)
-                .userId(currentUserId)
-                .build();
-
-        MessageReaction reaction = messageReactionRepository.findById(reactionId)
-                .map(existingReaction -> {
-                    existingReaction.setReactionType(request.getReactionType().name());
-                    return existingReaction;
-                })
-                .orElseGet(() -> MessageReaction.builder()
-                        .messageReactionId(reactionId)
-                        .message(message)
-                        .user(user)
-                        .reactionType(request.getReactionType().name())
-                        .createdAt(LocalDateTime.now())
-                        .build());
-
-        MessageReaction savedReaction = messageReactionRepository.save(reaction);
-        ReactionResponse response = messageMapper.toReactionResponse(savedReaction);
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", response));
-        return response;
-    }
-
-    /**
-     * Nghiệp vụ 9: Gỡ cảm xúc đã thả trên tin nhắn.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải thuộc phòng chat đó.
-     * - Xóa cảm xúc của người dùng khỏi tin nhắn.
-     *
-     * @param currentUserId Khóa chính UUID của người dùng (lấy từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn
-     */
-    @Transactional
-    public void removeReaction(UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Chặn thao tác nếu tin nhắn đã bị thu hồi
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Xóa reaction bằng composite key có sẵn
-        MessageReactionId reactionId = MessageReactionId.builder()
-                .messageId(messageId)
-                .userId(currentUserId)
-                .build();
-
-        messageReactionRepository.deleteById(reactionId);
-
-        // 8. Broadcast sự kiện gỡ cảm xúc qua WebSocket STOMP
-        ReactionResponse removedEvent = ReactionResponse.builder()
-                .messageId(messageId)
-                .userId(currentUserId)
-                .reactionType(null)
-                .createdAt(LocalDateTime.now())
-                .build();
-        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", removedEvent));
-    }
-
-    /**
-     * Nghiệp vụ 10: Xem danh sách tất cả các cảm xúc đã thả trên một tin nhắn.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Tin nhắn phải thuộc phòng chat đó và chưa bị thu hồi.
-     * - Trả về danh sách chi tiết các thành viên và loại cảm xúc tương ứng.
-     *
-     * @param currentUserId Khóa chính UUID của người dùng yêu cầu (lấy từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param messageId     Khóa chính UUID của tin nhắn
-     * @return Danh sách ReactionResponse
-     */
-    @Transactional(readOnly = true)
-    public List<ReactionResponse> getMessageReactions(
-            UUID currentUserId, UUID roomId, UUID messageId) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Tìm tin nhắn
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
-        if (!message.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // 6. Nếu tin nhắn đã bị thu hồi: Không cho phép xem cảm xúc
-        if (Boolean.TRUE.equals(message.getIsRevoked())) {
-            throw new AppException(ErrorCode.MESSAGE_REVOKED);
-        }
-
-        // 7. Lấy danh sách cảm xúc từ repository (kèm thông tin user)
-        List<MessageReaction> reactions = messageReactionRepository.findByMessageIdWithUser(messageId);
-        return messageMapper.toReactionResponseList(reactions);
-    }
-
-    /**
-     * Nghiệp vụ 11: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
-     * (Cursor-based Pagination).
-     * Phục vụ tính năng tải tin nhắn ban đầu và cuộn vô tận (Infinite Scroll) khi
-     * xem lịch sử cũ hơn.
-     * Quy tắc nghiệp vụ:
-     * - Người dùng phải là thành viên trong phòng chat.
-     * - Nếu không truyền cursor: Lấy danh sách tin nhắn mới nhất.
-     * - Nếu truyền cursor: Lấy danh sách các tin nhắn cũ hơn tin nhắn con trỏ
-     * (createdAt < cursor.createdAt).
-     * - Giới hạn limit từ 1 đến 100 (mặc định 20).
-     *
-     * @param currentUserId Khóa chính UUID của người dùng yêu cầu (lấy từ Token)
-     * @param roomId        Khóa chính UUID của phòng chat
-     * @param cursorId      Khóa chính UUID của tin nhắn làm con trỏ mốc (tùy chọn)
-     * @param limit         Số lượng tin nhắn cần lấy
-     * @return CursorResponse<MessageResponse> chứa danh sách tin nhắn, nextCursor
-     *         và hasMore
-     */
-    @Transactional(readOnly = true)
-    public CursorResponse<MessageResponse> getMessages(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
-        // 1. Kiểm tra người dùng có tồn tại không
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        // 2. Kiểm tra phòng chat có tồn tại không
-        roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        // 3. Kiểm tra thành viên phòng chat
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        // 4. Chuẩn hóa giới hạn số lượng tin nhắn (1 <= limit <= 100)
-        int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
-        Pageable pageable = PageRequest.of(0, effectiveLimit);
-
-        Page<Message> messagePage;
-        if (cursorId != null) {
-            // Kiểm tra tin nhắn con trỏ có tồn tại không
-            messageRepository.findById(cursorId)
-                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-            Message cursorMessage = messageRepository.findById(cursorId)
-                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-            Pageable slicePageable = PageRequest.of(0, effectiveLimit + 1);
-            List<Message> fetched = messageRepository.findOlderAround(roomId, cursorMessage.getCreatedAt(),
-                    slicePageable);
-            boolean cursorHasMore = fetched.size() > effectiveLimit;
-            List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit))
-                    : fetched;
-            return CursorResponse.<MessageResponse>builder()
-                    .data(messageMapper.toMessageResponseList(sliceList))
-                    .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null
-                            : sliceList.get(sliceList.size() - 1).getMessageId())
-                    .hasMore(cursorHasMore)
-                    .build();
-        } else {
-            messagePage = messageRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId, pageable);
-        }
-
-        // Xử lý dữ liệu trả về cho Frontend (Xac dinh nextCursor & hasMore)
-        List<MessageResponse> messageResponses = messageMapper.toMessageResponseList(messagePage.getContent());
-
-        // Xác định nextCursor: ID của tin nhắn cũ nhất trong batch hiện tại (phần tử
-        // cuối danh sách)
-        UUID nextCursor = (messageResponses.isEmpty() || !messagePage.hasNext())
-                ? null
-                : messageResponses.get(messageResponses.size() - 1).getMessageId();
-
-        return CursorResponse.<MessageResponse>builder()
-                .data(messageResponses)
-                .nextCursor(nextCursor)
-                .hasMore(messagePage.hasNext())
-                .build();
-    }
-
-    /**
-     * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh tin ghim (10 tin trước + tin ghim +
-     * 10 tin sau)
-     * Trả về danh sách MessageResponse theo thứ tự thời gian tăng dần [cũ -> mới]
-     */
-    @Transactional(readOnly = true)
-    public List<MessageResponse> getMessageContext(UUID currentUserId, UUID roomId, UUID targetMessageId) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        Message targetMessage = messageRepository.findById(targetMessageId)
-                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
-
-        if (!targetMessage.getRoom().getRoomId().equals(roomId)) {
-            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        // Lấy 11 tin cũ hơn hoặc bằng tin ghim (đã bao gồm targetMessage)
-        List<Message> older = messageRepository.findOlderContext(
-                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 11));
-
-        // Lấy 10 tin mới hơn tin ghim
-        List<Message> newer = messageRepository.findNewerContext(
-                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 10));
-
-        // Đảo ngược danh sách older để theo thứ tự thời gian tăng dần
-        Collections.reverse(older);
-
-        // Ghép lại thành một dải 20 tin liên tục: [older... -> target -> newer...]
-        List<Message> context = new ArrayList<>(older);
-        context.addAll(newer);
-
-        return messageMapper.toMessageResponseList(context);
-    }
-
-    /**
-     * Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời
-     * gian)
-     * Hỗ trợ phân trang hai chiều khi người dùng cuộn kịch xuống dưới sau khi nhảy
-     * vào đoạn tin ghim.
-     */
-    @Transactional(readOnly = true)
-    public List<MessageResponse> getMessagesAfter(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
-        if (!userRepository.existsById(currentUserId)) {
-            throw new AppException(ErrorCode.USER_NOT_EXISTED);
-        }
-        if (!roomRepository.existsById(roomId)) {
-            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
-        }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
-
-        int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
-        Pageable pageable = PageRequest.of(0, effectiveLimit);
-
-        List<Message> newerMessages = messageRepository.findMessagesAfterCursor(roomId, cursorId, pageable);
-        return messageMapper.toMessageResponseList(newerMessages);
-    }
-
-    /**
-     * Nghiệp vụ 12: Xử lý sự kiện Đang gõ chữ (Typing indicator) qua WebSocket.
-     * - Kiểm tra tư cách thành viên qua bộ nhớ đệm RAM (TTL 5 phút) nhằm giảm tải
-     * truy vấn COUNT(*) xuống MySQL.
-     * - Ưu tiên lấy tên hiển thị và avatar từ Principal trên RAM, chỉ truy vấn DB
-     * khi cần.
-     */
-    @Transactional(readOnly = true)
-    public TypingEventResponse buildTypingEvent(
-            UUID currentUserId,
-            TypingPayload payload,
-            String cachedUsername,
-            String cachedAvatarUrl) {
-        UUID roomId = payload.getRoomId();
-        String cacheKey = currentUserId + ":" + roomId;
-        long now = System.currentTimeMillis();
-
-        Long cachedValidUntil = roomMembershipCache.get(cacheKey);
-        if (cachedValidUntil == null || cachedValidUntil < now) {
-            boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                    roomId);
-            if (!isMember) {
-                throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-            }
-            roomMembershipCache.put(cacheKey, now + MEMBERSHIP_CACHE_TTL_MS);
-        }
-
-        String username = cachedUsername;
-        String avatarUrl = cachedAvatarUrl;
-        if (username == null) {
-            User user = userRepository.findById(currentUserId)
-                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-            username = user.getUsername();
-            avatarUrl = user.getAvatarUrl();
-        }
-
-        return TypingEventResponse.builder()
-                .roomId(roomId)
-                .userId(currentUserId)
-                .username(username)
-                .avatarUrl(avatarUrl)
-                .typing(payload.isTyping())
-                .build();
     }
 
     private MessageResponse sendAttachment(
@@ -1088,38 +284,814 @@ public class MessageService {
                 repliedMessageId);
     }
 
-    private record MessageContext(User sender, Room room) {
-    }
+    // =========================================================================
+    // ██████████ PHẦN 2: CHỈNH SỬA, THU HỒI & LỊCH SỬ TIN NHẮN ██████████
+    // =========================================================================
 
-    private MessageContext getMessageContext(UUID currentUserId, UUID roomId) {
-        User sender = userRepository.findById(currentUserId)
+    /**
+     * Nghiệp vụ 2: Chỉnh sửa nội dung tin nhắn.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
+     * - Chỉ người gửi tin nhắn (Sender) mới có quyền chỉnh sửa.
+     * - Không được sửa tin nhắn đã bị thu hồi (isRevoked = true).
+     * - Chỉ hỗ trợ sửa tin nhắn dạng TEXT.
+     * - Lưu nội dung cũ vào bảng `message_histories` để bảo toàn lịch sử.
+     * - Cập nhật nội dung mới và đánh dấu `isEdited = true`.
+     *
+     * @param currentUserId Khóa chính UUID người dùng thực hiện sửa (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn cần sửa
+     * @param request       Nội dung mới của tin nhắn
+     * @return MessageResponse Chi tiết tin nhắn sau khi chỉnh sửa
+     */
+    @Transactional
+    public MessageResponse updateMessage(UUID currentUserId, UUID roomId, UUID messageId,
+            UpdateMessageRequest request) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        boolean isMember = roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId,
-                roomId);
 
-        if (!isMember) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn cần chỉnh sửa
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
         }
 
-        if (room.getRoomType() == RoomType.DIRECT) {
-            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        // 6. Kiểm tra quyền: Chỉ người gửi tin nhắn mới được phép chỉnh sửa
+        if (!message.getSender().getUserId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.CANNOT_EDIT_MESSAGE);
+        }
 
-            for (RoomMember member : members) {
-                UUID otherUserId = member.getRoomMemberId().getUserId();
+        // 7. Kiểm tra trạng thái: Không được sửa tin nhắn đã bị thu hồi
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
 
-                if (!otherUserId.equals(currentUserId)) {
-                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
+        // 8. Chỉ cho phép chỉnh sửa tin nhắn văn bản (TEXT)
+        if (message.getMessageType() != MessageType.TEXT) {
+            throw new AppException(ErrorCode.CANNOT_EDIT_MESSAGE);
+        }
 
-                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
-                        throw new AppException(ErrorCode.USER_BLOCKED);
+        // Validate nội dung chỉnh sửa không được để trống
+        if (request.getContent() == null || request.getContent().trim().isBlank()) {
+            throw new AppException(ErrorCode.MESSAGE_CONTENT_REQUIRED);
+        }
+
+        String newContent = request.getContent().trim();
+        // 9. Nếu nội dung mới khác nội dung hiện tại, tiến hành lưu lịch sử và cập nhật
+        if (!newContent.equals(message.getContent())) {
+            // Lưu bản chụp nội dung cũ vào bảng lịch sử
+            MessageHistory history = MessageHistory.builder()
+                    .message(message)
+                    .content(message.getContent())
+                    .editedAt(LocalDateTime.now())
+                    .build();
+            messageHistoryRepository.save(history);
+
+            // Cập nhật nội dung mới cho tin nhắn
+            message.setContent(newContent);
+            message.setIsEdited(true);
+            message = messageRepository.save(message);
+
+            // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
+            // Sidebar
+            roomService.updateLastActivityContentIfMatch(message.getRoom(), message.getMessageId(), newContent);
+        }
+
+        MessageResponse response = messageMapper.toMessageResponse(message);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
+    }
+
+    /**
+     * Nghiệp vụ 3: Thu hồi tin nhắn (Xóa mềm - Soft Delete).
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
+     * - Tin nhắn chưa bị thu hồi trước đó.
+     * - Phân quyền:
+     * + Người gửi (Sender) có quyền thu hồi tin nhắn của chính mình.
+     * - Khi thu hồi: Đánh dấu isRevoked = true, revokedAt = now(), và xoá nội dung
+     * gốc (content = null) để bảo mật.
+     *
+     * @param currentUserId Khóa chính UUID người dùng thực hiện thu hồi (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn cần thu hồi
+     * @return MessageResponse Chi tiết tin nhắn sau khi thu hồi
+     */
+    @Transactional
+    public MessageResponse revokeMessage(UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn cần thu hồi
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Kiểm tra tin nhắn đã bị thu hồi trước đó chưa
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Kiểm tra quyền: Chỉ người gửi mới có quyền thu hồi tin nhắn của chính mình
+        if (!message.getSender().getUserId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.CANNOT_REVOKE_MESSAGE);
+        }
+
+        // 8. Đánh dấu thu hồi (xoá mềm) và xóa triệt để nội dung trong CSDL
+        message.setIsRevoked(true);
+        message.setRevokedAt(LocalDateTime.now());
+        message.setContent(null); // Gỡ nội dung gốc ra khỏi database để bảo mật thông tin
+        message.setIsPinned(false); // Gỡ ghim nếu tin nhắn đang được ghim
+
+        // Nếu đây là hoạt động mới nhất của phòng thì cập nhật lại preview ngoài
+        // Sidebar
+        roomService.updateLastActivityContentIfMatch(message.getRoom(), messageId, "Tin nhắn đã bị thu hồi");
+
+        // Xóa sạch dữ liệu trong database
+        messageHistoryRepository.deleteByMessage_MessageId(messageId);
+        messageReactionRepository.deleteByMessageId(messageId);
+
+        // Gán mảng rỗng để không kích hoạt Lazy Loading
+        message.setMessageHistories(new ArrayList<>());
+        message.setMessageReactions(new ArrayList<>());
+        Message savedMessage = messageRepository.save(message);
+        MessageResponse response = messageMapper.toMessageResponse(savedMessage);
+        response.setReactions(Collections.emptyList());
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
+    }
+
+    /**
+     * Nghiệp vụ 4: Xem lịch sử chỉnh sửa của một tin nhắn.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
+     * - Ràng buộc bảo mật: Không được xem lịch sử của tin nhắn đã bị thu hồi.
+     * - Trả về danh sách các phiên bản nội dung trước đó sắp xếp theo thời gian mới
+     * nhất (DESC).
+     *
+     * @param currentUserId Khóa chính UUID người dùng yêu cầu (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn
+     * @return Danh sách các bản ghi lịch sử MessageHistoryResponse
+     */
+    @Transactional(readOnly = true)
+    public List<MessageHistoryResponse> getMessageHistory(UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Ràng buộc bảo mật: Không được xem lịch sử của tin nhắn đã bị thu hồi
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Lấy danh sách lịch sử chỉnh sửa từ repository
+        List<MessageHistory> histories = messageHistoryRepository.findHistoryByMessageId(messageId);
+
+        return messageMapper.toMessageHistoryResponseList(histories);
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 3: GHIM TIN NHẮN (PIN / UNPIN & GET PINNED) ██████████
+    // =========================================================================
+
+    /**
+     * Nghiệp vụ 5: Ghim tin nhắn trong phòng chat.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
+     * - Không được ghim tin nhắn đã bị thu hồi.
+     *
+     * @param currentUserId Khóa chính UUID người dùng thực hiện ghim (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn cần ghim
+     * @return MessageResponse Chi tiết tin nhắn sau khi ghim
+     */
+    @Transactional
+    public MessageResponse pinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn cần ghim
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Không được ghim tin nhắn đã bị thu hồi
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Giới hạn tối đa 5 tin nhắn ghim mỗi phòng
+        if (!Boolean.TRUE.equals(message.getIsPinned())) {
+            long pinnedCount = messageRepository.countPinnedMessagesByRoomId(roomId);
+            if (pinnedCount >= 5) {
+                throw new AppException(ErrorCode.PIN_LIMIT_EXCEEDED);
+            }
+        }
+
+        // 8. Đánh dấu ghim trên tin nhắn gốc
+        message.setIsPinned(true);
+        messageRepository.save(message);
+
+        // 9. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG VÀO CSDL (Để người offline vào lại vẫn đọc
+        // được)
+        String systemContent = currentUser.getUsername() + " đã ghim một tin nhắn";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .repliedMessage(message) // Liên kết tới chính tin nhắn vừa được ghim
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        // 10. Cập nhật hoạt động mới nhất của phòng bằng tin nhắn hệ thống này
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
+
+        // 11. Reset trạng thái đã đọc cho các thành viên khác
+        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : members) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
+        }
+        roomMemberRepository.saveAll(members);
+
+        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
+    }
+
+    /**
+     * Nghiệp vụ 6: Bỏ ghim tin nhắn trong phòng chat.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải tồn tại và thuộc phòng chat đó.
+     *
+     * @param currentUserId Khóa chính UUID người dùng thực hiện bỏ ghim (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn cần bỏ ghim
+     * @return MessageResponse Chi tiết tin nhắn sau khi bỏ ghim
+     */
+    @Transactional
+    public MessageResponse unpinMessage(UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn cần bỏ ghim
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Gỡ cờ ghim của tin nhắn gốc
+        message.setIsPinned(false);
+        messageRepository.save(message);
+
+        // 7. TẠO VÀ LƯU TIN NHẮN HỆ THỐNG BỎ GHIM VÀO CSDL
+        String systemContent = currentUser.getUsername() + " đã bỏ ghim một tin nhắn";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .repliedMessage(message)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        // 8. Cập nhật hoạt động mới nhất của phòng
+        roomService.updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
+
+        // 9. Reset trạng thái đã đọc cho các thành viên khác
+        List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+        for (RoomMember m : members) {
+            if (!m.getRoomMemberId().getUserId().equals(currentUserId)) {
+                m.setLastReadMessageId(null);
+            }
+        }
+        roomMemberRepository.saveAll(members);
+
+        MessageResponse response = messageMapper.toMessageResponse(savedSystemMessage);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, response));
+        return response;
+    }
+
+    /**
+     * Nghiệp vụ 7: Lấy danh sách tin nhắn đã ghim trong phòng chat.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Phòng chat phải tồn tại.
+     * - Trả về danh sách các tin nhắn đang được ghim (isPinned = true) và chưa bị
+     * thu hồi.
+     *
+     * @param currentUserId Khóa chính UUID người dùng yêu cầu (từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @return Danh sách tin nhắn đã ghim (MessageResponse)
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getPinnedMessages(UUID currentUserId, UUID roomId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Lấy danh sách tin nhắn đã ghim từ repository
+        List<Message> pinnedMessages = messageRepository.findPinnedMessagesByRoomId(roomId);
+
+        return messageMapper.toMessageResponseList(pinnedMessages);
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 4: THẢ & QUẢN LÝ CẢM XÚC TIN NHẮN (REACTIONS) ██████████
+    // =========================================================================
+
+    /**
+     * Nghiệp vụ 8: Thả hoặc cập nhật cảm xúc trên tin nhắn (Reactions).
+     * Hỗ trợ các cảm xúc: LIKE, LOVE, HAHA, WOW, SAD, ANGRY.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải thuộc phòng chat đó và không được ở trạng thái đã bị thu hồi.
+     * - Nếu người dùng đã thả cảm xúc trước đó: Cập nhật sang loại cảm xúc mới.
+     * - Nếu chưa thả cảm xúc: Tạo mới phản ứng cảm xúc.
+     *
+     * @param currentUserId Khóa chính UUID của người thả cảm xúc (lấy từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn
+     * @param request       Dữ liệu loại cảm xúc gửi lên (ReactionRequest)
+     * @return ReactionResponse Chi tiết cảm xúc sau khi lưu
+     */
+    @Transactional
+    public ReactionResponse reactMessage(
+            UUID currentUserId, UUID roomId, UUID messageId, ReactionRequest request) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn cần thả cảm xúc
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Ràng buộc bảo mật: Không được thả cảm xúc vào tin nhắn đã bị thu hồi
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Kiểm tra loại cảm xúc
+        if (request == null || request.getReactionType() == null) {
+            throw new AppException(ErrorCode.REACTION_INVALID);
+        }
+
+        // 8. Tìm xem người dùng đã thả cảm xúc cho tin nhắn này trước đó chưa
+        MessageReactionId reactionId = MessageReactionId.builder()
+                .messageId(messageId)
+                .userId(currentUserId)
+                .build();
+
+        MessageReaction reaction = messageReactionRepository.findById(reactionId)
+                .map(existingReaction -> {
+                    existingReaction.setReactionType(request.getReactionType().name());
+                    return existingReaction;
+                })
+                .orElseGet(() -> MessageReaction.builder()
+                        .messageReactionId(reactionId)
+                        .message(message)
+                        .user(user)
+                        .reactionType(request.getReactionType().name())
+                        .createdAt(LocalDateTime.now())
+                        .build());
+
+        MessageReaction savedReaction = messageReactionRepository.save(reaction);
+        ReactionResponse response = messageMapper.toReactionResponse(savedReaction);
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", response));
+        return response;
+    }
+
+    /**
+     * Nghiệp vụ 9: Gỡ cảm xúc đã thả trên tin nhắn.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải thuộc phòng chat đó.
+     * - Xóa cảm xúc của người dùng khỏi tin nhắn.
+     *
+     * @param currentUserId Khóa chính UUID của người dùng (lấy từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn
+     */
+    @Transactional
+    public void removeReaction(UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Chặn thao tác nếu tin nhắn đã bị thu hồi
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Xóa reaction bằng composite key có sẵn
+        MessageReactionId reactionId = MessageReactionId.builder()
+                .messageId(messageId)
+                .userId(currentUserId)
+                .build();
+
+        messageReactionRepository.deleteById(reactionId);
+
+        // 8. Broadcast sự kiện gỡ cảm xúc qua WebSocket STOMP
+        ReactionResponse removedEvent = ReactionResponse.builder()
+                .messageId(messageId)
+                .userId(currentUserId)
+                .reactionType(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+        eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId + ".reactions", removedEvent));
+    }
+
+    /**
+     * Nghiệp vụ 10: Xem danh sách tất cả các cảm xúc đã thả trên một tin nhắn.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Tin nhắn phải thuộc phòng chat đó và chưa bị thu hồi.
+     * - Trả về danh sách chi tiết các thành viên và loại cảm xúc tương ứng.
+     *
+     * @param currentUserId Khóa chính UUID của người dùng yêu cầu (lấy từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param messageId     Khóa chính UUID của tin nhắn
+     * @return Danh sách ReactionResponse
+     */
+    @Transactional(readOnly = true)
+    public List<ReactionResponse> getMessageReactions(
+            UUID currentUserId, UUID roomId, UUID messageId) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Tìm tin nhắn
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        // 5. Kiểm tra tin nhắn có thuộc phòng chat này không
+        if (!message.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // 6. Nếu tin nhắn đã bị thu hồi: Không cho phép xem cảm xúc
+        if (Boolean.TRUE.equals(message.getIsRevoked())) {
+            throw new AppException(ErrorCode.MESSAGE_REVOKED);
+        }
+
+        // 7. Lấy danh sách cảm xúc từ repository (kèm thông tin user)
+        List<MessageReaction> reactions = messageReactionRepository.findByMessageIdWithUser(messageId);
+        return messageMapper.toReactionResponseList(reactions);
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 5: TRUY VẤN TIN NHẮN (CURSOR PAGINATION & CONTEXT) ██████████
+    // =========================================================================
+
+    /**
+     * Nghiệp vụ 11: Lấy danh sách tin nhắn trong phòng chat theo phân trang con trỏ
+     * (Cursor-based Pagination).
+     * Phục vụ tính năng tải tin nhắn ban đầu và cuộn vô tận (Infinite Scroll) khi
+     * xem lịch sử cũ hơn.
+     * Quy tắc nghiệp vụ:
+     * - Người dùng phải là thành viên trong phòng chat.
+     * - Nếu không truyền cursor: Lấy danh sách tin nhắn mới nhất.
+     * - Nếu truyền cursor: Lấy danh sách các tin nhắn cũ hơn tin nhắn con trỏ
+     * (createdAt < cursor.createdAt).
+     * - Giới hạn limit từ 1 đến 100 (mặc định 20).
+     *
+     * @param currentUserId Khóa chính UUID của người dùng yêu cầu (lấy từ Token)
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @param cursorId      Khóa chính UUID của tin nhắn làm con trỏ mốc (tùy chọn)
+     * @param limit         Số lượng tin nhắn cần lấy
+     * @return CursorResponse<MessageResponse> chứa danh sách tin nhắn, nextCursor
+     *         và hasMore
+     */
+    @Transactional(readOnly = true)
+    public CursorResponse<MessageResponse> getMessages(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
+        // 1. Kiểm tra người dùng có tồn tại không
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 2. Kiểm tra phòng chat có tồn tại không
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // 3. Kiểm tra thành viên phòng chat
+        ensureActiveMember(currentUserId, roomId);
+
+        // 4. Chuẩn hóa giới hạn số lượng tin nhắn (1 <= limit <= 100)
+        int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
+        Pageable pageable = PageRequest.of(0, effectiveLimit);
+
+        Page<Message> messagePage;
+        if (cursorId != null) {
+            // Kiểm tra tin nhắn con trỏ có tồn tại không
+            messageRepository.findById(cursorId)
+                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+            Message cursorMessage = messageRepository.findById(cursorId)
+                    .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+            Pageable slicePageable = PageRequest.of(0, effectiveLimit + 1);
+            List<Message> fetched = messageRepository.findOlderAround(roomId, cursorMessage.getCreatedAt(),
+                    slicePageable);
+            boolean cursorHasMore = fetched.size() > effectiveLimit;
+            List<Message> sliceList = cursorHasMore ? new java.util.ArrayList<>(fetched.subList(0, effectiveLimit))
+                    : fetched;
+            List<MessageResponse> responses = messageMapper.toMessageResponseList(sliceList);
+            enrichPollAndReminderIds(roomId, responses);
+            return CursorResponse.<MessageResponse>builder()
+                    .data(responses)
+                    .nextCursor(sliceList.isEmpty() || !cursorHasMore ? null
+                            : sliceList.get(sliceList.size() - 1).getMessageId())
+                    .hasMore(cursorHasMore)
+                    .build();
+        } else {
+            messagePage = messageRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId, pageable);
+        }
+
+        // Xử lý dữ liệu trả về cho Frontend (Xac dinh nextCursor & hasMore)
+        List<MessageResponse> messageResponses = messageMapper.toMessageResponseList(messagePage.getContent());
+        enrichPollAndReminderIds(roomId, messageResponses);
+
+        // Xác định nextCursor: ID của tin nhắn cũ nhất trong batch hiện tại (phần tử
+        // cuối danh sách)
+        UUID nextCursor = (messageResponses.isEmpty() || !messagePage.hasNext())
+                ? null
+                : messageResponses.get(messageResponses.size() - 1).getMessageId();
+
+        return CursorResponse.<MessageResponse>builder()
+                .data(messageResponses)
+                .nextCursor(nextCursor)
+                .hasMore(messagePage.hasNext())
+                .build();
+    }
+
+    /**
+     * Lấy cửa sổ ngữ cảnh 20 tin nhắn bao quanh tin ghim (10 tin trước + tin ghim +
+     * 10 tin sau)
+     * Trả về danh sách MessageResponse theo thứ tự thời gian tăng dần [cũ -> mới]
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getMessageContext(UUID currentUserId, UUID roomId, UUID targetMessageId) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        ensureActiveMember(currentUserId, roomId);
+
+        Message targetMessage = messageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!targetMessage.getRoom().getRoomId().equals(roomId)) {
+            throw new AppException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+
+        // Lấy 11 tin cũ hơn hoặc bằng tin ghim (đã bao gồm targetMessage)
+        List<Message> older = messageRepository.findOlderContext(
+                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 11));
+
+        // Lấy 10 tin mới hơn tin ghim
+        List<Message> newer = messageRepository.findNewerContext(
+                roomId, targetMessage.getCreatedAt(), PageRequest.of(0, 10));
+
+        // Đảo ngược danh sách older để theo thứ tự thời gian tăng dần
+        Collections.reverse(older);
+
+        // Ghép lại thành một dải 20 tin liên tục: [older... -> target -> newer...]
+        List<Message> context = new ArrayList<>(older);
+        context.addAll(newer);
+
+        List<MessageResponse> responses = messageMapper.toMessageResponseList(context);
+        enrichPollAndReminderIds(roomId, responses);
+        return responses;
+    }
+
+    /**
+     * Lấy danh sách tin nhắn MỚI HƠN con trỏ cursorId (sắp xếp tăng dần theo thời
+     * gian)
+     * Hỗ trợ phân trang hai chiều khi người dùng cuộn kịch xuống dưới sau khi nhảy
+     * vào đoạn tin ghim.
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getMessagesAfter(UUID currentUserId, UUID roomId, UUID cursorId, int limit) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        ensureActiveMember(currentUserId, roomId);
+
+        int effectiveLimit = (limit <= 0) ? 20 : Math.min(limit, 100);
+        Pageable pageable = PageRequest.of(0, effectiveLimit);
+
+        List<Message> newerMessages = messageRepository.findMessagesAfterCursor(roomId, cursorId, pageable);
+        List<MessageResponse> responses = messageMapper.toMessageResponseList(newerMessages);
+        enrichPollAndReminderIds(roomId, responses);
+        return responses;
+    }
+
+    private void enrichPollAndReminderIds(UUID roomId, List<MessageResponse> responses) {
+        if (responses == null || responses.isEmpty()) {
+            return;
+        }
+
+        List<UUID> pollMsgIds = new ArrayList<>();
+        List<UUID> reminderMsgIds = new ArrayList<>();
+
+        for (MessageResponse res : responses) {
+            if (res.getMessageType() == MessageType.POLL && res.getPollId() == null) {
+                pollMsgIds.add(res.getMessageId());
+            } else if (res.getMessageType() == MessageType.REMINDER && res.getReminderId() == null) {
+                reminderMsgIds.add(res.getMessageId());
+            }
+        }
+
+        if (!pollMsgIds.isEmpty()) {
+            Map<UUID, UUID> pollIdByMsgId = new java.util.HashMap<>();
+            List<PollResource> prList = pollResourceRepository.findByMessage_MessageIdIn(pollMsgIds);
+            for (PollResource pr : prList) {
+                pollIdByMsgId.put(pr.getMessage().getMessageId(), pr.getPoll().getPollId());
+            }
+
+            // Fallback tra cứu qua bảng polls nếu tin cũ chưa có poll_resource
+            List<Poll> roomPolls = pollRepository.findByRoom_RoomIdOrderByCreatedAtDesc(roomId);
+            Map<String, UUID> pollIdByQuestion = new java.util.HashMap<>();
+            for (Poll p : roomPolls) {
+                if (p.getMessage() != null) {
+                    pollIdByMsgId.putIfAbsent(p.getMessage().getMessageId(), p.getPollId());
+                }
+                if (p.getQuestion() != null) {
+                    pollIdByQuestion.putIfAbsent(p.getQuestion(), p.getPollId());
+                }
+            }
+
+            for (MessageResponse res : responses) {
+                if (res.getMessageType() == MessageType.POLL && res.getPollId() == null) {
+                    UUID pid = pollIdByMsgId.get(res.getMessageId());
+                    if (pid == null && res.getContent() != null) {
+                        pid = pollIdByQuestion.get(res.getContent());
                     }
+                    res.setPollId(pid);
                 }
             }
         }
 
-        return new MessageContext(sender, room);
+        if (!reminderMsgIds.isEmpty()) {
+            for (MessageResponse res : responses) {
+                if (res.getMessageType() == MessageType.REMINDER && res.getReminderId() == null) {
+                    reminderResourceRepository.findByMessage_MessageId(res.getMessageId())
+                            .ifPresent(rr -> res.setReminderId(rr.getReminder().getReminderId()));
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 6: TRUY VẤN MEDIA, TÌM KIẾM SIDEBAR & TYPING INDICATOR
+    // ██████████
+    // =========================================================================
+
+    /**
+     * Lấy toàn bộ file phương tiện (Ảnh, Video, Tài liệu) trong phòng chat cho
+     * Sidebar Thông tin.
+     *
+     * @param currentUserId Khóa chính UUID của người yêu cầu
+     * @param roomId        Khóa chính UUID của phòng chat
+     * @return Danh sách MessageResponse của tất cả ảnh/video/tài liệu trong phòng
+     */
+    @Transactional(readOnly = true)
+    public List<MessageResponse> getRoomMediaMessages(UUID currentUserId, UUID roomId) {
+        if (!userRepository.existsById(currentUserId)) {
+            throw new AppException(ErrorCode.USER_NOT_EXISTED);
+        }
+        if (!roomRepository.existsById(roomId)) {
+            throw new AppException(ErrorCode.ROOM_NOT_FOUND);
+        }
+        ensureActiveMember(currentUserId, roomId);
+
+        List<Message> mediaList = messageRepository.findMediaMessagesByRoomId(roomId);
+        return messageMapper.toMessageResponseList(mediaList);
     }
 
     /**
@@ -1139,9 +1111,7 @@ public class MessageService {
         if (!roomRepository.existsById(roomId)) {
             throw new AppException(ErrorCode.ROOM_NOT_FOUND);
         }
-        if (!roomMemberRepository.existsByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)) {
-            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
-        }
+        ensureActiveMember(currentUserId, roomId);
 
         if (q == null || q.trim().isEmpty()) {
             return Collections.emptyList();
@@ -1163,5 +1133,89 @@ public class MessageService {
                         .senderAvatarUrl(m.getSender() != null ? m.getSender().getAvatarUrl() : null)
                         .build())
                 .toList();
+    }
+
+    /**
+     * Nghiệp vụ 12: Xử lý sự kiện Đang gõ chữ (Typing indicator) qua WebSocket.
+     * - Kiểm tra tư cách thành viên qua bộ nhớ đệm RAM (TTL 5 phút) nhằm giảm tải
+     * truy vấn COUNT(*) xuống MySQL.
+     * - Ưu tiên lấy tên hiển thị và avatar từ Principal trên RAM, chỉ truy vấn DB
+     * khi cần.
+     */
+    @Transactional(readOnly = true)
+    public TypingEventResponse buildTypingEvent(
+            UUID currentUserId,
+            TypingPayload payload,
+            String cachedUsername,
+            String cachedAvatarUrl) {
+        UUID roomId = payload.getRoomId();
+        String cacheKey = currentUserId + ":" + roomId;
+        long now = System.currentTimeMillis();
+
+        Long cachedValidUntil = roomMembershipCache.get(cacheKey);
+        if (cachedValidUntil == null || cachedValidUntil < now) {
+            ensureActiveMember(currentUserId, roomId);
+            roomMembershipCache.put(cacheKey, now + MEMBERSHIP_CACHE_TTL_MS);
+        }
+
+        String username = cachedUsername;
+        String avatarUrl = cachedAvatarUrl;
+        if (username == null) {
+            User user = userRepository.findById(currentUserId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+            username = user.getUsername();
+            avatarUrl = user.getAvatarUrl();
+        }
+
+        return TypingEventResponse.builder()
+                .roomId(roomId)
+                .userId(currentUserId)
+                .username(username)
+                .avatarUrl(avatarUrl)
+                .typing(payload.isTyping())
+                .build();
+    }
+
+    // =========================================================================
+    // ██████████ PHẦN 7: HÀM TIỆN ÍCH NỘI BỘ (HELPER) ██████████
+    // =========================================================================
+
+    private RoomMember ensureActiveMember(UUID currentUserId, UUID roomId) {
+        RoomMember member = roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+        if (member.getStatus() == RoomMemberStatus.PENDING) {
+            throw new AppException(ErrorCode.ROOM_MEMBER_PENDING);
+        }
+        if (member.getStatus() != RoomMemberStatus.ACTIVE) {
+            throw new AppException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+        return member;
+    }
+
+    private MessageContext getMessageContext(UUID currentUserId, UUID roomId) {
+        User sender = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        ensureActiveMember(currentUserId, roomId);
+
+        if (room.getRoomType() == RoomType.DIRECT) {
+            List<RoomMember> members = roomMemberRepository.findByRoomMemberId_RoomId(roomId);
+
+            for (RoomMember member : members) {
+                UUID otherUserId = member.getRoomMemberId().getUserId();
+
+                if (!otherUserId.equals(currentUserId)) {
+                    Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUserId, otherUserId);
+
+                    if (friendship.isPresent() && friendship.get().getFriendshipStatus() == FriendshipStatus.BLOCKED) {
+                        throw new AppException(ErrorCode.USER_BLOCKED);
+                    }
+                }
+            }
+        }
+
+        return new MessageContext(sender, room);
     }
 }

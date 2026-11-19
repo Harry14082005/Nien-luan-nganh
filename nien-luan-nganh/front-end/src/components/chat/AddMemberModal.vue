@@ -1,7 +1,9 @@
 <script setup>
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, PROPS/EMITS & KHỞI TẠO STATE
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, watch, computed, onMounted } from 'vue'
-import * as userApi from '@/api/user.api'
-import { addRoomMembers } from '@/api/room.api'
+import { addRoomMembers, getInvitableMembers } from '@/api/room.api'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const props = defineProps({
@@ -22,64 +24,46 @@ const props = defineProps({
 const emit = defineEmits(['close', 'member-added'])
 
 const searchKeyword = ref('')
-const users = ref([])
+const allFriends = ref([])
 const loadingUsers = ref(false)
 const submitting = ref(false)
 const errorMsg = ref('')
 const selectedUsers = ref([])
 
-let debounceTimer = null
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: TẢI & LỌC DANH SÁCH BẠN BÈ HỢP LỆ CÓ THỂ MỜI VÀO NHÓM
+// █████████████████████████████████████████████████████████████████████████████
 
-// Tập hợp UUID của các thành viên đã có trong phòng
-const existingMemberIdsSet = computed(() => {
-  const set = new Set()
-  props.existingMembers.forEach((m) => {
-    const id = m.userId || m.user?.userId
-    if (id) set.add(id)
-  })
-  return set
-})
-
-const isAlreadyMember = (userId) => {
-  return existingMemberIdsSet.value.has(userId)
-}
-
+/**
+ * Tải danh sách bạn bè hợp lệ có thể thêm vào nhóm (đã là bạn bè và chưa ở trong nhóm)
+ */
 const loadInitialUsers = async () => {
+  if (!props.roomId) return
   loadingUsers.value = true
   errorMsg.value = ''
   try {
-    users.value = await userApi.getSuggestedUsers()
-  } catch {
-    users.value = []
-  } finally {
-    loadingUsers.value = false
-  }
-}
-
-const handleSearch = async (q) => {
-  const trimmed = (q || '').trim()
-  if (!trimmed) {
-    await loadInitialUsers()
-    return
-  }
-  loadingUsers.value = true
-  errorMsg.value = ''
-  try {
-    const res = await userApi.searchUsers(trimmed, 0, 20)
-    users.value = res?.content || []
+    const list = await getInvitableMembers(props.roomId)
+    allFriends.value = Array.isArray(list) ? list : []
   } catch (err) {
-    console.error('Lỗi tìm kiếm người dùng:', err)
-    users.value = []
+    console.error('Lỗi lấy danh sách bạn bè có thể mời:', err)
+    allFriends.value = []
   } finally {
     loadingUsers.value = false
   }
 }
 
-watch(searchKeyword, (newVal) => {
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    handleSearch(newVal)
-  }, 250)
+/**
+ * Lọc danh sách bạn bè theo từ khóa tìm kiếm (tên, email, số điện thoại)
+ */
+const filteredFriends = computed(() => {
+  const q = searchKeyword.value.trim().toLowerCase()
+  if (!q) return allFriends.value
+  return allFriends.value.filter((u) => {
+    const name = (u.username || '').toLowerCase()
+    const email = (u.email || '').toLowerCase()
+    const phone = (u.phoneNumber || '').toLowerCase()
+    return name.includes(q) || email.includes(q) || phone.includes(q)
+  })
 })
 
 watch(
@@ -100,13 +84,15 @@ onMounted(() => {
   }
 })
 
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: CHỌN THÀNH VIÊN & GỬI YÊU CẦU THÊM VÀO NHÓM
+// █████████████████████████████████████████████████████████████████████████████
+
 const isUserSelected = (userId) => {
   return selectedUsers.value.some((u) => u.userId === userId)
 }
 
 const toggleSelectUser = (user) => {
-  if (isAlreadyMember(user.userId)) return
-
   const idx = selectedUsers.value.findIndex((u) => u.userId === user.userId)
   if (idx !== -1) {
     selectedUsers.value.splice(idx, 1)
@@ -133,7 +119,10 @@ const handleAddMembers = async () => {
   errorMsg.value = ''
   try {
     const memberIds = selectedUsers.value.map((u) => u.userId)
-    await addRoomMembers(props.roomId, memberIds)
+    const res = await addRoomMembers(props.roomId, memberIds)
+    if (Array.isArray(res) && res.some((m) => m.status === 'PENDING')) {
+      alert('Đã gửi lời mời! Do nhóm đang bật chế độ phê duyệt, thành viên mới sẽ vào nhóm sau khi Quản trị viên đồng ý.')
+    }
     emit('member-added', memberIds)
     emit('close')
   } catch (err) {
@@ -207,24 +196,23 @@ const handleAddMembers = async () => {
         {{ errorMsg }}
       </div>
 
-      <!-- Danh sách người dùng -->
+      <!-- Danh sách bạn bè có thể mời -->
       <div class="users-list">
         <div v-if="loadingUsers" class="loading-state">
           <div class="spinner-small"></div>
-          <span>Đang tìm kiếm...</span>
+          <span>Đang tải danh sách bạn bè...</span>
         </div>
 
-        <div v-else-if="users.length === 0" class="empty-state">
-          Không tìm thấy người dùng phù hợp
+        <div v-else-if="filteredFriends.length === 0" class="empty-state">
+          <span>{{ searchKeyword ? 'Không tìm thấy bạn bè phù hợp' : 'Tất cả bạn bè đã ở trong nhóm' }}</span>
         </div>
 
         <div
-          v-for="user in users"
+          v-for="user in filteredFriends"
           v-else
           :key="user.userId"
           class="user-row"
           :class="{
-            'user-row--disabled': isAlreadyMember(user.userId),
             'user-row--selected': isUserSelected(user.userId)
           }"
           @click="toggleSelectUser(user)"
@@ -244,11 +232,7 @@ const handleAddMembers = async () => {
           </div>
 
           <div class="user-action">
-            <span v-if="isAlreadyMember(user.userId)" class="already-badge">
-              Đã tham gia
-            </span>
             <input
-              v-else
               type="checkbox"
               class="user-checkbox"
               :checked="isUserSelected(user.userId)"

@@ -98,7 +98,10 @@ public class GroqAiServiceImpl implements AiService {
             requestBody.put("response_format", Map.of("type", "json_object"));
         }
         try {
-            log.debug("Đang gọi Groq AI (Model: {}, JSON mode: {})...", model, jsonMode);
+            log.info("========== [GROQ AI REQUEST] ==========");
+            log.info("Model: {}, Temperature: {}, JSON mode: {}", model, temperature, jsonMode);
+            log.debug("Prompt:\n{}", prompt);
+
             // gửi http post
             String responseBody = aiRestClient.post()
                     .uri(apiUrl)
@@ -107,6 +110,8 @@ public class GroqAiServiceImpl implements AiService {
                     .body(requestBody) // biến cái Map<String, Object> thành Json
                     .retrieve()
                     .body(String.class);
+
+            log.info("========== [GROQ AI RESPONSE RAW] ==========\n{}", responseBody);
 
             // Bóc tách text từ response OpenAI: choices[0].message.content
             /*

@@ -37,6 +37,7 @@ public class ReminderService {
     private final RoomService roomService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     /**
      * Tạo lịch hẹn cá nhân (PERSONAL) hoặc lịch hẹn nhóm (GROUP)
@@ -172,6 +173,23 @@ public class ReminderService {
                         .reminder(reminderResponse)
                         .build()));
 
+        // 9. Gửi thông báo cá nhân REMINDER_INVITE tới các thành viên được mời trong nhóm
+        if (reminder.getReminderType() == ReminderType.GROUP) {
+            for (ReminderParticipant p : savedParticipants) {
+                if (!p.getUser().getUserId().equals(currentUserId)) {
+                    notificationService.createAndSendNotification(
+                            p.getUser(),
+                            actor.getUser(),
+                            NotificationType.REMINDER_INVITE,
+                            "Lời mời lịch hẹn mới",
+                            actor.getUser().getUsername() + " đã mời bạn tham gia lịch hẹn: '" + reminder.getTitle() + "' trong phòng " + (room.getRoomName() != null ? room.getRoomName() : "Chat") + ".",
+                            roomId,
+                            reminder.getReminderId()
+                    );
+                }
+            }
+        }
+
         return reminderResponse;
     }
 
@@ -245,6 +263,21 @@ public class ReminderService {
                         .roomId(roomId)
                         .reminder(response)
                         .build()));
+
+        // Gửi thông báo REMINDER_RSVP cho người tạo lịch hẹn
+        if (!reminder.getCreatedBy().getUserId().equals(currentUserId)) {
+            User rsvpUser = participant.getUser();
+            String actionText = request.getResponse() == RsvpResponse.ACCEPTED ? "đồng ý tham gia" : "từ chối tham gia";
+            notificationService.createAndSendNotification(
+                    reminder.getCreatedBy(),
+                    rsvpUser,
+                    NotificationType.REMINDER_RSVP,
+                    "Phản hồi lịch hẹn",
+                    rsvpUser.getUsername() + " đã " + actionText + " lịch hẹn '" + reminder.getTitle() + "'.",
+                    roomId,
+                    reminder.getReminderId()
+            );
+        }
 
         return response;
     }
@@ -364,10 +397,9 @@ public class ReminderService {
         }
 
         boolean isCreator = reminder.getCreatedBy().getUserId().equals(currentUserId);
-        boolean isAdminOrOwner = actor.getRoomMemberRole() == RoomRole.ADMIN
-                || actor.getRoomMemberRole() == RoomRole.OWNER;
+        boolean isAdmin = actor.getRoomMemberRole() == RoomRole.ADMIN;
 
-        if (!isCreator && !isAdminOrOwner) {
+        if (!isCreator && !isAdmin) {
             throw new AppException(ErrorCode.CANNOT_CANCEL_REMINDER);
         }
 
@@ -384,6 +416,24 @@ public class ReminderService {
                         .roomId(roomId)
                         .reminder(response)
                         .build()));
+
+        // Gửi thông báo REMINDER_CANCELLED cho các thành viên tham gia
+        List<ReminderParticipant> participants = reminderParticipantRepository.findByReminderIdWithUser(reminder.getReminderId());
+        if (participants != null) {
+            for (ReminderParticipant p : participants) {
+                if (!p.getUser().getUserId().equals(currentUserId)) {
+                    notificationService.createAndSendNotification(
+                            p.getUser(),
+                            actor.getUser(),
+                            NotificationType.REMINDER_CANCELLED,
+                            "Lịch hẹn đã bị hủy",
+                            actor.getUser().getUsername() + " đã hủy lịch hẹn '" + reminder.getTitle() + "'.",
+                            roomId,
+                            reminder.getReminderId()
+                    );
+                }
+            }
+        }
 
         return response;
     }
@@ -533,6 +583,48 @@ public class ReminderService {
                             .build()));
         }
         return expired.size();
+    }
+
+    /**
+     * Dành cho ReminderScheduler quét định kỳ (mỗi 60 giây).
+     * Quét các lịch hẹn PENDING sắp diễn ra trong vòng 15 phút tới mà chưa gửi thông báo nhắc hẹn (isNotified = false),
+     * gửi thông báo REMINDER_DUE cho các thành viên chưa từ chối, và cập nhật isNotified = true.
+     */
+    @Transactional
+    public int scanAndNotifyDueReminders() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threshold = now.plusMinutes(15);
+        List<Reminder> dueReminders = reminderRepository.findByIsNotifiedFalseAndReminderStatusAndStartAtBetween(
+                ReminderStatus.PENDING, now, threshold);
+
+        if (dueReminders.isEmpty()) {
+            return 0;
+        }
+
+        for (Reminder reminder : dueReminders) {
+            reminder.setIsNotified(true);
+            reminderRepository.save(reminder);
+
+            List<ReminderParticipant> participants = reminderParticipantRepository
+                    .findByReminderIdWithUser(reminder.getReminderId());
+
+            if (participants != null) {
+                for (ReminderParticipant p : participants) {
+                    if (p.getResponse() != RsvpResponse.DECLINED) {
+                        notificationService.createAndSendNotification(
+                                p.getUser(),
+                                reminder.getCreatedBy(),
+                                NotificationType.REMINDER_DUE,
+                                "Sắp đến giờ hẹn!",
+                                "Lịch hẹn \"" + reminder.getTitle() + "\" sắp diễn ra trong vòng 15 phút tới.",
+                                reminder.getRoom().getRoomId(),
+                                reminder.getReminderId()
+                        );
+                    }
+                }
+            }
+        }
+        return dueReminders.size();
     }
 
     private MessageResponse buildReminderMessageResponse(Message message, UUID reminderId) {

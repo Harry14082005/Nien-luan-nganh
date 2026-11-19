@@ -3,6 +3,10 @@ import { ref, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { resolveFileUrl } from '@/api/storage.api'
 
+// =============================================================================
+// ████  PHẦN 1: KHỞI TẠO PROPS, STORE & TRẠNG THÁI THẺ LỊCH HẸN (REMINDER)  ███
+// =============================================================================
+
 const props = defineProps({
   message: {
     type: Object,
@@ -54,6 +58,10 @@ const isPersonalOfOther = computed(() => {
   if (!props.reminder?.createdById || !props.currentUserId) return false
   return String(props.reminder.createdById) !== String(props.currentUserId)
 })
+
+// =============================================================================
+// ██████████  PHẦN 2: KIỂM TRA HẾT HẠN, QUYỀN HỦY & ĐỊNH DẠNG TỜ LỊCH  ████████
+// =============================================================================
 
 // Kiểm tra xem thời điểm hiện tại đã trôi qua mốc hết hạn của lịch hẹn hay chưa
 // (Ưu tiên kiểm tra endAt nếu có, nếu không có endAt thì so khớp startAt)
@@ -137,6 +145,10 @@ const formattedTimeRange = computed(() => {
   }
   return base
 })
+
+// =============================================================================
+// ████  PHẦN 3: THỐNG KÊ NGƯỜI THAM GIA & XỬ LÝ PHẢN HỒI RSVP / HỦY LỊCH  █████
+// =============================================================================
 
 const participants = computed(() => {
   return Array.isArray(props.reminder?.participants) ? props.reminder.participants : []
@@ -551,7 +563,7 @@ async function handleCancel() {
 .rem-leaf {
   width: 66px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid #dbeafe;
   background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
   overflow: hidden;

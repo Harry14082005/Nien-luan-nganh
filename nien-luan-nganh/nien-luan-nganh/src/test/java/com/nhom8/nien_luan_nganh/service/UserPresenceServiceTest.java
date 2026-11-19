@@ -57,8 +57,10 @@ class UserPresenceServiceTest {
         assertEquals(1, userPresenceService.getSessionCount(userId));
 
         // Kiểm tra broadcast qua 2 kênh: chung và riêng
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users.presence"), any(UserPresenceResponse.class));
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users." + userId + ".presence"), any(UserPresenceResponse.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users.presence"),
+                any(UserPresenceResponse.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users." + userId + ".presence"),
+                any(UserPresenceResponse.class));
     }
 
     @Test
@@ -74,7 +76,8 @@ class UserPresenceServiceTest {
         assertEquals(2, userPresenceService.getSessionCount(userId));
 
         // Chỉ broadcast 1 lần ở session đầu tiên
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users.presence"), any(UserPresenceResponse.class));
+        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/users.presence"),
+                any(UserPresenceResponse.class));
     }
 
     @Test
@@ -166,7 +169,8 @@ class UserPresenceServiceTest {
 
         assertEquals(2, result.size());
         UserPresenceResponse res1 = result.stream().filter(r -> r.getUserId().equals(userId)).findFirst().orElseThrow();
-        UserPresenceResponse res2 = result.stream().filter(r -> r.getUserId().equals(user2Id)).findFirst().orElseThrow();
+        UserPresenceResponse res2 = result.stream().filter(r -> r.getUserId().equals(user2Id)).findFirst()
+                .orElseThrow();
 
         assertTrue(res1.isOnline());
         assertFalse(res2.isOnline());
@@ -183,7 +187,8 @@ class UserPresenceServiceTest {
         List<UserPresenceResponse> result = userPresenceService.getUsersPresence(duplicateIds);
 
         assertEquals(1, result.size());
-        // Xác minh userRepository.findAllById chỉ nhận collection có 1 phần tử duy nhất sau khi khử trùng
+        // Xác minh userRepository.findAllById chỉ nhận collection có 1 phần tử duy nhất
+        // sau khi khử trùng
         verify(userRepository, times(1)).findAllById(argThat(ids -> ids instanceof Collection<?> c && c.size() == 1));
     }
 }

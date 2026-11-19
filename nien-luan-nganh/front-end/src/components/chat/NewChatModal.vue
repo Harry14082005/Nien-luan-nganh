@@ -1,4 +1,7 @@
 <script setup>
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 1: IMPORT, EMITS & KHỞI TẠO STATE
+// █████████████████████████████████████████████████████████████████████████████
 import { ref, watch, onMounted } from 'vue'
 import { getFriends } from '@/api/contacts.api'
 import { useChatStore } from '@/stores/chat'
@@ -20,6 +23,10 @@ const groupName = ref('')
 const selectedUsers = ref([]) // mảng các user object đã chọn
 
 let debounceTimer = null
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 2: TẢI & TÌM KIẾM DANH SÁCH BẠN BÈ
+// █████████████████████████████████████████████████████████████████████████████
 
 const loadInitialFriends = async () => {
   loadingUsers.value = true
@@ -80,6 +87,10 @@ watch(searchKeyword, (newVal) => {
 onMounted(() => {
   loadInitialFriends()
 })
+
+// █████████████████████████████████████████████████████████████████████████████
+// PHẦN 3: BẮT ĐẦU CHAT 1-1 & TẠO NHÓM CHAT MỚI
+// █████████████████████████████████████████████████████████████████████████████
 
 // Bắt đầu chat 1-1
 const handleStartDirect = async (user) => {

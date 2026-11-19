@@ -4,7 +4,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
 import { getImageUrl } from '@/api/user.api'
+import NotificationPopover from '@/components/common/NotificationPopover.vue'
 
 const props = defineProps({
   currentPage: {
@@ -14,6 +16,8 @@ const props = defineProps({
 })
 const auth = useAuthStore()
 const { user: me } = storeToRefs(auth)
+const notificationStore = useNotificationStore()
+const unreadNotifCount = computed(() => notificationStore.unreadCount)
 
 const myInitials = computed(() => {
   const w = (me.value?.username || '').trim().split(/\s+/).filter(Boolean)
@@ -23,7 +27,10 @@ const myInitials = computed(() => {
 
 const myAvatarSrc = computed(() => getImageUrl(me.value?.avatarUrl || ''))
 
-onMounted(() => auth.initUser())
+onMounted(() => {
+  auth.initUser()
+  notificationStore.fetchUnreadCount()
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -39,8 +46,13 @@ const activeTab = computed(() => {
 })
 
 function navigateTo(page, targetPath) {
+  notificationStore.closePanel()
   if (route && route.path === targetPath) return
   router.push(targetPath)
+}
+
+function toggleNotifications() {
+  notificationStore.togglePanel()
 }
 </script>
 
@@ -101,6 +113,25 @@ function navigateTo(page, targetPath) {
         </div>
       </div>
 
+      <!-- Thông báo / Notifications -->
+      <div
+        class="nav-item"
+        :class="{ active: notificationStore.isPanelOpen }"
+        title="Thông báo"
+        role="button"
+        tabindex="0"
+        @click="toggleNotifications"
+        @keydown.enter="toggleNotifications"
+      >
+        <div class="icon-box">
+          <font-awesome-icon class="nav-icon" icon="bell" />
+          <span v-if="unreadNotifCount > 0" class="notif-badge">
+            {{ unreadNotifCount > 99 ? '99+' : unreadNotifCount }}
+          </span>
+          <span class="dot"></span>
+        </div>
+      </div>
+
       <!-- Cài đặt / Settings -->
       <div
         class="nav-item"
@@ -130,6 +161,9 @@ function navigateTo(page, targetPath) {
       <img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="myInitials" class="account-avatar-img" />
       <span v-else class="account-avatar-initials">{{ myInitials }}</span>
     </div>
+
+    <!-- Bảng thông báo Drawer / Popover -->
+    <NotificationPopover />
   </div>
 </template>
 
@@ -173,10 +207,10 @@ function navigateTo(page, targetPath) {
 .navigation {
   display: flex;
   flex-direction: column;
-  gap: 40px;
-  font-size: 27px;
-  margin-bottom: 25vh;
-  margin-top: 40px;
+  gap: 28px;
+  font-size: 26px;
+  margin-top: 30px;
+  margin-bottom: auto;
   color: #6b81a2;
 }
 
@@ -244,6 +278,38 @@ function navigateTo(page, targetPath) {
 /* CHỈ HIỂN THỊ DẤU CHẤM Ở NÚT ĐANG ACTIVE */
 .nav-item.active .dot {
   display: block;
+}
+
+/* === BADGE THÔNG BÁO CHƯA ĐỌC === */
+.notif-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0f2547;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  animation: pulse-badge 2s infinite ease-in-out;
+  z-index: 2;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
 }
 
 .account {

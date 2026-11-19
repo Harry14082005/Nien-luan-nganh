@@ -23,14 +23,14 @@ public class RoomListResponse {
     private Boolean isOnline;
     private LocalDateTime lastSeenAt; 
 
-    // private String theme;
-    // private UUID createdBy;
-    // private boolean requireApproval;
-    // private LocalDateTime createdAt;
+    // Thông tin người tạo nhóm và cấu hình phê duyệt thành viên
+    private UUID createdBy;
+    private boolean requireApproval;
 
     // phần tin nhắn hiển thị bên ngoài mới nhất
     private UUID lastMessageId;
     private String lastMessageContent;
+    private UUID lastMessageSenderId;
     private String lastMessageSenderName;
     private LocalDateTime lastMessageAt;
 

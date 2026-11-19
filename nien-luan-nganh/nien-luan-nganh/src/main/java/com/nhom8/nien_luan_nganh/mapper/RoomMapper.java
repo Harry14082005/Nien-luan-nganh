@@ -15,6 +15,7 @@ public interface RoomMapper {
     RoomDetailResponse toRoomDetailResponse(Room room);
 
     // lastMessageId/Content/SenderName/At được MapStruct tự map trực tiếp từ Room
+    @Mapping(target = "createdBy", source = "createdBy.userId")
     @Mapping(target = "lastDeliveredMessageId", ignore = true)
     @Mapping(target = "lastReadMessageId", ignore = true)
     @Mapping(target = "hasUnread", ignore = true)

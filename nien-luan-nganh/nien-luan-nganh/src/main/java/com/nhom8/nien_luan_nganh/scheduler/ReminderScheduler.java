@@ -33,5 +33,21 @@ public class ReminderScheduler {
             log.error("❌ [ReminderScheduler] Lỗi khi quét lịch hẹn hết hạn: {}", e.getMessage(), e);
         }
     }
+
+    /**
+     * Tự động quét và gửi thông báo nhắc hẹn trước 15 phút mỗi 60 giây.
+     * Gửi notification REMINDER_DUE cho các thành viên chưa từ chối tham gia.
+     */
+    @Scheduled(fixedDelay = 60000, initialDelay = 10000)
+    public void autoNotifyDueReminders() {
+        try {
+            int count = reminderService.scanAndNotifyDueReminders();
+            if (count > 0) {
+                log.info("🔔 [ReminderScheduler] Đã gửi thông báo nhắc hẹn sắp diễn ra cho {} lịch hẹn.", count);
+            }
+        } catch (Exception e) {
+            log.error("❌ [ReminderScheduler] Lỗi khi quét thông báo nhắc hẹn: {}", e.getMessage(), e);
+        }
+    }
 }
 
