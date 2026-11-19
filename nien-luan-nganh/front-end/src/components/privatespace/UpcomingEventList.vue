@@ -144,7 +144,7 @@ function goToChatWithReminder(item) {
             </svg>
             {{ getReminderTypeLabel(item.reminderType) }}
           </span>
-          <span class="status-pill" :class="getStatusClass(item.status)">{{ getStatusLabel(item.status) }}</span>
+          <span class="status-pill" :class="getStatusClass(item.status || item.reminderStatus)">{{ getStatusLabel(item.status || item.reminderStatus) }}</span>
         </div>
 
         <!-- Title & Description -->
