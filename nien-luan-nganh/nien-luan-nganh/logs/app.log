@@ -3849,3 +3849,48 @@ TASK & INSTRUCTIONS:
 2026-11-19 16:37:44.836 [http-nio-8080-exec-2] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user 6c8f323d-da51-49e9-80e8-8c39bccaeec6 (type: REMINDER_RSVP)
 2026-11-19 16:37:44.842 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece.reminder]
 2026-11-19 16:37:44.842 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 16:39:30.169 [clientOutboundChannel-37] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 9a657248-c0cd-4748-a742-f00f2e6eae65, fallbackUserId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-19 16:39:30.169 [clientOutboundChannel-37] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac đóng session 9a657248-c0cd-4748-a742-f00f2e6eae65 (còn lại: 0)
+2026-11-19 16:39:30.174 [clientOutboundChannel-37] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = false, lastSeenAt = 2026-11-19T16:39:30.170028100
+2026-11-19 16:39:33.638 [http-nio-8080-exec-3] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-19 16:39:33.639 [clientOutboundChannel-45] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = b30de33a-9101-4f3c-9994-50010012c3ac, sessionId = 5f9b1282-0e00-4d76-b1dd-149e9e879d3f
+2026-11-19 16:39:33.639 [clientOutboundChannel-45] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac kết nối session 5f9b1282-0e00-4d76-b1dd-149e9e879d3f (tổng sessions: 1)
+2026-11-19 16:39:33.640 [clientOutboundChannel-45] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = true, lastSeenAt = null
+2026-11-19 16:39:45.176 [clientOutboundChannel-49] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = ffcffeff-268c-42f7-9fdd-79d08888c9c6, fallbackUserId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6
+2026-11-19 16:39:45.177 [clientOutboundChannel-49] INFO  c.n.n.service.UserPresenceService - User 6c8f323d-da51-49e9-80e8-8c39bccaeec6 đóng session ffcffeff-268c-42f7-9fdd-79d08888c9c6 (còn lại: 0)
+2026-11-19 16:39:45.182 [clientOutboundChannel-49] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, isOnline = false, lastSeenAt = 2026-11-19T16:39:45.177971900
+2026-11-19 16:39:48.639 [http-nio-8080-exec-4] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6
+2026-11-19 16:39:48.640 [clientOutboundChannel-53] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, sessionId = acdc869e-e4d3-405e-91fb-1ce46b3e4535
+2026-11-19 16:39:48.640 [clientOutboundChannel-53] INFO  c.n.n.service.UserPresenceService - User 6c8f323d-da51-49e9-80e8-8c39bccaeec6 kết nối session acdc869e-e4d3-405e-91fb-1ce46b3e4535 (tổng sessions: 1)
+2026-11-19 16:39:48.641 [clientOutboundChannel-53] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, isOnline = true, lastSeenAt = null
+2026-11-19 16:41:45.252 [clientOutboundChannel-73] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = acdc869e-e4d3-405e-91fb-1ce46b3e4535, fallbackUserId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6
+2026-11-19 16:41:45.252 [clientOutboundChannel-75] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 0598f088-5585-4797-9d58-653dfcab87d4, fallbackUserId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb
+2026-11-19 16:41:45.252 [clientOutboundChannel-73] INFO  c.n.n.service.UserPresenceService - User 6c8f323d-da51-49e9-80e8-8c39bccaeec6 đóng session acdc869e-e4d3-405e-91fb-1ce46b3e4535 (còn lại: 0)
+2026-11-19 16:41:45.258 [clientOutboundChannel-73] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, isOnline = false, lastSeenAt = 2026-11-19T16:41:45.253753900
+2026-11-19 16:41:45.259 [clientOutboundChannel-75] INFO  c.n.n.service.UserPresenceService - User e2f59c4d-2fe9-4901-ae29-2b174bdf9adb đóng session 0598f088-5585-4797-9d58-653dfcab87d4 (còn lại: 0)
+2026-11-19 16:41:45.263 [clientOutboundChannel-75] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb, isOnline = false, lastSeenAt = 2026-11-19T16:41:45.259178500
+2026-11-19 16:41:48.641 [http-nio-8080-exec-6] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6
+2026-11-19 16:41:48.642 [clientOutboundChannel-82] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, sessionId = 5ccfc949-4409-4dc9-80fc-45403010990f
+2026-11-19 16:41:48.643 [clientOutboundChannel-82] INFO  c.n.n.service.UserPresenceService - User 6c8f323d-da51-49e9-80e8-8c39bccaeec6 kết nối session 5ccfc949-4409-4dc9-80fc-45403010990f (tổng sessions: 1)
+2026-11-19 16:41:48.643 [clientOutboundChannel-82] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, isOnline = true, lastSeenAt = null
+2026-11-19 16:41:48.645 [http-nio-8080-exec-1] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb
+2026-11-19 16:41:48.646 [clientOutboundChannel-84] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb, sessionId = b04ab847-ee54-449b-aa8e-db9b406bab42
+2026-11-19 16:41:48.646 [clientOutboundChannel-84] INFO  c.n.n.service.UserPresenceService - User e2f59c4d-2fe9-4901-ae29-2b174bdf9adb kết nối session b04ab847-ee54-449b-aa8e-db9b406bab42 (tổng sessions: 1)
+2026-11-19 16:41:48.647 [clientOutboundChannel-84] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb, isOnline = true, lastSeenAt = null
+2026-11-19 16:42:39.387 [http-nio-8080-exec-6] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = b04ab847-ee54-449b-aa8e-db9b406bab42, fallbackUserId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb
+2026-11-19 16:42:39.387 [http-nio-8080-exec-9] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 5f9b1282-0e00-4d76-b1dd-149e9e879d3f, fallbackUserId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-19 16:42:39.387 [http-nio-8080-exec-3] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 5ccfc949-4409-4dc9-80fc-45403010990f, fallbackUserId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6
+2026-11-19 16:42:39.387 [http-nio-8080-exec-6] INFO  c.n.n.service.UserPresenceService - User e2f59c4d-2fe9-4901-ae29-2b174bdf9adb đóng session b04ab847-ee54-449b-aa8e-db9b406bab42 (còn lại: 0)
+2026-11-19 16:42:39.394 [http-nio-8080-exec-6] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = e2f59c4d-2fe9-4901-ae29-2b174bdf9adb, isOnline = false, lastSeenAt = 2026-11-19T16:42:39.387155700
+2026-11-19 16:42:39.395 [http-nio-8080-exec-3] INFO  c.n.n.service.UserPresenceService - User 6c8f323d-da51-49e9-80e8-8c39bccaeec6 đóng session 5ccfc949-4409-4dc9-80fc-45403010990f (còn lại: 0)
+2026-11-19 16:42:39.400 [http-nio-8080-exec-3] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 6c8f323d-da51-49e9-80e8-8c39bccaeec6, isOnline = false, lastSeenAt = 2026-11-19T16:42:39.395157300
+2026-11-19 16:42:39.401 [http-nio-8080-exec-9] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac đóng session 5f9b1282-0e00-4d76-b1dd-149e9e879d3f (còn lại: 0)
+2026-11-19 16:42:39.406 [http-nio-8080-exec-9] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = false, lastSeenAt = 2026-11-19T16:42:39.401158
+2026-11-19 16:42:41.441 [SpringApplicationShutdownHook] INFO  o.s.boot.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2026-11-19 16:42:41.446 [tomcat-shutdown] INFO  o.s.boot.tomcat.GracefulShutdown - Graceful shutdown complete
+2026-11-19 16:42:41.448 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - Stopping...
+2026-11-19 16:42:41.448 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@25e35cdc]]
+2026-11-19 16:42:41.448 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - Stopped.
+2026-11-19 16:42:41.455 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-11-19 16:42:41.458 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2026-11-19 16:42:41.464 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.

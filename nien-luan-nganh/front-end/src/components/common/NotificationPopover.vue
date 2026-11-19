@@ -1,4 +1,4 @@
-<script setup>
+A<script setup>
 import { computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useNotificationStore } from '@/stores/notification'

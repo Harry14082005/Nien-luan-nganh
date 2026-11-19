@@ -37,7 +37,6 @@ const closingPoll = ref(false)
 const limitAlertMessage = ref('')
 const optionInputRef = ref(null)
 
-
 const openAddOption = async () => {
   if (options.value.length >= 10) {
     limitAlertMessage.value = 'Cuộc bình chọn đã đạt giới hạn tối đa 10 phương án!'
