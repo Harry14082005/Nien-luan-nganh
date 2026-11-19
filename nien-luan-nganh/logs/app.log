@@ -1898,3 +1898,117 @@ Caused by: java.net.ConnectException: Connection refused: getsockopt
 	at com.mysql.cj.protocol.StandardSocketFactory.connect(StandardSocketFactory.java:144)
 	at com.mysql.cj.protocol.a.NativeSocketConnection.connect(NativeSocketConnection.java:53)
 	... 143 common frames omitted
+2026-11-19 19:02:02.896 [main] INFO  c.n.n.NienLuanNganhApplication - Starting NienLuanNganhApplication using Java 25.0.2 with PID 8136 (D:\Nien_luan_nganh_KTPM\nien-luan-nganh\nien-luan-nganh\target\classes started by Phú Thịnh in D:\Nien_luan_nganh_KTPM\nien-luan-nganh)
+2026-11-19 19:02:02.900 [main] INFO  c.n.n.NienLuanNganhApplication - No active profile set, falling back to 1 default profile: "default"
+2026-11-19 19:02:04.022 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-19 19:02:04.125 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 92 ms. Found 16 JPA repository interfaces.
+2026-11-19 19:02:04.812 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-11-19 19:02:04.827 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-11-19 19:02:04.828 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.24]
+2026-11-19 19:02:04.889 [main] INFO  o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 1939 ms
+2026-11-19 19:02:05.644 [main] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-19 19:02:05.689 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-11-19 19:02:05.937 [main] INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@59b3f754
+2026-11-19 19:02:05.938 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-11-19 19:02:06.002 [main] WARN  org.hibernate.orm.deprecation - HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-11-19 19:02:07.724 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-19 19:02:07.802 [main] INFO  o.s.d.j.r.q.QueryEnhancerFactories - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-19 19:02:10.707 [main] INFO  o.s.s.c.a.a.c.InitializeAuthenticationProviderBeanManagerConfigurer$InitializeAuthenticationProviderManagerConfigurer - Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-11-19 19:02:10.708 [main] WARN  o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-11-19 19:02:11.441 [main] INFO  org.springframework.web.SimpLogging - Starting...
+2026-11-19 19:02:11.443 [main] INFO  org.springframework.web.SimpLogging - BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@690eab38]]
+2026-11-19 19:02:11.445 [main] INFO  org.springframework.web.SimpLogging - Started.
+2026-11-19 19:02:11.467 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+2026-11-19 19:02:11.471 [main] INFO  o.s.s.config.TaskSchedulerRouter - More than one TaskScheduler bean exists within the context, and none is named 'taskScheduler'. Mark one of them as primary or name it 'taskScheduler' (possibly as an alias); or implement the SchedulingConfigurer interface and call ScheduledTaskRegistrar#setScheduler explicitly within the configureTasks() callback: [messageBrokerTaskScheduler, customHeartbeatTaskScheduler]
+2026-11-19 19:02:11.475 [main] INFO  c.n.n.NienLuanNganhApplication - Started NienLuanNganhApplication in 9.237 seconds (process running for 9.783)
+2026-11-19 19:02:27.058 [pool-2-thread-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8.reminder]
+2026-11-19 19:02:27.214 [pool-2-thread-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:02:27.217 [pool-2-thread-1] INFO  c.n.n.scheduler.ReminderScheduler - ⏰ [ReminderScheduler] Đã tự động cập nhật 1 lịch hẹn hết hạn sang trạng thái DONE.
+2026-11-19 19:02:41.518 [http-nio-8080-exec-2] INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-19 19:02:41.519 [http-nio-8080-exec-2] INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-11-19 19:02:41.522 [http-nio-8080-exec-2] INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 3 ms
+2026-11-19 19:02:42.181 [http-nio-8080-exec-3] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:02:42.833 [http-nio-8080-exec-5] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:02:42.837 [clientOutboundChannel-1] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = c8672e3f-dcdc-4c70-99e6-5c45c018b97c
+2026-11-19 19:02:42.842 [clientOutboundChannel-1] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session c8672e3f-dcdc-4c70-99e6-5c45c018b97c (tổng sessions: 1)
+2026-11-19 19:02:42.845 [clientOutboundChannel-1] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:02:59.778 [http-nio-8080-exec-7] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:06:11.630 [clientOutboundChannel-14] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = c8672e3f-dcdc-4c70-99e6-5c45c018b97c, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:06:11.633 [clientOutboundChannel-14] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session c8672e3f-dcdc-4c70-99e6-5c45c018b97c (còn lại: 0)
+2026-11-19 19:06:11.732 [clientOutboundChannel-14] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:06:11.634834800
+2026-11-19 19:06:14.530 [http-nio-8080-exec-5] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:06:14.537 [clientOutboundChannel-17] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = 5d73e9bc-cf51-4ceb-9464-a7e9cc32dc82
+2026-11-19 19:06:14.537 [clientOutboundChannel-17] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session 5d73e9bc-cf51-4ceb-9464-a7e9cc32dc82 (tổng sessions: 1)
+2026-11-19 19:06:14.539 [clientOutboundChannel-17] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:08:11.973 [clientOutboundChannel-24] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 5d73e9bc-cf51-4ceb-9464-a7e9cc32dc82, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:08:11.973 [clientOutboundChannel-24] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session 5d73e9bc-cf51-4ceb-9464-a7e9cc32dc82 (còn lại: 0)
+2026-11-19 19:08:12.008 [clientOutboundChannel-24] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:08:11.974610900
+2026-11-19 19:08:15.526 [http-nio-8080-exec-5] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:08:15.534 [clientOutboundChannel-27] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = 755edefb-6591-4662-be57-ca223bb771e1
+2026-11-19 19:08:15.535 [clientOutboundChannel-27] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session 755edefb-6591-4662-be57-ca223bb771e1 (tổng sessions: 1)
+2026-11-19 19:08:15.537 [clientOutboundChannel-27] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:10:11.838 [clientOutboundChannel-34] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 755edefb-6591-4662-be57-ca223bb771e1, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:10:11.839 [clientOutboundChannel-34] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session 755edefb-6591-4662-be57-ca223bb771e1 (còn lại: 0)
+2026-11-19 19:10:11.911 [clientOutboundChannel-34] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:10:11.841844900
+2026-11-19 19:10:14.552 [http-nio-8080-exec-6] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:10:14.555 [clientOutboundChannel-37] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = bec49938-9e49-47d0-9df3-1998ffcf68f1
+2026-11-19 19:10:14.556 [clientOutboundChannel-37] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session bec49938-9e49-47d0-9df3-1998ffcf68f1 (tổng sessions: 1)
+2026-11-19 19:10:14.557 [clientOutboundChannel-37] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:10:21.850 [http-nio-8080-exec-8] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = bec49938-9e49-47d0-9df3-1998ffcf68f1, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:10:21.850 [http-nio-8080-exec-8] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session bec49938-9e49-47d0-9df3-1998ffcf68f1 (còn lại: 0)
+2026-11-19 19:10:21.925 [http-nio-8080-exec-8] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:10:21.852973600
+2026-11-19 19:24:57.475 [http-nio-8080-exec-7] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:24:57.800 [http-nio-8080-exec-3] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:24:57.812 [clientOutboundChannel-42] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = 69c0691a-10d9-4427-8fcc-aac5c65c9423
+2026-11-19 19:24:57.813 [clientOutboundChannel-42] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session 69c0691a-10d9-4427-8fcc-aac5c65c9423 (tổng sessions: 1)
+2026-11-19 19:24:57.816 [clientOutboundChannel-42] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:25:17.450 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8]
+2026-11-19 19:25:17.453 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:25:17.454 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8.reminder]
+2026-11-19 19:25:17.456 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:25:21.431 [http-nio-8080-exec-5] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:25:23.073 [http-nio-8080-exec-3] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:25:26.605 [http-nio-8080-exec-6] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:25:30.777 [http-nio-8080-exec-8] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:26:44.834 [http-nio-8080-exec-4] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:27:02.262 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8]
+2026-11-19 19:27:02.264 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:27:02.265 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8.reminder]
+2026-11-19 19:27:02.266 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:27:09.813 [http-nio-8080-exec-10] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:27:11.957 [http-nio-8080-exec-5] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:27:23.119 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8]
+2026-11-19 19:27:23.121 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:27:23.122 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.59af329b-966a-44fb-bc2b-091a2868bde8.reminder]
+2026-11-19 19:27:23.124 [http-nio-8080-exec-1] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-19 19:27:29.167 [http-nio-8080-exec-3] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:27:35.637 [http-nio-8080-exec-4] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:27:39.788 [http-nio-8080-exec-6] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:32:53.960 [http-nio-8080-exec-10] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:34:57.602 [clientOutboundChannel-87] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 69c0691a-10d9-4427-8fcc-aac5c65c9423, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:34:57.603 [clientOutboundChannel-87] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session 69c0691a-10d9-4427-8fcc-aac5c65c9423 (còn lại: 0)
+2026-11-19 19:34:57.702 [clientOutboundChannel-87] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:34:57.603068300
+2026-11-19 19:35:00.576 [http-nio-8080-exec-7] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:35:00.582 [clientOutboundChannel-90] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = 49b9ce40-4a9d-4823-b8a1-4dfb1497c36e
+2026-11-19 19:35:00.582 [clientOutboundChannel-90] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session 49b9ce40-4a9d-4823-b8a1-4dfb1497c36e (tổng sessions: 1)
+2026-11-19 19:35:00.586 [clientOutboundChannel-90] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:36:57.652 [clientOutboundChannel-97] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 49b9ce40-4a9d-4823-b8a1-4dfb1497c36e, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:36:57.652 [clientOutboundChannel-97] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session 49b9ce40-4a9d-4823-b8a1-4dfb1497c36e (còn lại: 0)
+2026-11-19 19:36:57.693 [clientOutboundChannel-97] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:36:57.652350600
+2026-11-19 19:37:00.502 [http-nio-8080-exec-8] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:37:00.507 [clientOutboundChannel-100] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, sessionId = f3baa327-d7d3-4b72-92e6-148c616c40db
+2026-11-19 19:37:00.507 [clientOutboundChannel-100] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 kết nối session f3baa327-d7d3-4b72-92e6-148c616c40db (tổng sessions: 1)
+2026-11-19 19:37:00.508 [clientOutboundChannel-100] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = true, lastSeenAt = null
+2026-11-19 19:37:26.651 [http-nio-8080-exec-1] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:37:52.840 [http-nio-8080-exec-2] WARN  c.n.n.e.GlobalExceptionHandler - AppException: Dữ liệu đầu vào không hợp lệ (Code: 1004)
+2026-11-19 19:42:26.993 [http-nio-8080-exec-10] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = f3baa327-d7d3-4b72-92e6-148c616c40db, fallbackUserId = 540919c3-670d-4b18-b67a-c285dae9f8d5
+2026-11-19 19:42:26.993 [http-nio-8080-exec-10] INFO  c.n.n.service.UserPresenceService - User 540919c3-670d-4b18-b67a-c285dae9f8d5 đóng session f3baa327-d7d3-4b72-92e6-148c616c40db (còn lại: 0)
+2026-11-19 19:42:27.052 [http-nio-8080-exec-10] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = 540919c3-670d-4b18-b67a-c285dae9f8d5, isOnline = false, lastSeenAt = 2026-11-19T19:42:26.993042900
+2026-11-19 19:46:50.511 [SpringApplicationShutdownHook] INFO  o.s.boot.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2026-11-19 19:46:50.577 [tomcat-shutdown] INFO  o.s.boot.tomcat.GracefulShutdown - Graceful shutdown complete
+2026-11-19 19:46:50.602 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - Stopping...
+2026-11-19 19:46:50.602 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@690eab38]]
+2026-11-19 19:46:50.603 [SpringApplicationShutdownHook] INFO  org.springframework.web.SimpLogging - Stopped.
+2026-11-19 19:46:50.635 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-11-19 19:46:50.703 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2026-11-19 19:46:50.714 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
