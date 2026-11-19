@@ -39,3 +39,4 @@ export const closePoll = async (roomId, pollId) => {
   const res = await http.put(`/room/${roomId}/polls/${pollId}/close`)
   return res.data?.data ?? res.data?.result ?? res.data
 }
+

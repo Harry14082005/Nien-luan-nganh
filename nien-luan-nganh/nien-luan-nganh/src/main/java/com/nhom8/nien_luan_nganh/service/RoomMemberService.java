@@ -336,6 +336,11 @@ public class RoomMemberService {
         if (actor.getRoomMemberRole() != RoomRole.ADMIN)
             throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
 
+        // Không được phép xoá Người tạo nhóm (createdBy)
+        if (room.getCreatedBy() != null && targetUserId.equals(room.getCreatedBy().getUserId())) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
         RoomMember target = roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(targetUserId, roomId)
                 .orElseThrow(
                         () -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
@@ -345,7 +350,6 @@ public class RoomMemberService {
         User targetUser = getUserOrThrow(targetUserId);
 
         roomMemberRepository.delete(target);
-        roomMemberRepository.flush();
 
         // Nếu xoá một thành viên đang ACTIVE -> Tạo tin nhắn hệ thống thông báo trong nhóm & gửi ROOM_REMOVED
         if (wasActive) {
@@ -422,11 +426,31 @@ public class RoomMemberService {
                 RoomMember newAdmin = getActiveMemberOrThrow(roomId, newAdminId);
                 newAdmin.setRoomMemberRole(RoomRole.ADMIN);
                 roomMemberRepository.save(newAdmin);
+
+                // Nếu người rời đi là người tạo nhóm (createdBy) thì chuyển giao luôn quyền sở hữu nhóm
+                if (room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId())) {
+                    room.setCreatedBy(newAdmin.getUser());
+                    roomRepository.save(room);
+                }
+            } else if (room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId())) {
+                // Nếu nhóm đã có sẵn Admin khác, chuyển createdBy cho Admin còn lại hoặc người được chọn
+                UUID newOwnerId = (request != null && request.getNewAdminId() != null)
+                        ? request.getNewAdminId()
+                        : activeMembers.stream()
+                                .filter(m -> !m.getRoomMemberId().getUserId().equals(currentUserId)
+                                        && m.getRoomMemberRole() == RoomRole.ADMIN)
+                                .map(m -> m.getRoomMemberId().getUserId())
+                                .findFirst()
+                                .orElse(null);
+                if (newOwnerId != null) {
+                    RoomMember nextOwner = getActiveMemberOrThrow(roomId, newOwnerId);
+                    room.setCreatedBy(nextOwner.getUser());
+                    roomRepository.save(room);
+                }
             }
         }
 
         roomMemberRepository.delete(actor);
-        roomMemberRepository.flush();
 
         // Phát thông báo hệ thống "A đã rời khỏi nhóm"
         String systemContent = actorUser.getUsername() + " đã rời khỏi nhóm";
@@ -442,7 +466,8 @@ public class RoomMemberService {
         }
 
         RoomMember actor = getActiveMemberOrThrow(roomId, currentUserId);
-        if (actor.getRoomMemberRole() != RoomRole.ADMIN) {
+        boolean isCreator = room.getCreatedBy() != null && currentUserId.equals(room.getCreatedBy().getUserId());
+        if (actor.getRoomMemberRole() != RoomRole.ADMIN && !isCreator) {
             throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
         }
 
@@ -512,12 +537,19 @@ public class RoomMemberService {
 
         RoomRole newRole = request.getRole();
 
+        // Không được gỡ quyền Admin của Người tạo nhóm (createdBy)
+        if (room.getCreatedBy() != null
+                && userId.equals(room.getCreatedBy().getUserId())
+                && newRole == RoomRole.MEMBER) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
         // không làm gì nếu không đổi quyền
         if (target.getRoomMemberRole() == newRole) {
             return roomMemberMapper.toRoomMemberResponse(target);
         }
 
-        // admin duy nhất không thể đổi quyền xuống MEMBER
+        // admin duy nhất không thể đổi quyền
         if (target.getRoomMemberRole() == RoomRole.ADMIN && newRole == RoomRole.MEMBER) {
             long adminCount = roomMemberRepository.countByRoomMemberId_RoomIdAndRoomMemberRole(roomId, RoomRole.ADMIN);
 

@@ -12,7 +12,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore, getReplySnippet, highlightKeyword } from '@/stores/chat';
-import { resolveFileUrl } from '@/api/storage.api'; 
+import { resolveFileUrl } from '@/api/storage.api';
 import { translateMessage } from '@/api/message.api';
 import ReminderMessageCard from './ReminderMessageCard.vue';
 
@@ -123,6 +123,14 @@ const props = defineProps({
       canManageRoom: {
           type: Boolean,
           default: false
+      },
+      showPollSuggestBtn: {
+          type: Boolean,
+          default: false
+      },
+      isSuggestingPoll: {
+          type: Boolean,
+          default: false
       }
 });
 
@@ -133,13 +141,19 @@ const emit = defineEmits([
     'viewHistory',
     'replyMessage',
     'scrollToMessage',
-    'preview-media'
+    'preview-media',
+    'suggestPoll'
 ])
 
 const authStore = useAuthStore();
 const chatStore = useChatStore();
 
 const showMenu = ref(false); // Trạng thái mở menu 3 chấm
+
+const handleSuggestPollClick = () => {
+    showMenu.value = false;
+    emit('suggestPoll', props.messageId);
+};
 
 // =============================================================================
 // ██████████  PHẦN 2: DỊCH TIN NHẮN ĐA NGÔN NGỮ BẰNG AI (TRANSLATION)  ████████
@@ -183,8 +197,8 @@ const langSearch = ref('');
 const filteredLanguages = computed(() => {
     if (!langSearch.value.trim()) return ALL_LANGUAGES;
     const q = langSearch.value.toLowerCase().trim();
-    return ALL_LANGUAGES.filter(item => 
-        item.label.toLowerCase().includes(q) || 
+    return ALL_LANGUAGES.filter(item =>
+        item.label.toLowerCase().includes(q) ||
         item.code.toLowerCase().includes(q)
     );
 });
@@ -266,7 +280,7 @@ const handleSelectLanguage = async (langCode) => {
 
 // Hàm xử lý khi bấm nút Dịch
 const handleTranslate = async () => {
-    // Nếu đã dịch rồi thì bấm là BẬT / TẮT 
+    // Nếu đã dịch rồi thì bấm là BẬT / TẮT
     if (translatedText.value) {
         showTranslation.value = !showTranslation.value;
         saveTranslationState();
@@ -547,9 +561,9 @@ onUnmounted(() => {
   <div
     :id="messageId ? 'msg-' + messageId : null"
     :class="[
-      'container', 
-      `container--${variant}`, 
-      { 
+      'container',
+      `container--${variant}`,
+      {
         'container--consecutive': isConsecutive,
         'container--has-reply': repliedMessage && !isRevoked
       }
@@ -571,8 +585,8 @@ onUnmounted(() => {
       <div class="sender" v-if="Sender && !isConsecutive">{{ Sender }}</div>
 
       <!-- Khối trích dẫn đặt RIÊNG BIỆT phía trên bong bóng tin nhắn (không nằm chung khung) -->
-      <div 
-          v-if="repliedMessage && !isRevoked" 
+      <div
+          v-if="repliedMessage && !isRevoked"
           class="replied-quote-box"
           :class="`replied-quote-box--${variant}`"
           @click.stop="handleClickRepliedQuote"
@@ -590,25 +604,25 @@ onUnmounted(() => {
         <div class="bubble-row" :class="[`bubble-row--${variant}`, { 'bubble-row--editing': isEditing }]">
             <!-- Khối chứa bong bóng chat và huy hiệu cảm xúc đính kèm sát mép dưới -->
             <div class="message-bubble-group" :class="`message-bubble-group--${variant}`">
-                
+
                 <!-- 1. Trạng thái tin nhắn đã bị thu hồi (Ưu tiên kiểm tra đầu tiên) -->
                 <div v-if="isRevoked" :class="['message', 'message--revoked']">
                     <i>Tin nhắn đã được thu hồi</i>
                 </div>
 
                 <!-- 2. Trạng thái đang chỉnh sửa -->
-                <div 
-                    v-else-if="isEditing" 
+                <div
+                    v-else-if="isEditing"
                     ref="editBoxRef"
                     :class="['message', `message--${variant}`, 'message--editing']"
                 >
-                    <textarea 
+                    <textarea
                         ref="editTextareaRef"
-                        v-model="editContent" 
-                        class="inline-edit-textarea" 
-                        rows="1" 
+                        v-model="editContent"
+                        class="inline-edit-textarea"
+                        rows="1"
                         @input="autoResize"
-                        @keydown.enter.exact.prevent="handleSaveEdit" 
+                        @keydown.enter.exact.prevent="handleSaveEdit"
                         @keydown.esc="handleCancelEdit"
                     ></textarea>
                     <div class="edit-toolbar">
@@ -625,8 +639,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 3. Tin nhắn dạng Ảnh -->
-                <div 
-                    v-else-if="messageType === 'IMAGE' && !isVideoContent" 
+                <div
+                    v-else-if="messageType === 'IMAGE' && !isVideoContent"
                     class="message message--media message--img-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                     @click="emit('preview-media', { type: 'IMAGE', url: fileStorageKey || Content_Message })"
@@ -648,8 +662,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 4. Tin nhắn dạng Video (hỗ trợ cả messageType === 'VIDEO' hoặc file/image có đuôi video) -->
-                <div 
-                    v-else-if="messageType === 'VIDEO' || (['IMAGE', 'FILE'].includes(messageType) && isVideoContent)" 
+                <div
+                    v-else-if="messageType === 'VIDEO' || (['IMAGE', 'FILE'].includes(messageType) && isVideoContent)"
                     class="message message--media message--video-box"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                 >
@@ -668,8 +682,8 @@ onUnmounted(() => {
                                 @error="isMediaLoadError = true"
                             ></video>
                             <!-- Lớp bắt click trên thân video để mở modal, nhưng chừa khoảng thanh điều khiển 42px ở dưới cho controls -->
-                            <div 
-                                class="video-click-overlay" 
+                            <div
+                                class="video-click-overlay"
                                 title="Bấm để phóng to video"
                                 @click.stop="emit('preview-media', { type: 'VIDEO', url: fileStorageKey || Content_Message })"
                             ></div>
@@ -678,8 +692,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 5. Tin nhắn dạng Tệp đính kèm (File) -->
-                <div 
-                    v-else-if="messageType === 'FILE' && !isVideoContent" 
+                <div
+                    v-else-if="messageType === 'FILE' && !isVideoContent"
                     class="message-file-standalone"
                 >
                     <a :href="resolveFileUrl(fileStorageKey)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
@@ -708,8 +722,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 6. Tin nhắn Văn bản (TEXT) thông thường -->
-                <div 
-                    v-else 
+                <div
+                    v-else
                     class="message"
                     :class="[`message--${variant}`, `message--pos-${groupPosition}`]"
                     @dblclick="variant === 'SendTo' ? handleStartEdit() : null"
@@ -743,8 +757,8 @@ onUnmounted(() => {
                                 <!-- Chân bản dịch: 2 bên -->
                                 <div class="translation-footer">
                                     <!-- BÊN TRÁI: Vùng thu gọn chiếm nửa trái -->
-                                    <div 
-                                        class="translation-toggle-zone" 
+                                    <div
+                                        class="translation-toggle-zone"
                                         title="Bấm để thu gọn bản dịch"
                                         @click.stop="handleCloseTranslation"
                                     >
@@ -753,9 +767,9 @@ onUnmounted(() => {
 
                                     <!-- BÊN PHẢI: Chỉ có icon chọn ngôn ngữ -->
                                     <div class="translation-lang-wrapper" @click.stop>
-                                        <button 
-                                            type="button" 
-                                            class="translation-lang-btn" 
+                                        <button
+                                            type="button"
+                                            class="translation-lang-btn"
                                             title="Đổi ngôn ngữ dịch"
                                             @click.stop="toggleLangMenu"
                                         >
@@ -763,24 +777,24 @@ onUnmounted(() => {
                                         </button>
 
                                         <!-- POPUP CHỌN NGÔN NGỮ (Tự động lật lên hoặc xuống) -->
-                                        <div 
-                                            v-if="showLangMenu" 
-                                            :class="['lang-dropdown', `lang-dropdown--${dropdownPlacement}`]" 
+                                        <div
+                                            v-if="showLangMenu"
+                                            :class="['lang-dropdown', `lang-dropdown--${dropdownPlacement}`]"
                                             @click.stop
                                         >
                                             <div class="lang-search-box">
-                                                <input 
-                                                    v-model="langSearch" 
-                                                    type="text" 
-                                                    placeholder="Tìm kiếm..." 
+                                                <input
+                                                    v-model="langSearch"
+                                                    type="text"
+                                                    placeholder="Tìm kiếm..."
                                                     class="lang-search-input"
                                                     @click.stop
                                                 />
                                             </div>
 
                                             <div class="lang-list-scroll">
-                                                <div 
-                                                    v-for="lang in filteredLanguages" 
+                                                <div
+                                                    v-for="lang in filteredLanguages"
                                                     :key="lang.code"
                                                     :class="['lang-opt', { 'lang-opt--active': currentTargetLang === lang.code }]"
                                                     @click.stop="handleSelectLanguage(lang.code)"
@@ -797,16 +811,31 @@ onUnmounted(() => {
                                     </div>
                                 </div>
                     </div>
+
+                    <!-- [4] Ngăn gợi ý AI Hành động (Tạo bình chọn / Nhắc nhở sau này) -->
+                    <div v-if="showPollSuggestBtn && !isRevoked" class="message-ai-action-box">
+                        <div class="message-ai-action-divider"></div>
+                        <div
+                            class="message-ai-action-btn"
+                            :class="{ 'is-loading': isSuggestingPoll }"
+                            @click.stop="handleSuggestPollClick"
+                            :title="isSuggestingPoll ? 'Đang phân tích...' : 'Gợi ý tạo bình chọn bằng AI'"
+                        >
+                            <font-awesome-icon v-if="isSuggestingPoll" icon="spinner" spin class="ai-action-icon" />
+                            <font-awesome-icon v-else icon="chart-simple" class="ai-action-icon" />
+                            <span class="ai-action-text">{{ isSuggestingPoll ? 'Đang tạo bình chọn...' : 'Tạo bình chọn' }}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Reaction Badges gắn trực tiếp ngay mép dưới bong bóng tin nhắn -->
-                <div 
-                    v-if="props.reactions && props.reactions.length > 0 && !isRevoked" 
-                    class="reaction-badges" 
+                <div
+                    v-if="props.reactions && props.reactions.length > 0 && !isRevoked"
+                    class="reaction-badges"
                     :class="`reaction-badges--${variant}`"
                 >
-                    <button 
-                        v-for="(data, type) in groupedReactions" 
+                    <button
+                        v-for="(data, type) in groupedReactions"
                         :key="type"
                         type="button"
                         :class="['reaction-badge-item', { 'reaction-badge-item--active': data.reactedByMe }]"
@@ -817,23 +846,42 @@ onUnmounted(() => {
                         <span class="badge-count">{{ data.count }}</span>
                     </button>
                 </div>
+
+                <!-- Dòng thời gian phía dưới bong bóng (kèm nhãn 'đã chỉnh sửa') -->
+                <div
+                  v-if="showTime || (isEdited && !isRevoked)"
+                  class="time-row"
+                  :class="`time-row--${variant}`"
+                >
+                  <span
+                    v-if="isEdited && !isRevoked"
+                    class="edited-badge"
+                    title="Bấm để xem lịch sử chỉnh sửa"
+                    @click="handleViewHistory"
+                  >
+                    Đã chỉnh sửa
+                  </span>
+
+                  <!-- Giờ gửi tin nhắn -->
+                  <div v-if="showTime" :class="['time', `time--${variant}`]">{{ Time }}</div>
+                </div>
             </div>
 
             <!-- Nút Thả cảm xúc, Trả lời, Ghim, ... để NGAY BÊN CẠNH / SAU TIN NHẮN (hiển thị khi hover) -->
-            <div 
-                v-if="!isRevoked" 
-                class="message-actions" 
+            <div
+                v-if="!isRevoked"
+                class="message-actions"
                 :class="[`message-actions--${variant}`, { 'has-active-picker': showReactionPicker }]"
             >
                 <!-- 1. Nút Thả cảm xúc -->
-                <div 
+                <div
                     class="reaction-trigger-container"
                     @mouseenter="handleMouseEnterReaction"
                     @mouseleave="handleMouseLeaveReaction"
                 >
-                    <span 
-                        class="action-btn react-btn" 
-                        title="Thả cảm xúc" 
+                    <span
+                        class="action-btn react-btn"
+                        title="Thả cảm xúc"
                         @click.stop="showReactionPicker = !showReactionPicker"
                     >
                         <font-awesome-icon :icon="['far', 'face-smile']" />
@@ -841,14 +889,14 @@ onUnmounted(() => {
 
                     <!-- Thanh chọn nhanh 6 icon: LIKE, LOVE, HAHA, WOW, SAD, ANGRY -->
                     <transition name="reaction-pop">
-                        <div 
-                            v-if="showReactionPicker" 
+                        <div
+                            v-if="showReactionPicker"
                             class="quick-reaction-bar"
                             :class="`quick-reaction-bar--${variant}`"
                             @click.stop
                         >
-                            <button 
-                                v-for="item in AVAILABLE_REACTIONS" 
+                            <button
+                                v-for="item in AVAILABLE_REACTIONS"
                                 :key="item.type"
                                 type="button"
                                 class="quick-reaction-btn"
@@ -862,18 +910,18 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 2. Nút Trả lời (Reply) -->
-                <span 
-                    class="action-btn reply-btn" 
-                    title="Trả lời" 
+                <span
+                    class="action-btn reply-btn"
+                    title="Trả lời"
                     @click="handleReplyClick"
                 >
                     <font-awesome-icon icon="reply"/>
                 </span>
 
                 <!-- 3. Nút Ghim -->
-                <span 
-                    class="action-btn pin-btn" 
-                    :class="{ 'is-pinned': isPinned }" 
+                <span
+                    class="action-btn pin-btn"
+                    :class="{ 'is-pinned': isPinned }"
                     :title="isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'"
                     @click="emit('togglePin', messageId)"
                 >
@@ -881,11 +929,11 @@ onUnmounted(() => {
                 </span>
 
                 <!-- Nút Dịch (chỉ hiện cho tin nhắn văn bản thông thường) -->
-                <span 
+                <span
                     v-if="messageType === 'TEXT' && !isRevoked"
-                    class="action-btn translate-btn" 
+                    class="action-btn translate-btn"
                     :class="{ 'is-loading': isTranslating }"
-                    title="Dịch tin nhắn" 
+                    title="Dịch tin nhắn"
                     @click.stop="handleTranslate"
                 >
                     <!-- Có thể dùng icon 'language' của font-awesome có sẵn trong dự án -->
@@ -894,9 +942,9 @@ onUnmounted(() => {
                 </span>
                 <!-- 4. Nút 3 chấm (...) -->
                 <div class="menu-container">
-                    <span 
-                        class="action-btn more-btn" 
-                        title="Tùy chọn tin nhắn" 
+                    <span
+                        class="action-btn more-btn"
+                        title="Tùy chọn tin nhắn"
                         @click.stop="showMenu = !showMenu"
                     >
                         <font-awesome-icon icon="ellipsis-vertical"/>
@@ -907,6 +955,10 @@ onUnmounted(() => {
                         <div class="dropdown-opt" @click="handleReplyClick">
                             <font-awesome-icon icon="reply" class="opt-icon"/>
                             <span>Trả lời</span>
+                        </div>
+                        <div v-if="messageType === 'TEXT' && !isRevoked" class="dropdown-opt" @click="handleSuggestPollClick">
+                            <font-awesome-icon icon="chart-simple" class="opt-icon"/>
+                            <span>Tạo bình chọn (AI)</span>
                         </div>
                         <div v-if="variant === 'SendTo' && messageType === 'TEXT'" class="dropdown-opt" @click="handleStartEdit">
                             <font-awesome-icon icon="pen" class="opt-icon"/>
@@ -924,24 +976,7 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
-
-        <!-- Dòng thời gian phía dưới (kèm nhãn 'đã chỉnh sửa') -->
-        <div
-          v-if="showTime || (isEdited && !isRevoked)"
-          class="time-row"
-          :class="`time-row--${variant}`"
-        >
-          <div v-if="showTime" :class="['time', `time--${variant}`]">{{ Time }}</div>
-          <span
-            v-if="isEdited && !isRevoked"
-            class="edited-badge"
-            title="Bấm để xem lịch sử chỉnh sửa"
-            @click="handleViewHistory"
-          >
-            Đã chỉnh sửa
-          </span>
-        </div>
-    </div>
+      </div>
   </div>
 </template>
 
@@ -1583,25 +1618,98 @@ onUnmounted(() => {
 .time-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
   margin-top: 3px;
+  margin-bottom: 3px;
+  box-sizing: border-box;
 }
 
 .time-row--SendTo {
-  flex-direction: row-reverse;
+  flex-direction: row;
+  margin-left: auto;
+  padding-right: 4px;
 }
 
+.time-row--default {
+  flex-direction: row;
+  margin-right: auto;
+  padding-left: 4px;
+}
+
+/* Ngăn gợi ý AI Hành động bên trong bong bóng tin nhắn (chia 2 ngăn như bản dịch) */
+.message-ai-action-box {
+  width: 100%;
+  user-select: none;
+}
+
+.message-ai-action-divider {
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.08);
+  margin: 8px -16px 6px -16px;
+}
+
+.message--SendTo .message-ai-action-divider {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-ai-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  width: fit-content;
+  user-select: none;
+}
+
+/* Kiểu dáng cho tin nhắn người khác gửi (nền trắng) */
+.message--default .message-ai-action-btn {
+  color: #2563eb;
+  opacity: 0.7;
+}
+
+.message--default .message-ai-action-btn:hover {
+  opacity: 1;
+  color: #1d4ed8;
+}
+
+/* Kiểu dáng cho tin nhắn mình gửi (nền xanh): trắng mờ, hover thì trắng sáng rõ */
+.message--SendTo .message-ai-action-btn {
+  color: #ffffff;
+  opacity: 0.75;
+  margin-left: auto; /* Căn sang phải cho hợp với tin nhắn của mình */
+}
+
+.message--SendTo .message-ai-action-btn:hover {
+  opacity: 1;
+}
+
+.message-ai-action-btn.is-loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.ai-action-icon {
+  font-size: 12px;
+}
+
+.ai-action-text {
+  line-height: 1;
+}
+
+/* Giờ gửi tin nhắn */
 .time {
   display: flex;
   font-family: 'Quicksand', sans-serif;
-  margin-left: 10px;
   font-size: 11px;
   color: #a0aec0;
-}
-
-.time--SendTo {
-  margin-left: auto;
-  margin-right: 10px;
+  margin: 0;
 }
 
 .edited-badge {
@@ -1609,6 +1717,8 @@ onUnmounted(() => {
   font-family: 'Quicksand', sans-serif;
   color: #94a3b8;
   cursor: pointer;
+  margin-left: 2px;
+  margin-right: 2px;
   transition: color 0.15s;
   user-select: none;
 }
@@ -2031,14 +2141,14 @@ onUnmounted(() => {
     justify-content: flex-start;
     padding: 2px 4px;
     cursor: pointer;
-    background-color: transparent; 
-    opacity: 0.45;              
+    background-color: transparent;
+    opacity: 0.45;
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .translation-toggle-zone:hover {
     opacity: 1;
-    transform: translateY(-1px); 
+    transform: translateY(-1px);
 }
 .chevron-icon {
     font-size: 11px;
@@ -2171,4 +2281,5 @@ onUnmounted(() => {
     text-align: center;
     padding: 8px 0;
 }
+
 </style>

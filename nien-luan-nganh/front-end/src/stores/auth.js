@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import * as authApi from '@/api/auth.api'
 import { initGlobalWebSocket, wsService } from '@/services/websocket'
 import { useChatStore } from '@/stores/chat'
+import { useNotificationStore } from '@/stores/notification'
 
 export const useAuthStore = defineStore('auth', {
   // ███████████████████████████████████████████████████████████████████████████
@@ -50,6 +51,8 @@ export const useAuthStore = defineStore('auth', {
     async login(identifier, password) {
       const chatStore = useChatStore()
       chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
       const data = await authApi.login({ identifier, password })
       this.saveSession(data)
       this.user = data?.user ?? (await authApi.getMe())
@@ -64,6 +67,8 @@ export const useAuthStore = defineStore('auth', {
     async register(body) {
       const chatStore = useChatStore()
       chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
       const data = await authApi.register(body)
       this.saveSession(data)
       this.user = data?.user ?? (await authApi.getMe())
@@ -84,6 +89,8 @@ export const useAuthStore = defineStore('auth', {
       this.$reset()
       const chatStore = useChatStore()
       chatStore.resetState()
+      const notificationStore = useNotificationStore()
+      notificationStore.resetState()
     },
   },
 })

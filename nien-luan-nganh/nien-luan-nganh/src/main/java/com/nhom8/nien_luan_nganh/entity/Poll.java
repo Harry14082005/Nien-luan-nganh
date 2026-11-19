@@ -41,6 +41,7 @@ public class Poll {
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("pollOptionId ASC")
     @Builder.Default
     private List<PollOption> options = new ArrayList<>();
 

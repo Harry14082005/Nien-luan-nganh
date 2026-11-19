@@ -1,0 +1,82 @@
+2026-11-19 00:01:30.243 [http-nio-8080-exec-3] INFO  c.n.n.service.AiSuggestionService - Bắt đầu gọi AI gợi ý POLL cho tin nhắn [e4608315-e807-486f-9516-ae5e18d55f12] với Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Trương Kiệt: đi ăn hay đi ngủ
+[m2] Harry: alo
+[m3] Harry: finwiod
+[m4] Harry: álflákn
+[m5] Harry: đi ăn hay đi chơi
+
+TARGET ANCHOR MESSAGE:
+Sender: Harry
+Message: "đi ăn hay đi chơi"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-19 00:01:30.246 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI REQUEST] ==========
+2026-11-19 00:01:30.246 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - Model: openai/gpt-oss-20b, Temperature: 0.1, JSON mode: true
+2026-11-19 00:01:30.246 [http-nio-8080-exec-3] DEBUG c.n.n.service.ai.GroqAiServiceImpl - Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Trương Kiệt: đi ăn hay đi ngủ
+[m2] Harry: alo
+[m3] Harry: finwiod
+[m4] Harry: álflákn
+[m5] Harry: đi ăn hay đi chơi
+
+TARGET ANCHOR MESSAGE:
+Sender: Harry
+Message: "đi ăn hay đi chơi"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-19 00:01:31.280 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI RESPONSE RAW] ==========
+{"id":"chatcmpl-0e31296c-bfae-453b-9ac5-29163ac12f9d","object":"chat.completion","created":1795021291,"model":"openai/gpt-oss-20b","choices":[{"index":0,"message":{"role":"assistant","content":"{\"found\":true,\"question\":\"Bạn muốn đi ăn hay đi chơi?\",\"options\":[\"đi ăn\",\"đi chơi\"],\"source_codes\":[\"m5\"]}","reasoning":"We need to produce JSON. The conversation: [m1] Trương Kiệt: đi ăn hay đi ngủ. [m2] Harry: alo. [m3] Harry: finwiod. [m4] Harry: álflákn. [m5] Harry: đi ăn hay đi chơi. Target anchor message: Sender: Harry, Message: \"đi ăn hay đi chơi\". We need to detect if the target message or recent conversation is proposing alternatives, asking a question with choices, or debating options. The target message is \"đi ăn hay đi chơi\" which is a question with alternatives: \"đi ăn\" or \"đi chơi\". So we should extract options: \"đi ăn\" and \"đi chơi\". The question: \"Nên đi ăn hay đi chơi?\" or \"Bạn muốn đi ăn hay đi chơi?\" The instructions: \"question\": Formulate a natural, concise, polite question for the poll in Vietnamese. So maybe \"Bạn muốn đi ăn hay đi chơi?\" or \"Nên đi ăn hay đi chơi?\" The options: array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned. Each option \u003c= 40 chars. So options: [\"đi ăn\", \"đi chơi\"]. Source codes: from context that contributed to the choices. The target message is from Harry, message code m5. Also m1 has \"đi ăn hay đi ngủ\" but that is not the same options. But the target message is m5. So source_codes: [\"m5\"]. We should also consider m1? But m1 is \"đi ăn hay đi ngủ\" which is a similar pattern but different options. The question is about the target message. So we should use m5. So output JSON:\n\n{\n  \"found\": true,\n  \"question\": \"Bạn muốn đi ăn hay đi chơi?\",\n  \"options\": [\"đi ăn\", \"đi chơi\"],\n  \"source_codes\": [\"m5\"]\n}\n\nCheck JSON validity: compact. Yes. Ensure no trailing commas. Good."},"logprobs":null,"finish_reason":"stop"}],"usage":{"queue_time":0.15425201,"prompt_tokens":594,"prompt_time":0.029843998,"completion_tokens":469,"completion_time":0.537157798,"total_tokens":1063,"total_time":0.567001796,"completion_tokens_details":{"reasoning_tokens":426}},"usage_breakdown":null,"system_fingerprint":"fp_75c733514d","x_groq":{"id":"req_01m7qspf77eytsdnnvw03m22gk","seed":755263862},"service_tier":"on_demand"}
+
+2026-11-19 00:01:31.281 [http-nio-8080-exec-3] INFO  c.n.n.service.AiSuggestionService - AI Suggestion content parsed from response for POLL: {"found":true,"question":"Bạn muốn đi ăn hay đi chơi?","options":["đi ăn","đi chơi"],"source_codes":["m5"]}

@@ -19,7 +19,7 @@
             <font-awesome-icon icon="chevron-left" />
           </button>
           <div class="header-title subview-title">
-            <h3>Lịch hẹn nhắc nhở</h3>
+            <h3>Lời nhắc</h3>
           </div>
         </div>
         <div class="rem-subview-header-actions">
@@ -375,7 +375,14 @@
                         >(Bạn)</span>
                       </span>
                       <span
-                        v-if="isMemberAdmin(member)"
+                        v-if="isRoomCreator(member)"
+                        class="role-badge role-badge--creator"
+                      >
+                        <font-awesome-icon icon="crown" class="badge-icon" />
+                        <span>Người tạo nhóm</span>
+                      </span>
+                      <span
+                        v-else-if="isMemberAdmin(member)"
                         class="role-badge role-badge--admin"
                       >
                         <font-awesome-icon icon="user-shield" class="badge-icon" />
@@ -409,7 +416,7 @@
             <div class="header-left">
               <font-awesome-icon icon="chart-simple" class="section-icon poll-header-icon" />
               <span class="section-title">
-                Bình chọn nhóm ({{ allPollsList.length }})
+                Bình chọn nhóm
               </span>
             </div>
             <font-awesome-icon
@@ -470,7 +477,9 @@
                   style="margin-top: 8px"
                   @click="openPollsView('ACTIVE')"
                 >
+                  <!-- <span>Xem tất cả bình chọn ({{ allPollsList.length }})</span> -->
                   <span>Xem tất cả bình chọn</span>
+
                   <font-awesome-icon icon="chevron-right" class="btn-arrow" />
                 </button>
               </div>
@@ -484,7 +493,7 @@
             <div class="header-left">
               <font-awesome-icon icon="calendar-days" class="section-icon" />
               <span class="section-title">
-                Lịch hẹn nhắc nhở ({{ upcomingRemindersList.length }})
+                Lịch hẹn nhắc nhở
               </span>
             </div>
             <font-awesome-icon
@@ -550,7 +559,9 @@
                   style="margin-top: 8px"
                   @click="openRemindersView('UPCOMING')"
                 >
-                  <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span>
+                  <!-- <span>Xem tất cả lịch hẹn ({{ allRemindersList.length }})</span> -->
+                  <span>Xem tất cả lịch hẹn</span>
+
                   <font-awesome-icon icon="chevron-right" class="btn-arrow" />
                 </button>
               </div>
@@ -875,167 +886,53 @@
           </button>
         </div>
 
-        <!-- Danh sách bình chọn -->
-        <div class="rem-subview-scroll">
-          <div v-if="displayedPollsList.length === 0" class="subview-empty">
-            <font-awesome-icon icon="chart-simple" class="empty-icon" />
-            <p>
-              {{
-                currentPollTab === 'ACTIVE'
-                  ? 'Không có cuộc bình chọn nào đang mở'
-                  : 'Chưa có cuộc bình chọn nào kết thúc'
-              }}
-            </p>
+        <div class="subview-gallery-scroll rem-subview-list">
+          <div v-if="currentTabPollsList.length === 0" class="empty-media-hint">
+            {{
+              currentPollTab === 'ACTIVE'
+                ? 'Không có cuộc bình chọn nào đang diễn ra'
+                : 'Không có cuộc bình chọn nào đã kết thúc'
+            }}
           </div>
 
-          <div v-else class="rem-subview-list">
-            <div
-              v-for="poll in displayedPollsList"
-              :key="poll.pollId"
-              class="poll-subview-card"
-              :class="{ 'is-closed': !poll.isActive }"
-              @click="handleJumpToPoll(poll)"
-            >
-              <div class="poll-subview-top">
-                <div class="poll-mini-icon-box poll-leaf-lg" :class="{ 'is-closed': !poll.isActive }">
-                  <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
-                </div>
-                <div class="poll-preview-info">
-                  <div class="poll-preview-top">
-                    <p class="poll-preview-title" style="font-size: 14px">{{ poll.question }}</p>
-                    <span class="poll-preview-pill" :class="{ 'pill-closed': !poll.isActive }">
-                      {{ poll.isActive ? 'ĐANG MỞ' : 'KẾT THÚC' }}
-                    </span>
-                  </div>
-                  <p class="poll-subview-creator">Tạo bởi: {{ poll.createdByName || 'Thành viên' }}</p>
-                  <div class="poll-subview-stats">
-                    <span><strong>{{ poll.totalVoters || 0 }}</strong> người tham gia</span>
-                    <span>·</span>
-                    <span><strong>{{ poll.options?.length || 0 }}</strong> phương án</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Footer nhảy tới tin nhắn -->
-              <div class="poll-subview-footer">
-                <span class="poll-jump-hint">Nhấp để xem bình chọn trong phòng chat</span>
-                <font-awesome-icon icon="chevron-right" class="poll-chevron-right" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- VIEW 3.5: SUB-VIEW QUẢN LÝ THÀNH VIÊN PHÒNG CHAT -->
-      <div v-else-if="currentView === 'MEMBERS'" class="subview-media-content">
-        <!-- THANH TÌM KIẾM THÀNH VIÊN -->
-        <div class="subview-member-search-box">
-          <font-awesome-icon icon="magnifying-glass" class="member-search-icon" />
-          <input
-            v-model="memberSearchQuery"
-            type="text"
-            placeholder="Tìm kiếm thành viên trong nhóm..."
-            class="member-search-input"
-          />
-          <button
-            v-if="memberSearchQuery"
-            type="button"
-            class="btn-clear-member-search"
-            title="Xóa tìm kiếm"
-            @click="memberSearchQuery = ''"
-          >
-            <font-awesome-icon icon="x" />
-          </button>
-        </div>
-
-        <div class="subview-gallery-scroll member-subview-scroll">
-          <!-- Thanh thêm thành viên mới vào phòng -->
-          <div class="add-member-action-bar" style="margin: 4px 12px 10px;" @click="$emit('add-member')">
-            <div class="add-member-icon-circle">
-              <font-awesome-icon icon="user-plus" />
-            </div>
-            <span class="add-member-text">Thêm thành viên mới</span>
-          </div>
-
-          <!-- Danh sách chờ duyệt trong sub-view (nếu có và là admin) -->
           <div
-            v-if="isMyRoleAdmin && pendingMembers.length > 0 && !memberSearchQuery"
-            class="pending-approval-box"
-            style="margin: 0 12px 12px;"
+            v-for="poll in currentTabPollsList"
+            :key="poll.pollId"
+            class="poll-subview-card"
+            :class="{ 'is-closed': !poll.isActive }"
+            @click="handleJumpToPoll(poll)"
           >
-            <div class="pending-box-header">
-              <span class="pending-box-title">Chờ duyệt</span>
-              <span class="pending-box-badge">{{ pendingMembers.length }}</span>
-            </div>
-            <div
-              v-for="pMember in pendingMembers"
-              :key="pMember.userId"
-              class="pending-member-row"
-            >
-              <UserAvatar
-                :name="pMember.username || 'Thành viên'"
-                :src="resolveFileUrl(pMember.avatarUrl)"
-                :size="32"
-              />
-              <div class="pending-member-meta">
-                <span class="pending-member-name">{{ pMember.username || 'Thành viên' }}</span>
-                <span class="pending-member-sub">Chờ phê duyệt</span>
+            <div class="poll-subview-top">
+              <div class="poll-mini-icon-box poll-leaf-lg" :class="{ 'is-closed': !poll.isActive }">
+                <font-awesome-icon :icon="poll.isActive ? 'chart-simple' : 'lock'" />
               </div>
-              <div class="pending-member-btns">
-                <button
-                  type="button"
-                  class="btn-approve-pending"
-                  title="Phê duyệt"
-                  @click.stop="handleApprovePendingMember(pMember)"
-                >
-                  <font-awesome-icon icon="check" />
-                </button>
-                <button
-                  type="button"
-                  class="btn-reject-pending"
-                  title="Từ chối"
-                  @click.stop="handleRejectPendingMember(pMember)"
-                >
-                  <font-awesome-icon icon="x" />
-                </button>
+
+              <div class="rem-subview-main">
+                <div class="rem-subview-badges">
+                  <span
+                    class="rem-badge-status"
+                    :class="poll.isActive ? 'st-active' : 'st-closed'"
+                  >
+                    {{ poll.isActive ? 'ĐANG MỞ' : 'ĐÃ KẾT THÚC' }}
+                  </span>
+                  <span class="poll-subview-creator">
+                    Tạo bởi {{ poll.createdByName || 'Thành viên' }}
+                  </span>
+                </div>
+
+                <h4 class="rem-subview-title">{{ poll.question }}</h4>
+
+                <div class="poll-subview-stats">
+                  <span><strong>{{ poll.totalVoters || 0 }}</strong> người tham gia</span>
+                  <span>·</span>
+                  <span><strong>{{ poll.options?.length || 0 }}</strong> phương án</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Không tìm thấy thành viên -->
-          <div v-if="filteredMembersList.length === 0" class="empty-media-hint">
-            Không tìm thấy thành viên phù hợp
-          </div>
-
-          <!-- Danh sách đầy đủ thành viên -->
-          <div
-            v-for="member in filteredMembersList"
-            :key="member.userId || member.username"
-            class="member-item member-item--clickable"
-            style="margin: 0 12px 6px;"
-            title="Bấm để xem thông tin & tùy chọn thành viên"
-            @click="openMemberProfile(member)"
-          >
-            <UserAvatar
-              :name="member.username || 'Thành viên'"
-              :src="resolveFileUrl(member.avatarUrl)"
-              :size="36"
-            />
-            <div class="member-info">
-              <span class="member-name">
-                {{ member.username || 'Thành viên' }}
-                <span
-                  v-if="authStore.user?.userId && String(member.userId) === String(authStore.user.userId)"
-                  class="me-tag"
-                >(Bạn)</span>
-              </span>
-              <span
-                v-if="isMemberAdmin(member)"
-                class="role-badge role-badge--admin"
-              >
-                <font-awesome-icon icon="user-shield" class="badge-icon" />
-                <span>Quản trị viên</span>
-              </span>
+            <div class="poll-subview-footer">
+              <span class="poll-jump-hint">Nhấp để xem bình chọn</span>
+              <font-awesome-icon icon="chevron-right" class="poll-chevron-right" />
             </div>
           </div>
         </div>
@@ -1175,8 +1072,8 @@
                   <span>Xem trong danh bạ</span>
                 </button>
 
-                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy) -->
-                <template v-if="isGroupRoom && isMyRoleAdmin">
+                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy và không áp dụng lên Người tạo nhóm) -->
+                <template v-if="isGroupRoom && isMyRoleAdmin && !selectedMemberProfile.isCreator">
                   <button
                     type="button"
                     class="menu-dropdown-item item-primary"
@@ -1701,7 +1598,7 @@ const closedPollsList = computed(() => {
   return chatStore.closedRoomPolls || [];
 });
 
-const displayedPollsList = computed(() => {
+const currentTabPollsList = computed(() => {
   return currentPollTab.value === 'ACTIVE'
     ? activePollsList.value
     : closedPollsList.value;
@@ -1745,24 +1642,35 @@ const displayMembers = computed(() => {
   return Array.isArray(props.members) ? props.members : [];
 });
 
+// ID của người tạo nhóm (truy vấn từ room.createdBy)
+const roomCreatorId = computed(() => {
+  return props.room?.createdBy || chatStore.activeRoom?.createdBy || null;
+});
+
+const isRoomCreator = (member) => {
+  if (!member || !roomCreatorId.value) return false;
+  return String(member.userId) === String(roomCreatorId.value);
+};
+
 const isMemberAdmin = (member) => {
   if (!member) return false;
   const r = member.roomMemberRole || member.role;
-  return r === 'ADMIN';
+  return r === 'ADMIN' || isRoomCreator(member);
 };
 
 // Kiểm tra người dùng hiện tại có phải là Quản trị viên nhóm hay không
 const isMyRoleAdmin = computed(() => {
   const myId = authStore.user?.userId;
   if (!myId) return false;
+  if (roomCreatorId.value && String(roomCreatorId.value) === String(myId)) return true;
   const me = displayMembers.value.find((m) => String(m.userId) === String(myId));
   return isMemberAdmin(me);
 });
 
-// Sắp xếp danh sách thành viên: Quản trị viên -> Thành viên thường
+// Sắp xếp danh sách thành viên: Người tạo nhóm -> Quản trị viên -> Thành viên thường
 const sortedDisplayMembers = computed(() => {
   return [...displayMembers.value].sort((a, b) => {
-    const score = (m) => (isMemberAdmin(m) ? 2 : 1);
+    const score = (m) => (isRoomCreator(m) ? 3 : isMemberAdmin(m) ? 2 : 1);
     return score(b) - score(a);
   });
 });
@@ -2024,21 +1932,25 @@ const openMemberProfile = (member) => {
   const isBlocked = blockedIds.value.has(targetId);
   const friendshipId = pendingMap.value.get(targetId) || friendShipMap.value.get(targetId) || null;
 
+  const isCreator = isRoomCreator(member);
   const isAdmin = isMemberAdmin(member);
 
   selectedMemberProfile.value = {
     id: targetId,
     name: member.username || 'Thành viên',
-    role: isAdmin
-      ? 'Quản trị viên'
-      : isMe
-        ? 'Bạn (Thành viên)'
-        : 'Thành viên',
+    role: isCreator
+      ? 'Người tạo nhóm'
+      : isAdmin
+        ? 'Quản trị viên'
+        : isMe
+          ? 'Bạn (Thành viên)'
+          : 'Thành viên',
     avatar: resolveFileUrl(member.avatarUrl || member.avatar || ''),
     online: member.status === 'ACTIVE' || member.isOnline || false,
     statusText: member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
     bio: member.bio || member.description || 'Thành viên trong phòng trò chuyện.',
     isMe,
+    isCreator,
     isAdmin,
     isFriend,
     isPending,
@@ -2212,7 +2124,7 @@ const handleDirectMessageWithMember = async (contact) => {
 // Cấp / Gỡ quyền Quản trị viên (ADMIN <-> MEMBER) từ popup hồ sơ
 const handleToggleMemberRoleFromProfile = async (contact) => {
   const rId = props.room?.roomId || chatStore.activeRoomId;
-  if (!rId || !contact?.id) return;
+  if (!rId || !contact?.id || contact.isCreator) return;
   isProfileMenuOpen.value = false;
   const nextRole = contact.isAdmin ? 'MEMBER' : 'ADMIN';
   try {
@@ -2231,7 +2143,7 @@ const handleToggleMemberRoleFromProfile = async (contact) => {
 // Xóa thành viên khỏi nhóm từ popup hồ sơ
 const handleKickMemberFromProfile = async (contact) => {
   const rId = props.room?.roomId || chatStore.activeRoomId;
-  if (!rId || !contact?.id) return;
+  if (!rId || !contact?.id || contact.isCreator) return;
   isProfileMenuOpen.value = false;
   if (!confirm(`Bạn có chắc chắn muốn xóa "${contact.name}" khỏi nhóm không?`)) return;
   try {

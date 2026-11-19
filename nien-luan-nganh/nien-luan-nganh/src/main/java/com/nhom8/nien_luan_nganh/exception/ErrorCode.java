@@ -62,6 +62,8 @@ public enum ErrorCode {
     POLL_OPTION_NOT_FOUND(1072, "Lựa chọn bình chọn không tồn tại", HttpStatus.NOT_FOUND),
     ALREADY_VOTED(1073, "Bạn đã thực hiện bình chọn cho mục này rồi", HttpStatus.BAD_REQUEST),
     EXISTING_POLL_OPTION(1074, "Lựa chọn đã được tồn tại", HttpStatus.BAD_REQUEST),
+    TOO_MANY_REQUESTS(1075, "Bạn đang gửi yêu cầu quá nhanh, vui lòng thử lại sau giây lát",
+            HttpStatus.TOO_MANY_REQUESTS),
 
     // --- Phân hệ Lịch hẹn / Nhắc nhở (1090 - 1109) ---
     REMINDER_NOT_FOUND(1090, "Lịch hẹn không tồn tại", HttpStatus.NOT_FOUND),

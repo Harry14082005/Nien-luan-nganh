@@ -30,6 +30,7 @@ public class RoomListResponse {
     // phần tin nhắn hiển thị bên ngoài mới nhất
     private UUID lastMessageId;
     private String lastMessageContent;
+    private UUID lastMessageSenderId;
     private String lastMessageSenderName;
     private LocalDateTime lastMessageAt;
 

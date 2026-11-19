@@ -11,19 +11,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Object>> handleAppException(AppException ex) {
+        log.warn("AppException: {} (Code: {})", ex.getMessage(), ex.getErrorCode().getCode());
         ErrorCode errorCode = ex.getErrorCode();
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .body(ApiResponse.error(errorCode.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
+            MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             String key = error.getDefaultMessage(); // ví dụ "EMAIL_REQUIRED"
@@ -61,8 +65,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGeneralException(Exception ex) {
+        log.error("Unhandled Exception: {}", ex.getMessage(), ex);
         ErrorCode errorCode = ErrorCode.UNCATEGORIZED_EXCEPTION;
         return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode.getCode(), ex.getMessage() != null ? ex.getMessage() : errorCode.getMessage()));
+                .body(ApiResponse.error(errorCode.getCode(),
+                        ex.getMessage() != null ? ex.getMessage() : errorCode.getMessage()));
     }
 }

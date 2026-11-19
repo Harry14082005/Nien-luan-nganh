@@ -25,4 +25,10 @@ public class PollResource {
     @JoinColumn(name = "poll_id", nullable = false)
     private Poll poll;
 
+    @PrePersist
+    protected void onCreate() {
+        if (id == null && message != null && poll != null) {
+            id = new PollResourceId(message.getMessageId(), poll.getPollId());
+        }
+    }
 }

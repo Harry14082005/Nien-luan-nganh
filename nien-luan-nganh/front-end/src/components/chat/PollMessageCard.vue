@@ -229,7 +229,7 @@ const handleClosePoll = async () => {
     <!-- NỘI DUNG CHÍNH CỦA THẺ BÌNH CHỌN -->
     <div class="poll-card-body">
       <!-- Tiêu đề câu hỏi -->
-      <h3 class="poll-question" :class="{ 'text-closed': !effectiveIsActive }" @click="showDetailModal = true">
+      <h3 class="poll-question" :class="{ 'text-closed': !effectiveIsActive }" @click="emit('open-detail', poll)">
         {{ effectiveQuestion }}
       </h3>
 

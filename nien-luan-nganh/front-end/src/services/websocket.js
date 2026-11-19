@@ -1,4 +1,5 @@
 import { useChatStore } from '@/stores/chat'
+import { useNotificationStore } from '@/stores/notification'
 
 // Map lưu trữ các hàm hủy đăng ký (unsubscribe) theo từng phòng chat (key = roomId)
 const roomUnsubscribers = new Map()
@@ -288,7 +289,7 @@ class NativeStompClient {
     if (this.ws) {
       try {
         this.ws.close()
-      } catch {}
+      } catch { }
       this.ws = null
     }
     this.connected = false
@@ -333,6 +334,9 @@ export function initGlobalWebSocket(token) {
     // 2. Lắng nghe thông báo thời gian thực cá nhân (/user/queue/notifications)
     wsService.subscribe('/user/queue/notifications', (notification) => {
       console.log('🔔 [WebSocket Notification]:', notification)
+      const notificationStore = useNotificationStore()
+      notificationStore.handleIncomingNotification(notification)
+
       if (notification?.notificationType === 'ROOM_JOIN_APPROVED' || notification?.notificationType === 'ROOM_ADDED') {
         chatStore.fetchRooms()
       }

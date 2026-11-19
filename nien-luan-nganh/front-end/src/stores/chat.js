@@ -3,6 +3,7 @@ import * as roomApi from '@/api/room.api'
 import * as messageApi from '@/api/message.api'
 import * as reminderApi from '@/api/reminder.api'
 import * as pollApi from '@/api/poll.api'
+import * as aiSuggestionApi from '@/api/aiSuggestion.api'
 import { wsService, subscribeToRoom } from '@/services/websocket'
 import { useAuthStore } from './auth'
 
@@ -118,6 +119,7 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
           ...roomObj,
           lastMessageId: ov.lastMessageId || roomObj.lastMessageId,
           lastMessageContent: ov.lastMessageContent,
+          lastMessageSenderId: ov.lastMessageSenderId !== undefined ? ov.lastMessageSenderId : roomObj.lastMessageSenderId,
           lastMessageSenderName: ov.lastMessageSenderName,
           lastMessageAt: ov.lastMessageAt,
         }
@@ -278,18 +280,13 @@ export const formatSystemMessageText = (
       text.includes('đã rời') ||
       text.includes('đã bật') ||
       text.includes('đã tắt') ||
-      text.includes('đã bổ nhiệm') ||
-      text.includes('đã gỡ quyền') ||
       text.includes('đã đổi tên nhóm') ||
       text.includes('đã thay đổi ảnh đại diện')
     ) {
       if (myUsername && text.startsWith(myUsername)) {
-        return 'Bạn' + text.slice(myUsername.length)
+        return 'Bạn ' + text.slice(myUsername.length).trim()
       }
-      return text.replace(
-        /^.*?\s+(đã thêm|đã phê duyệt|đã xóa|đã rời|đã bật|đã tắt|đã bổ nhiệm|đã gỡ quyền|đã đổi tên nhóm|đã thay đổi ảnh đại diện)\s+/,
-        'Bạn $1 ',
-      )
+      return text.replace(/^.*?\s+(đã\s+)/, 'Bạn $1')
     }
   } else if (myUsername && text.includes(myUsername)) {
     text = text.replace(new RegExp(`\\b${myUsername}\\b`, 'g'), 'bạn')
@@ -559,11 +556,14 @@ export const useChatStore = defineStore('chat', {
       return state.roomMembersByRoom[String(state.activeRoomId)] || []
     },
 
-    // Kiểm tra quyền Quản trị viên (ADMIN) của người dùng hiện tại trong phòng đang mở
+    // Kiểm tra quyền Quản trị viên (ADMIN) hoặc Người tạo nhóm (createdBy) của người dùng hiện tại trong phòng đang mở
     canManageActiveRoom() {
       const authStore = useAuthStore()
       const myId = authStore.user?.userId
       if (!myId) return false
+      if (this.activeRoom?.createdBy && String(this.activeRoom.createdBy) === String(myId)) {
+        return true
+      }
       const list = this.activeRoomMembers
       if (!Array.isArray(list)) return false
       const me = list.find((m) => String(m.userId) === String(myId))
@@ -1488,6 +1488,19 @@ export const useChatStore = defineStore('chat', {
             this.fetchRoomReminders(msgRoomId)
           }
         }
+
+        // Nếu nhận được tin nhắn POLL mới mà chưa có dữ liệu chi tiết poll trong store -> tải bổ sung
+        if (message.messageType === 'POLL') {
+          const roomPollList = this.pollsByRoom[msgRoomId] || []
+          const hasPoll = roomPollList.some(
+            (p) =>
+              (message.pollId && String(p.pollId) === String(message.pollId)) ||
+              String(p.messageId) === msgId,
+          )
+          if (!hasPoll) {
+            this.fetchRoomPolls(msgRoomId)
+          }
+        }
       }
 
       // Cập nhật thông tin phòng trên Sidebar bên trái và đưa phòng lên vị trí đầu tiên
@@ -1542,10 +1555,13 @@ export const useChatStore = defineStore('chat', {
           nextUnreadCount = roomToUpdate.unreadCount || 0
         }
 
+        const senderUserId = message.sender?.userId || (isMyMsg ? myUserId : roomToUpdate.lastMessageSenderId)
+
         const updatedRoom = {
           ...roomToUpdate,
           lastMessageId: message.messageId,
           lastMessageContent: displayContent,
+          lastMessageSenderId: senderUserId,
           lastMessageSenderName: senderDisplayName,
           lastMessageAt: activityTime,
           hasUnread: isUnreadForMe,
@@ -1560,11 +1576,7 @@ export const useChatStore = defineStore('chat', {
           } else if (sysText.includes('đã tắt phê duyệt')) {
             updatedRoom.requireApproval = false
           }
-          if (
-            sysText.includes('vào nhóm') ||
-            sysText.includes('khỏi nhóm') ||
-            sysText.includes('quản trị viên')
-          ) {
+          if (sysText.includes('vào nhóm') || sysText.includes('khỏi nhóm')) {
             this.fetchRoomMembers(msgRoomId)
           }
         }
@@ -1574,6 +1586,7 @@ export const useChatStore = defineStore('chat', {
           ...(this.roomActivityOverrides[msgRoomId] || {}),
           lastMessageId: updatedRoom.lastMessageId,
           lastMessageContent: updatedRoom.lastMessageContent,
+          lastMessageSenderId: updatedRoom.lastMessageSenderId,
           lastMessageSenderName: isPinOrUnpin ? actorUsername : updatedRoom.lastMessageSenderName,
           lastMessageAt: updatedRoom.lastMessageAt,
           hasUnread: updatedRoom.hasUnread,
@@ -2359,6 +2372,19 @@ export const useChatStore = defineStore('chat', {
       return null
     },
 
+    // 6.3b. Bóc tách thông tin lịch hẹn bằng AI từ tin nhắn
+    async suggestReminderWithAi(roomId, messageId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !messageId) return null
+      try {
+        const res = await reminderApi.suggestReminderWithAi(targetRoomId, messageId)
+        return res
+      } catch (err) {
+        console.error('Lỗi gọi AI trích xuất lịch hẹn:', err)
+        throw err
+      }
+    },
+
     // 6.4. Phản hồi Tham gia (ACCEPTED) hoặc Từ chối (DECLINED) với Optimistic UI
     async respondReminderRsvp(roomId, reminderId, responseStatus) {
       const targetRoomId = roomId || this.activeRoomId
@@ -2677,6 +2703,202 @@ export const useChatStore = defineStore('chat', {
     },
 
     // =========================================================================
+    // ██████████████  PHẦN 6.5: POLL (BÌNH CHỌN)  █████████████████████████████
+    // =========================================================================
+
+    // Tìm thông tin chi tiết Poll ứng với một tin nhắn POLL trên dòng chat
+    getPollForMessage(message) {
+      if (!message) return null
+      const rId = String(message.roomId || this.activeRoomId || '')
+      const list = this.pollsByRoom[rId] || []
+      return (
+        list.find(
+          (p) =>
+            (message.pollId && String(p.pollId) === String(message.pollId)) ||
+            (message.messageId && String(p.messageId) === String(message.messageId)) ||
+            (message.content && p.question && message.content.trim() === p.question.trim()),
+        ) || null
+      )
+    },
+
+    // Tải danh sách bình chọn của phòng chat
+    async fetchRoomPolls(roomId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return []
+      const rKey = String(targetRoomId)
+      if (['1', '2', '3'].includes(rKey)) {
+        if (!this.pollsByRoom[rKey]) {
+          this.pollsByRoom = { ...this.pollsByRoom, [rKey]: [] }
+        }
+        return this.pollsByRoom[rKey]
+      }
+
+      this.loadingPolls = true
+      try {
+        const rawList = await pollApi.getRoomPolls(targetRoomId)
+        const authStore = useAuthStore()
+        const myUserId = authStore.user?.userId
+        const list = (Array.isArray(rawList) ? rawList : []).map((p) => {
+          return {
+            ...p,
+            options: (p.options || []).map((opt) => ({
+              ...opt,
+              votedByMe:
+                opt.voters && myUserId
+                  ? opt.voters.some((v) => String(v.userId) === String(myUserId))
+                  : Boolean(opt.votedByMe),
+            })),
+          }
+        })
+        this.pollsByRoom = {
+          ...this.pollsByRoom,
+          [rKey]: list,
+        }
+        return list
+      } catch (err) {
+        console.warn('Lỗi tải danh sách bình chọn phòng chat:', err)
+        return this.pollsByRoom[rKey] || []
+      } finally {
+        this.loadingPolls = false
+      }
+    },
+
+    // Tạo mới bình chọn
+    async createRoomPoll(roomId, payload) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId) return null
+      const rKey = String(targetRoomId)
+      const created = await pollApi.createPoll(targetRoomId, payload)
+      if (created) {
+        const existing = this.pollsByRoom[rKey] || []
+        const filtered = existing.filter((p) => String(p.pollId) !== String(created.pollId))
+        this.pollsByRoom = {
+          ...this.pollsByRoom,
+          [rKey]: [created, ...filtered],
+        }
+        return created
+      }
+      return null
+    },
+
+    // Bỏ phiếu / Đổi phiếu bầu (Optimistic UI)
+    async voteRoomPoll(roomId, pollId, optionIds) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId) return null
+      const rKey = String(targetRoomId)
+      const list = [...(this.pollsByRoom[rKey] || [])]
+      const idx = list.findIndex((p) => String(p.pollId) === String(pollId))
+      const snapshot = idx !== -1 ? JSON.parse(JSON.stringify(list[idx])) : null
+
+      // Optimistic UI update
+      if (idx !== -1) {
+        const currentPoll = { ...list[idx] }
+        const wantedSet = new Set(optionIds.map(String))
+        let diffUserCount = 0
+        const hadAnyVoteBefore = currentPoll.options.some((o) => o.votedByMe)
+        const willHaveVote = wantedSet.size > 0
+
+        currentPoll.options = currentPoll.options.map((opt) => {
+          const isWanted = wantedSet.has(String(opt.pollOptionId))
+          const wasVoted = Boolean(opt.votedByMe)
+          let newVoteCount = opt.voteCount || 0
+          if (isWanted && !wasVoted) newVoteCount++
+          if (!isWanted && wasVoted) newVoteCount = Math.max(0, newVoteCount - 1)
+          return {
+            ...opt,
+            votedByMe: isWanted,
+            voteCount: newVoteCount,
+          }
+        })
+
+        if (!hadAnyVoteBefore && willHaveVote) diffUserCount = 1
+        if (hadAnyVoteBefore && !willHaveVote) diffUserCount = -1
+        currentPoll.totalVoters = Math.max(0, (currentPoll.totalVoters || 0) + diffUserCount)
+
+        list[idx] = currentPoll
+        this.pollsByRoom = { ...this.pollsByRoom, [rKey]: list }
+      }
+
+      try {
+        const updated = await pollApi.votePoll(targetRoomId, pollId, optionIds)
+        if (updated) {
+          this.handlePollEvent({ type: 'POLL_VOTED', roomId: targetRoomId, poll: updated })
+        }
+        return updated
+      } catch (err) {
+        if (snapshot && idx !== -1) {
+          const revertList = [...(this.pollsByRoom[rKey] || [])]
+          revertList[idx] = snapshot
+          this.pollsByRoom = { ...this.pollsByRoom, [rKey]: revertList }
+        }
+        throw err
+      }
+    },
+
+    // Thêm lựa chọn mới vào Poll
+    async addOptionToRoomPoll(roomId, pollId, optionText) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId || !optionText) return null
+      const updated = await pollApi.addPollOption(targetRoomId, pollId, optionText)
+      if (updated) {
+        this.handlePollEvent({ type: 'POLL_OPTION_ADDED', roomId: targetRoomId, poll: updated })
+      }
+      return updated
+    },
+
+    // Khóa / Kết thúc bình chọn
+    async closeRoomPoll(roomId, pollId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !pollId) return false
+      const updated = await pollApi.closePoll(targetRoomId, pollId)
+      if (updated) {
+        this.handlePollEvent({ type: 'POLL_CLOSED', roomId: targetRoomId, poll: updated })
+      }
+      return true
+    },
+
+    // Xử lý sự kiện Realtime từ WebSocket đối với POLL (/topic/room.{roomId}.poll)
+    handlePollEvent(event) {
+      if (!event || !event.roomId || !event.poll) return
+      const rKey = String(event.roomId)
+      const rawPoll = event.poll
+      const authStore = useAuthStore()
+      const myUserId = authStore.user?.userId
+
+      // Chuẩn hóa cờ votedByMe của từng option dựa theo userId của chính người dùng hiện tại
+      const normalizedOptions = (rawPoll.options || []).map((opt) => {
+        let isVotedByMe = false
+        if (opt.voters && Array.isArray(opt.voters) && myUserId) {
+          isVotedByMe = opt.voters.some((v) => String(v.userId) === String(myUserId))
+        } else if (opt.votedByMe !== undefined && !opt.voters) {
+          isVotedByMe = Boolean(opt.votedByMe)
+        }
+        return {
+          ...opt,
+          votedByMe: isVotedByMe,
+        }
+      })
+
+      const poll = {
+        ...rawPoll,
+        options: normalizedOptions,
+      }
+
+      const currentList = [...(this.pollsByRoom[rKey] || [])]
+      const existingIdx = currentList.findIndex((p) => String(p.pollId) === String(poll.pollId))
+
+      if (existingIdx !== -1) {
+        currentList[existingIdx] = {
+          ...currentList[existingIdx],
+          ...poll,
+        }
+      } else {
+        currentList.unshift(poll)
+      }
+      this.pollsByRoom = { ...this.pollsByRoom, [rKey]: currentList }
+    },
+
+    // =========================================================================
     // ████  PHẦN 7: QUẢN LÝ THÀNH VIÊN & ĐÃ GỬI / ĐÃ NHẬN / ĐÃ XEM (RECEIPTS) ██
     // =========================================================================
 
@@ -2825,6 +3047,15 @@ export const useChatStore = defineStore('chat', {
         requireApproval: boolVal,
       }
       saveRoomOverrides(this.roomActivityOverrides)
+    },
+
+    // =========================================================================
+    // ████████████  PHẦN 8: GỢI Ý NỘI DUNG TỪ AI (POLL & REMINDER)  ███████████
+    // =========================================================================
+    async suggestAiContent(roomId, type, anchorMessageId) {
+      const targetRoomId = roomId || this.activeRoomId
+      if (!targetRoomId || !type || !anchorMessageId) return null
+      return await aiSuggestionApi.getAiSuggestions(targetRoomId, type, anchorMessageId)
     },
   },
 })

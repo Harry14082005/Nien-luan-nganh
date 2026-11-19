@@ -565,7 +565,7 @@ async function handleSubmit() {
                   @click="reminderType = 'GROUP'"
                 >
                   <font-awesome-icon icon="user-group" />
-                  <span>{{ roomType === 'GROUP' ? 'Cả nhóm / Mọi người' : 'Cả hai người' }}</span>
+                  <span>{{ roomType === 'GROUP' ? 'Tất cả' : 'Cả hai người' }}</span>
                 </button>
                 <button
                   type="button"
@@ -574,7 +574,7 @@ async function handleSubmit() {
                   @click="reminderType = 'PERSONAL'"
                 >
                   <font-awesome-icon icon="lock" />
-                  <span>Chỉ nhắc riêng tôi</span>
+                  <span>Chỉ mình tôi</span>
                 </button>
               </div>
             </div>

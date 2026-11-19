@@ -1,0 +1,483 @@
+2026-11-18 23:53:24.171 [main] INFO  c.n.n.NienLuanNganhApplication - Starting NienLuanNganhApplication using Java 21.0.9 with PID 26796 (D:\Nien-luan-nganh\nien-luan-nganh\nien-luan-nganh\target\classes started by DELL in D:\Nien-luan-nganh\nien-luan-nganh\nien-luan-nganh)
+2026-11-18 23:53:24.174 [main] INFO  c.n.n.NienLuanNganhApplication - No active profile set, falling back to 1 default profile: "default"
+2026-11-18 23:53:24.928 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-18 23:53:25.028 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 91 ms. Found 16 JPA repository interfaces.
+2026-11-18 23:53:25.582 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-11-18 23:53:25.596 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-11-18 23:53:25.597 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.24]
+2026-11-18 23:53:25.655 [main] INFO  o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 1441 ms
+2026-11-18 23:53:26.273 [main] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-18 23:53:26.301 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-11-18 23:53:27.873 [main] WARN  org.hibernate.orm.jdbc.error - HHH000247: ErrorCode: 1045, SQLState: 28000
+2026-11-18 23:53:27.873 [main] WARN  org.hibernate.orm.jdbc.error - Access denied for user 'root'@'localhost' (using password: YES)
+2026-11-18 23:53:27.875 [main] WARN  org.hibernate.orm.jdbc - HHH100046: Could not obtain connection to query JDBC database metadata
+org.hibernate.exception.AuthException: Unable to obtain isolated JDBC connection [Access denied for user 'root'@'localhost' (using password: YES)] [n/a]
+	at org.hibernate.exception.internal.SQLStateConversionDelegate.convert(SQLStateConversionDelegate.java:87)
+	at org.hibernate.exception.internal.StandardSQLExceptionConverter.convert(StandardSQLExceptionConverter.java:34)
+	at org.hibernate.engine.jdbc.spi.SqlExceptionHelper.convert(SqlExceptionHelper.java:115)
+	at org.hibernate.engine.jdbc.spi.SqlExceptionHelper.convert(SqlExceptionHelper.java:101)
+	at org.hibernate.resource.transaction.backend.jdbc.internal.JdbcIsolationDelegate.delegateWork(JdbcIsolationDelegate.java:51)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironmentUsingJdbcMetadata(JdbcEnvironmentInitiator.java:366)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironment(JdbcEnvironmentInitiator.java:143)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:120)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:80)
+	at org.hibernate.boot.registry.internal.StandardServiceRegistryImpl.initiateService(StandardServiceRegistryImpl.java:133)
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.createService(AbstractServiceRegistryImpl.java:260)
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.initializeService(AbstractServiceRegistryImpl.java:235)
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.getService(AbstractServiceRegistryImpl.java:212)
+	at org.hibernate.boot.model.relational.Database.<init>(Database.java:44)
+	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.getDatabase(InFlightMetadataCollectorImpl.java:251)
+	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.<init>(InFlightMetadataCollectorImpl.java:203)
+	at org.hibernate.boot.model.process.spi.MetadataBuildingProcess.complete(MetadataBuildingProcess.java:180)
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.metadata(EntityManagerFactoryBuilderImpl.java:1388)
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.populateSessionFactoryBuilder(EntityManagerFactoryBuilderImpl.java:1468)
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1450)
+	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:93)
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:443)
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:436)
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:411)
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:419)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1862)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1811)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:603)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:196)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:365)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveConstructorArguments(ConstructorResolver.java:691)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:513)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1360)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1192)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:565)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:356)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyPropertyValues(AbstractAutowireCapableBeanFactory.java:1710)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1459)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveBean(DefaultListableBeanFactory.java:1232)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1711)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1658)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:764)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:748)
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:493)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1444)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:229)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1769)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1658)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:764)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:748)
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:493)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1444)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.getOrderedBeansOfType(ServletContextInitializerBeans.java:231)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:185)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:180)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAdaptableBeans(ServletContextInitializerBeans.java:165)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.<init>(ServletContextInitializerBeans.java:97)
+	at org.springframework.boot.web.context.servlet.WebApplicationContextInitializer.initialize(WebApplicationContextInitializer.java:53)
+	at org.springframework.boot.tomcat.servlet.DeferredServletContainerInitializers.onStartup(DeferredServletContainerInitializers.java:55)
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:4573)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1204)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1200)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:92)
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145)
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:732)
+	at org.apache.catalina.core.StandardHost.startInternal(StandardHost.java:794)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1204)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1200)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:92)
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145)
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:732)
+	at org.apache.catalina.core.StandardEngine.startInternal(StandardEngine.java:201)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.StandardService.startInternal(StandardService.java:433)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.StandardServer.startInternal(StandardServer.java:871)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.startup.Tomcat.start(Tomcat.java:452)
+	at org.springframework.boot.tomcat.TomcatWebServer.initialize(TomcatWebServer.java:131)
+	at org.springframework.boot.tomcat.TomcatWebServer.<init>(TomcatWebServer.java:110)
+	at org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory.getTomcatWebServer(TomcatServletWebServerFactory.java:429)
+	at org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory.getWebServer(TomcatServletWebServerFactory.java:167)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.createWebServer(ServletWebServerApplicationContext.java:190)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.onRefresh(ServletWebServerApplicationContext.java:164)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:615)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:143)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:756)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:445)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:321)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1365)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1354)
+	at com.nhom8.nien_luan_nganh.NienLuanNganhApplication.main(NienLuanNganhApplication.java:15)
+Caused by: java.sql.SQLException: Access denied for user 'root'@'localhost' (using password: YES)
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:114)
+	at com.mysql.cj.jdbc.ConnectionImpl.createNewIO(ConnectionImpl.java:840)
+	at com.mysql.cj.jdbc.ConnectionImpl.<init>(ConnectionImpl.java:416)
+	at com.mysql.cj.jdbc.ConnectionImpl.getInstance(ConnectionImpl.java:237)
+	at com.mysql.cj.jdbc.NonRegisteringDriver.connect(NonRegisteringDriver.java:180)
+	at com.zaxxer.hikari.util.DriverDataSource.getConnection(DriverDataSource.java:144)
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:373)
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:210)
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:488)
+	at com.zaxxer.hikari.pool.HikariPool.checkFailFast(HikariPool.java:576)
+	at com.zaxxer.hikari.pool.HikariPool.<init>(HikariPool.java:97)
+	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:111)
+	at org.hibernate.engine.jdbc.connections.internal.DataSourceConnectionProvider.getConnection(DataSourceConnectionProvider.java:149)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator$ConnectionProviderJdbcConnectionAccess.obtainConnection(JdbcEnvironmentInitiator.java:508)
+	at org.hibernate.resource.transaction.backend.jdbc.internal.JdbcIsolationDelegate.delegateWork(JdbcIsolationDelegate.java:48)
+	... 122 common frames omitted
+2026-11-18 23:53:27.901 [main] WARN  org.hibernate.orm.deprecation - HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-11-18 23:53:29.428 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-11-18 23:53:30.449 [main] WARN  org.hibernate.orm.jdbc.error - HHH000247: ErrorCode: 1045, SQLState: 28000
+2026-11-18 23:53:30.449 [main] WARN  org.hibernate.orm.jdbc.error - Access denied for user 'root'@'localhost' (using password: YES)
+2026-11-18 23:53:30.452 [main] ERROR o.s.o.j.LocalContainerEntityManagerFactoryBean - Failed to initialize JPA EntityManagerFactory: Unable to build Hibernate SessionFactory  [persistence unit: default] ; nested exception is org.hibernate.exception.AuthException: Unable to open JDBC Connection for DDL execution [Access denied for user 'root'@'localhost' (using password: YES)] [n/a]
+2026-11-18 23:53:30.453 [main] ERROR o.s.b.t.s.DeferredServletContainerInitializers - Error starting Tomcat context. Exception: org.springframework.beans.factory.UnsatisfiedDependencyException. Message: Error creating bean with name 'jwtAuthenticationFilter': Unsatisfied dependency expressed through field 'userDetailsService': Error creating bean with name 'userDetailsServiceImpl': Unsatisfied dependency expressed through field 'userRepository': Error creating bean with name 'userRepository' defined in com.nhom8.nien_luan_nganh.repository.UserRepository defined in @EnableJpaRepositories declared on DataJpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+2026-11-18 23:53:30.477 [main] INFO  o.a.catalina.core.StandardService - Stopping service [Tomcat]
+2026-11-18 23:53:30.483 [main] WARN  o.s.b.w.s.s.c.AnnotationConfigServletWebServerApplicationContext - Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Unable to start web server
+2026-11-18 23:53:30.488 [main] INFO  o.s.b.a.l.ConditionEvaluationReportLogger - 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-11-18 23:53:30.500 [main] ERROR o.s.boot.SpringApplication - Application run failed
+org.springframework.context.ApplicationContextException: Unable to start web server
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.onRefresh(ServletWebServerApplicationContext.java:167)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:615)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:143)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:756)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:445)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:321)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1365)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1354)
+	at com.nhom8.nien_luan_nganh.NienLuanNganhApplication.main(NienLuanNganhApplication.java:15)
+Caused by: org.springframework.boot.web.server.WebServerException: Unable to start embedded Tomcat
+	at org.springframework.boot.tomcat.TomcatWebServer.initialize(TomcatWebServer.java:150)
+	at org.springframework.boot.tomcat.TomcatWebServer.<init>(TomcatWebServer.java:110)
+	at org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory.getTomcatWebServer(TomcatServletWebServerFactory.java:429)
+	at org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory.getWebServer(TomcatServletWebServerFactory.java:167)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.createWebServer(ServletWebServerApplicationContext.java:190)
+	at org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext.onRefresh(ServletWebServerApplicationContext.java:164)
+	... 8 common frames omitted
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'jwtAuthenticationFilter': Unsatisfied dependency expressed through field 'userDetailsService': Error creating bean with name 'userDetailsServiceImpl': Unsatisfied dependency expressed through field 'userRepository': Error creating bean with name 'userRepository' defined in com.nhom8.nien_luan_nganh.repository.UserRepository defined in @EnableJpaRepositories declared on DataJpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:767)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:748)
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:493)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1444)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.getOrderedBeansOfType(ServletContextInitializerBeans.java:231)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:185)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:180)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAdaptableBeans(ServletContextInitializerBeans.java:165)
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.<init>(ServletContextInitializerBeans.java:97)
+	at org.springframework.boot.web.context.servlet.WebApplicationContextInitializer.initialize(WebApplicationContextInitializer.java:53)
+	at org.springframework.boot.tomcat.servlet.DeferredServletContainerInitializers.onStartup(DeferredServletContainerInitializers.java:55)
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:4573)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1204)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1200)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:92)
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145)
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:732)
+	at org.apache.catalina.core.StandardHost.startInternal(StandardHost.java:794)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1204)
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1200)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:92)
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145)
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:732)
+	at org.apache.catalina.core.StandardEngine.startInternal(StandardEngine.java:201)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.StandardService.startInternal(StandardService.java:433)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.core.StandardServer.startInternal(StandardServer.java:871)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:170)
+	at org.apache.catalina.startup.Tomcat.start(Tomcat.java:452)
+	at org.springframework.boot.tomcat.TomcatWebServer.initialize(TomcatWebServer.java:131)
+	... 13 common frames omitted
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'userDetailsServiceImpl': Unsatisfied dependency expressed through field 'userRepository': Error creating bean with name 'userRepository' defined in com.nhom8.nien_luan_nganh.repository.UserRepository defined in @EnableJpaRepositories declared on DataJpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:767)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:748)
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:493)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1444)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:229)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1769)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1658)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:764)
+	... 54 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'userRepository' defined in com.nhom8.nien_luan_nganh.repository.UserRepository defined in @EnableJpaRepositories declared on DataJpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:377)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyPropertyValues(AbstractAutowireCapableBeanFactory.java:1710)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1459)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:602)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveBean(DefaultListableBeanFactory.java:1232)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1711)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1658)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:764)
+	... 68 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'jpaSharedEM_entityManagerFactory': Cannot resolve reference to bean 'entityManagerFactory' while setting constructor argument
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:377)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveConstructorArguments(ConstructorResolver.java:691)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:513)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1360)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1192)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:565)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:201)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:356)
+	... 81 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/hibernate/autoconfigure/HibernateJpaConfiguration.class]: Unable to build Hibernate SessionFactory  [persistence unit: default] ; nested exception is org.hibernate.exception.AuthException: Unable to open JDBC Connection for DDL execution [Access denied for user 'root'@'localhost' (using password: YES)] [n/a]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1815)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:603)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:525)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:333)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:371)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:331)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:196)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:365)
+	... 93 common frames omitted
+Caused by: jakarta.persistence.PersistenceException: Unable to build Hibernate SessionFactory  [persistence unit: default] ; nested exception is org.hibernate.exception.AuthException: Unable to open JDBC Connection for DDL execution [Access denied for user 'root'@'localhost' (using password: YES)] [n/a]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:448)
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:411)
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:419)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1862)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1811)
+	... 100 common frames omitted
+Caused by: org.hibernate.exception.AuthException: Unable to open JDBC Connection for DDL execution [Access denied for user 'root'@'localhost' (using password: YES)] [n/a]
+	at org.hibernate.exception.internal.SQLStateConversionDelegate.convert(SQLStateConversionDelegate.java:87)
+	at org.hibernate.exception.internal.StandardSQLExceptionConverter.convert(StandardSQLExceptionConverter.java:34)
+	at org.hibernate.engine.jdbc.spi.SqlExceptionHelper.convert(SqlExceptionHelper.java:115)
+	at org.hibernate.engine.jdbc.spi.SqlExceptionHelper.convert(SqlExceptionHelper.java:101)
+	at org.hibernate.resource.transaction.backend.jdbc.internal.DdlTransactionIsolatorNonJtaImpl.getIsolatedConnection(DdlTransactionIsolatorNonJtaImpl.java:71)
+	at org.hibernate.resource.transaction.backend.jdbc.internal.DdlTransactionIsolatorNonJtaImpl.getIsolatedConnection(DdlTransactionIsolatorNonJtaImpl.java:37)
+	at org.hibernate.tool.schema.internal.exec.ImprovedExtractionContextImpl.getJdbcConnection(ImprovedExtractionContextImpl.java:61)
+	at org.hibernate.tool.schema.internal.exec.ImprovedExtractionContextImpl.getJdbcDatabaseMetaData(ImprovedExtractionContextImpl.java:68)
+	at org.hibernate.tool.schema.extract.internal.InformationExtractorJdbcDatabaseMetaDataImpl.getJdbcDatabaseMetaData(InformationExtractorJdbcDatabaseMetaDataImpl.java:39)
+	at org.hibernate.tool.schema.extract.internal.InformationExtractorJdbcDatabaseMetaDataImpl.processTableResultSet(InformationExtractorJdbcDatabaseMetaDataImpl.java:81)
+	at org.hibernate.tool.schema.extract.internal.AbstractInformationExtractorImpl.getTables(AbstractInformationExtractorImpl.java:496)
+	at org.hibernate.tool.schema.extract.internal.DatabaseInformationImpl.getTablesInformation(DatabaseInformationImpl.java:124)
+	at org.hibernate.tool.schema.internal.GroupedSchemaMigratorImpl.performTablesMigration(GroupedSchemaMigratorImpl.java:72)
+	at org.hibernate.tool.schema.internal.AbstractSchemaMigrator.performMigration(AbstractSchemaMigrator.java:220)
+	at org.hibernate.tool.schema.internal.AbstractSchemaMigrator.doMigration(AbstractSchemaMigrator.java:96)
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.performDatabaseAction(SchemaManagementToolCoordinator.java:269)
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.lambda$process$1(SchemaManagementToolCoordinator.java:101)
+	at java.base/java.util.HashMap.forEach(HashMap.java:1429)
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.process(SchemaManagementToolCoordinator.java:100)
+	at org.hibernate.boot.internal.SessionFactoryObserverForSchemaExport.sessionFactoryCreated(SessionFactoryObserverForSchemaExport.java:35)
+	at org.hibernate.internal.SessionFactoryObserverChain.sessionFactoryCreated(SessionFactoryObserverChain.java:33)
+	at org.hibernate.internal.SessionFactoryImpl.<init>(SessionFactoryImpl.java:327)
+	at org.hibernate.internal.SessionFactoryRegistry.instantiateSessionFactory(SessionFactoryRegistry.java:64)
+	at org.hibernate.boot.internal.SessionFactoryBuilderImpl.build(SessionFactoryBuilderImpl.java:458)
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1452)
+	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:93)
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:443)
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:436)
+	... 104 common frames omitted
+Caused by: java.sql.SQLException: Access denied for user 'root'@'localhost' (using password: YES)
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:114)
+	at com.mysql.cj.jdbc.ConnectionImpl.createNewIO(ConnectionImpl.java:840)
+	at com.mysql.cj.jdbc.ConnectionImpl.<init>(ConnectionImpl.java:416)
+	at com.mysql.cj.jdbc.ConnectionImpl.getInstance(ConnectionImpl.java:237)
+	at com.mysql.cj.jdbc.NonRegisteringDriver.connect(NonRegisteringDriver.java:180)
+	at com.zaxxer.hikari.util.DriverDataSource.getConnection(DriverDataSource.java:144)
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:373)
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:210)
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:488)
+	at com.zaxxer.hikari.pool.HikariPool.checkFailFast(HikariPool.java:576)
+	at com.zaxxer.hikari.pool.HikariPool.<init>(HikariPool.java:97)
+	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:111)
+	at org.hibernate.engine.jdbc.connections.internal.DataSourceConnectionProvider.getConnection(DataSourceConnectionProvider.java:149)
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator$ConnectionProviderJdbcConnectionAccess.obtainConnection(JdbcEnvironmentInitiator.java:508)
+	at org.hibernate.resource.transaction.backend.jdbc.internal.DdlTransactionIsolatorNonJtaImpl.getIsolatedConnection(DdlTransactionIsolatorNonJtaImpl.java:44)
+	... 127 common frames omitted
+2026-11-18 23:54:18.999 [main] INFO  c.n.n.NienLuanNganhApplication - Starting NienLuanNganhApplication using Java 21.0.9 with PID 27324 (D:\Nien-luan-nganh\nien-luan-nganh\nien-luan-nganh\target\classes started by DELL in D:\Nien-luan-nganh\nien-luan-nganh\nien-luan-nganh)
+2026-11-18 23:54:19.003 [main] INFO  c.n.n.NienLuanNganhApplication - No active profile set, falling back to 1 default profile: "default"
+2026-11-18 23:54:19.731 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-18 23:54:19.832 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 93 ms. Found 16 JPA repository interfaces.
+2026-11-18 23:54:20.387 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-11-18 23:54:20.402 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-11-18 23:54:20.403 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.24]
+2026-11-18 23:54:20.455 [main] INFO  o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 1399 ms
+2026-11-18 23:54:20.994 [main] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-18 23:54:21.020 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-11-18 23:54:21.158 [main] INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@177068db
+2026-11-18 23:54:21.159 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-11-18 23:54:21.200 [main] WARN  org.hibernate.orm.deprecation - HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-11-18 23:54:22.418 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-18 23:54:22.492 [main] INFO  o.s.d.j.r.q.QueryEnhancerFactories - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-18 23:54:24.942 [main] INFO  o.s.s.c.a.a.c.InitializeAuthenticationProviderBeanManagerConfigurer$InitializeAuthenticationProviderManagerConfigurer - Global AuthenticationManager configured with AuthenticationProvider bean with name authenticationProvider
+2026-11-18 23:54:24.943 [main] WARN  o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with an AuthenticationProvider bean. UserDetailsService beans will not be used by Spring Security for automatically configuring username/password login. Consider removing the AuthenticationProvider bean. Alternatively, consider using the UserDetailsService in a manually instantiated DaoAuthenticationProvider. If the current configuration is intentional, to turn off this warning, increase the logging level of 'org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer' to ERROR
+2026-11-18 23:54:25.530 [main] INFO  org.springframework.web.SimpLogging - Starting...
+2026-11-18 23:54:25.531 [main] INFO  org.springframework.web.SimpLogging - BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@15b4e8ba]]
+2026-11-18 23:54:25.533 [main] INFO  org.springframework.web.SimpLogging - Started.
+2026-11-18 23:54:25.554 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+2026-11-18 23:54:25.559 [main] INFO  o.s.s.config.TaskSchedulerRouter - More than one TaskScheduler bean exists within the context, and none is named 'taskScheduler'. Mark one of them as primary or name it 'taskScheduler' (possibly as an alias); or implement the SchedulingConfigurer interface and call ScheduledTaskRegistrar#setScheduler explicitly within the configureTasks() callback: [messageBrokerTaskScheduler, customHeartbeatTaskScheduler]
+2026-11-18 23:54:25.563 [main] INFO  c.n.n.NienLuanNganhApplication - Started NienLuanNganhApplication in 7.006 seconds (process running for 7.314)
+2026-11-18 23:54:28.807 [http-nio-8080-exec-1] INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-18 23:54:28.807 [http-nio-8080-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-11-18 23:54:28.809 [http-nio-8080-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 1 ms
+2026-11-18 23:54:29.051 [http-nio-8080-exec-1] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-18 23:54:29.055 [clientOutboundChannel-1] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = b30de33a-9101-4f3c-9994-50010012c3ac, sessionId = 0d3af9e0-3f5f-4fa2-89c0-000fbf3812a4
+2026-11-18 23:54:29.056 [clientOutboundChannel-1] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac kết nối session 0d3af9e0-3f5f-4fa2-89c0-000fbf3812a4 (tổng sessions: 1)
+2026-11-18 23:54:29.103 [clientOutboundChannel-1] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = true, lastSeenAt = null
+2026-11-18 23:54:52.717 [http-nio-8080-exec-5] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 0d3af9e0-3f5f-4fa2-89c0-000fbf3812a4, fallbackUserId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-18 23:54:52.718 [http-nio-8080-exec-5] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac đóng session 0d3af9e0-3f5f-4fa2-89c0-000fbf3812a4 (còn lại: 0)
+2026-11-18 23:54:52.735 [http-nio-8080-exec-5] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = false, lastSeenAt = 2026-11-18T23:54:52.718889600
+2026-11-18 23:54:55.299 [http-nio-8080-exec-7] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-18 23:54:55.300 [clientOutboundChannel-4] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = b30de33a-9101-4f3c-9994-50010012c3ac, sessionId = 98bbcff0-3405-49bb-9f9e-66738763ae87
+2026-11-18 23:54:55.300 [clientOutboundChannel-4] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac kết nối session 98bbcff0-3405-49bb-9f9e-66738763ae87 (tổng sessions: 1)
+2026-11-18 23:54:55.301 [clientOutboundChannel-4] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = true, lastSeenAt = null
+2026-11-18 23:54:58.396 [http-nio-8080-exec-10] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionDisconnectEvent: sessionId = 98bbcff0-3405-49bb-9f9e-66738763ae87, fallbackUserId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-18 23:54:58.397 [http-nio-8080-exec-10] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac đóng session 98bbcff0-3405-49bb-9f9e-66738763ae87 (còn lại: 0)
+2026-11-18 23:54:58.409 [http-nio-8080-exec-10] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = false, lastSeenAt = 2026-11-18T23:54:58.397534400
+2026-11-18 23:55:00.377 [http-nio-8080-exec-7] INFO  c.n.n.config.WebSocketConfig - WebSocket kết nối thành công: userId = b30de33a-9101-4f3c-9994-50010012c3ac
+2026-11-18 23:55:00.378 [clientOutboundChannel-7] INFO  c.n.n.l.WebSocketEventListener - WebSocket SessionConnectedEvent: userId = b30de33a-9101-4f3c-9994-50010012c3ac, sessionId = 69c64197-8618-4ecd-973e-35e8531ea1d4
+2026-11-18 23:55:00.378 [clientOutboundChannel-7] INFO  c.n.n.service.UserPresenceService - User b30de33a-9101-4f3c-9994-50010012c3ac kết nối session 69c64197-8618-4ecd-973e-35e8531ea1d4 (tổng sessions: 1)
+2026-11-18 23:55:00.378 [clientOutboundChannel-7] INFO  c.n.n.service.UserPresenceService - Broadcast UserPresence: userId = b30de33a-9101-4f3c-9994-50010012c3ac, isOnline = true, lastSeenAt = null
+2026-11-18 23:55:37.607 [http-nio-8080-exec-5] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece]
+2026-11-18 23:55:37.608 [http-nio-8080-exec-5] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-18 23:55:39.665 [http-nio-8080-exec-3] INFO  c.n.n.service.AiSuggestionService - Bắt đầu gọi AI gợi ý POLL cho tin nhắn [62c437eb-c811-45b2-b5bb-188bd8922f08] với Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Trương Kiệt: đi ăn hay đi ngủ
+
+TARGET ANCHOR MESSAGE:
+Sender: Trương Kiệt
+Message: "đi ăn hay đi ngủ"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-18 23:55:39.666 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI REQUEST] ==========
+2026-11-18 23:55:39.666 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - Model: openai/gpt-oss-20b, Temperature: 0.1, JSON mode: true
+2026-11-18 23:55:39.666 [http-nio-8080-exec-3] DEBUG c.n.n.service.ai.GroqAiServiceImpl - Prompt:
+You are an intelligent chat assistant analyzing a group discussion to extract a Poll/Voting proposal.
+
+CONVERSATION CONTEXT (each message is labeled [m1], [m2], ...):
+[m1] Trương Kiệt: đi ăn hay đi ngủ
+
+TARGET ANCHOR MESSAGE:
+Sender: Trương Kiệt
+Message: "đi ăn hay đi ngủ"
+
+TASK & INSTRUCTIONS:
+1. Detect whether the TARGET ANCHOR MESSAGE or the recent CONVERSATION is proposing alternatives, asking a question with choices, or debating options (e.g. destinations, food, time, tasks, products, opinions).
+2. EXPLICIT OPTION EXTRACTION RULES:
+   - If the target message or context mentions alternatives separated by commas, "hay", "hoặc", "or", slashes, etc. (for example: "đi Ý, Nhật hay HongKong giờ"), you MUST extract EACH destination/alternative as an independent option:
+     * Option 1: "Ý"
+     * Option 2: "Nhật"
+     * Option 3: "HongKong"
+   - DO NOT leave the options empty!
+   - "question": Formulate a natural, concise, polite question for the poll in Vietnamese (e.g. "Mọi người muốn đi du lịch ở đâu?" or "Nên đi Ý, Nhật hay HongKong?").
+   - "options": An array of 2 to 6 distinct choices extracted directly from the discussion or alternatives mentioned (each option <= 40 chars, concise, clean).
+   - "source_codes": An array of message codes (e.g. ["m1", "m2"]) from the context that directly contributed to the choices.
+3. If the conversation or message has ABSOLUTELY NO choices, alternatives, or opinions to vote on:
+   - Set "found": false
+   - "question": null
+   - "options": []
+   - "source_codes": []
+4. Output MUST be ONLY a single valid JSON object, without any Markdown codeblocks (no ```json):
+{
+  "found": true,
+  "question": "Nên đi đâu du lịch?",
+  "options": ["Ý", "Nhật", "HongKong"],
+  "source_codes": ["m1"]
+}
+
+2026-11-18 23:55:40.824 [http-nio-8080-exec-3] INFO  c.n.n.service.ai.GroqAiServiceImpl - ========== [GROQ AI RESPONSE RAW] ==========
+{"id":"chatcmpl-836a3812-7cf4-4c62-884f-509f56fe323b","object":"chat.completion","created":1795020941,"model":"openai/gpt-oss-20b","choices":[{"index":0,"message":{"role":"assistant","content":"{\"found\":true,\"question\":\"Nên đi ăn hay đi ngủ?\",\"options\":[\"đi ăn\",\"đi ngủ\"],\"source_codes\":[\"m1\"]}","reasoning":"We need to produce JSON. The conversation context: only [m1] Trương Kiệt: \"đi ăn hay đi ngủ\". The target anchor message is that. We need to detect if it's proposing alternatives, asking a question with choices, or debating options. The message says \"đi ăn hay đi ngủ\" which is \"go eat or go to sleep\". It's a question with two alternatives: \"đi ăn\" and \"đi ngủ\". So we should extract options: \"đi ăn\" and \"đi ngủ\". The question: \"Nên đi ăn hay đi ngủ?\" or \"Mọi người muốn đi ăn hay đi ngủ?\" The instructions: \"question\": Formulate a natural, concise, polite question for the poll in Vietnamese. So maybe \"Nên đi ăn hay đi ngủ?\" or \"Mọi người muốn đi ăn hay đi ngủ?\" The options: array of 2 to 6 distinct choices extracted directly. So options: [\"đi ăn\", \"đi ngủ\"]. source_codes: [\"m1\"].\n\nWe must output JSON with found: true. Ensure no markdown. Use compact JSON formatting. Let's produce:\n\n{\n  \"found\": true,\n  \"question\": \"Nên đi ăn hay đi ngủ?\",\n  \"options\": [\"đi ăn\", \"đi ngủ\"],\n  \"source_codes\": [\"m1\"]\n}\n\nCheck length: options \u003c= 40 chars each. Yes. Provide."},"logprobs":null,"finish_reason":"stop"}],"usage":{"queue_time":0.154550686,"prompt_tokens":560,"prompt_time":0.051779994,"completion_tokens":337,"completion_time":0.359504321,"total_tokens":897,"total_time":0.411284315,"completion_tokens_details":{"reasoning_tokens":294}},"usage_breakdown":null,"system_fingerprint":"fp_e23fc997ca","x_groq":{"id":"req_01m7qsbs4de9wsmtarcyrp6987","seed":1926788372},"service_tier":"on_demand"}
+
+2026-11-18 23:55:40.833 [http-nio-8080-exec-3] INFO  c.n.n.service.AiSuggestionService - AI Suggestion content parsed from response for POLL: {"found":true,"question":"Nên đi ăn hay đi ngủ?","options":["đi ăn","đi ngủ"],"source_codes":["m1"]}
+2026-11-18 23:56:26.010 [http-nio-8080-exec-2] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user fca19d2e-d097-4316-aa5a-767e8afac7c1 (type: REMINDER_INVITE)
+2026-11-18 23:56:26.019 [http-nio-8080-exec-2] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user 7c194b7f-069e-4a35-9e74-72e807c997ae (type: REMINDER_INVITE)
+2026-11-18 23:56:26.029 [http-nio-8080-exec-2] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user 6c8f323d-da51-49e9-80e8-8c39bccaeec6 (type: REMINDER_INVITE)
+2026-11-18 23:56:26.038 [http-nio-8080-exec-2] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user e2f59c4d-2fe9-4901-ae29-2b174bdf9adb (type: REMINDER_INVITE)
+2026-11-18 23:56:26.068 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece]
+2026-11-18 23:56:26.069 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-18 23:56:26.070 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece.reminder]
+2026-11-18 23:56:26.073 [http-nio-8080-exec-2] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-18 23:56:27.717 [http-nio-8080-exec-8] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece.reminder]
+2026-11-18 23:56:27.718 [http-nio-8080-exec-8] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-18 23:56:28.564 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST to /topic/room.268ce844-f70b-4427-bca8-02bbb55c7ece.reminder]
+2026-11-18 23:56:28.566 [http-nio-8080-exec-4] INFO  c.n.n.l.BroadcastEventListener - [BROADCAST finish]
+2026-11-18 23:56:35.668 [pool-2-thread-1] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user 6c8f323d-da51-49e9-80e8-8c39bccaeec6 (type: REMINDER_DUE)
+2026-11-18 23:56:35.672 [pool-2-thread-1] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user 7c194b7f-069e-4a35-9e74-72e807c997ae (type: REMINDER_DUE)
+2026-11-18 23:56:35.676 [pool-2-thread-1] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user e2f59c4d-2fe9-4901-ae29-2b174bdf9adb (type: REMINDER_DUE)
+2026-11-18 23:56:35.681 [pool-2-thread-1] INFO  c.n.n.service.NotificationService - 🔔 [WebSocket Notification] Gửi thành công tới user fca19d2e-d097-4316-aa5a-767e8afac7c1 (type: REMINDER_DUE)
+2026-11-18 23:56:35.688 [pool-2-thread-1] INFO  c.n.n.scheduler.ReminderScheduler - 🔔 [ReminderScheduler] Đã gửi thông báo nhắc hẹn sắp diễn ra cho 1 lịch hẹn.

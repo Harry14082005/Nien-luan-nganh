@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -17,6 +18,10 @@ public class CreatePollRequest {
     private String question;
 
     @NotNull
-    @Size(min = 2, max =10)
+    @Size(min = 2, max = 10)
     private List<@NotBlank String> options;
+
+    // -- GỢI Ý AI CHO POLL -- //
+    // Danh sách id tin nhắn nguồn (nếu poll được tạo từ gợi ý AI)
+    private List<UUID> sourceMessageIds;
 }

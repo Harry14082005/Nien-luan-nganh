@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
 
 const props = defineProps({
@@ -11,6 +11,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  initialData: {
+    type: Object,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['close', 'created'])
@@ -19,8 +23,38 @@ const chatStore = useChatStore()
 
 const question = ref('')
 const options = ref(['', '']) // Mặc định 2 phương án trống
+const sourceMessageIds = ref([])
+const isAiPrefilled = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
+
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      errorMessage.value = ''
+      if (props.initialData) {
+        question.value = props.initialData.question || ''
+        const initOpts = Array.isArray(props.initialData.options) ? props.initialData.options : []
+        if (initOpts.length >= 2) {
+          options.value = [...initOpts]
+        } else if (initOpts.length === 1) {
+          options.value = [initOpts[0], '']
+        } else {
+          options.value = ['', '']
+        }
+        sourceMessageIds.value = props.initialData.sourceMessageIds || []
+        isAiPrefilled.value = Boolean(props.initialData.isAiGenerated)
+      } else {
+        question.value = ''
+        options.value = ['', '']
+        sourceMessageIds.value = []
+        isAiPrefilled.value = false
+      }
+    }
+  },
+  { immediate: true },
+)
 
 const canAddOption = computed(() => {
   return options.value.length < 10
@@ -41,6 +75,8 @@ const removeOptionField = (index) => {
 const handleClose = () => {
   question.value = ''
   options.value = ['', '']
+  sourceMessageIds.value = []
+  isAiPrefilled.value = false
   errorMessage.value = ''
   emit('close')
 }
@@ -67,13 +103,20 @@ const handleSubmit = async () => {
   }
 
   const targetRoomId = props.roomId || chatStore.activeRoomId
-  if (!targetRoomId) return
+  if (!targetRoomId) {
+    errorMessage.value = 'Không xác định được phòng trò chuyện'
+    return
+  }
 
   try {
     submitting.value = true
     const res = await chatStore.createRoomPoll(targetRoomId, {
       question: trimmedQ,
       options: validOptions,
+      sourceMessageIds:
+        sourceMessageIds.value && sourceMessageIds.value.length > 0
+          ? sourceMessageIds.value
+          : null,
     })
     emit('created', res)
     handleClose()
@@ -104,6 +147,11 @@ const handleSubmit = async () => {
       <div class="modal-body">
         <div v-if="errorMessage" class="error-banner">
           {{ errorMessage }}
+        </div>
+
+        <!-- Huy hiệu thông báo gợi ý bởi AI -->
+        <div v-if="isAiPrefilled" class="poll-ai-badge">
+          ✨ Gợi ý bởi AI từ nội dung thảo luận
         </div>
 
         <!-- Câu hỏi bình chọn -->
@@ -408,6 +456,20 @@ const handleSubmit = async () => {
   cursor: not-allowed;
 }
 
+.poll-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+  color: #3b82f6;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+  margin-bottom: 3px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -418,4 +480,3 @@ const handleSubmit = async () => {
   to { opacity: 1; transform: scale(1); }
 }
 </style>
-
