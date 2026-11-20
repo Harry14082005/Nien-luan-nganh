@@ -14,7 +14,10 @@ export const getMyNotifications = async (page = 0, size = 20) => {
 export const getUnreadNotificationCount = async () => {
   const res = await http.get('/notifications/unread-count')
   const data = res.data?.data ?? res.data?.result ?? res.data
-  return typeof data?.count === 'number' ? data.count : 0
+  if (typeof data?.unreadCount === 'number') return data.unreadCount
+  if (typeof data?.count === 'number') return data.count
+  if (typeof data === 'number') return data
+  return 0
 }
 
 // Đánh dấu 1 thông báo là đã đọc

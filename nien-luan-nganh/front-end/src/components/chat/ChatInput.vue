@@ -14,8 +14,10 @@
 // █████████████████████████████████████████████████████████████████████████████
 // PHẦN 1: IMPORT, PROPS/EMITS & KHỞI TẠO STATE
 // █████████████████████████████████████████████████████████████████████████████
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import EmojiPicker from 'vue3-emoji-picker';
+import 'vue3-emoji-picker/css';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
 
@@ -27,12 +29,84 @@ const drafts = ref({}); // Lưu trữ nội dung nháp riêng cho từng phòng 
 const textareaRef = ref(null); // Ref tới ô textarea để tự động focus
 const imageInputRef = ref(null);
 const fileInputRef = ref(null);
+const showEmojiPicker = ref(false); // Trạng thái ẩn/hiện popup Emoji Picker
 
 // MẢNG LƯU TRỮ CÁC FILE/ẢNH ĐANG CHỜ GỬI (ĐÃ CHỌN)
 const selectedFiles = ref([]);
 
 let typingTimer = null; // Bộ đếm thời gian debounce phát hiện người dùng dừng gõ
 let isCurrentlyTyping = false; // Cờ ghi nhận trạng thái đang gõ phím hiện tại
+
+/**
+ * Đóng / Mở popup chọn Emoji
+ */
+const toggleEmojiPicker = () => {
+    showEmojiPicker.value = !showEmojiPicker.value;
+};
+
+/**
+ * Xử lý khi người dùng chọn 1 Emoji:
+ * Chèn emoji vào vị trí con trỏ chuột hiện tại của textarea
+ */
+const onSelectEmoji = (emoji) => {
+    const el = textareaRef.value;
+    if (!el) {
+        text.value += emoji.i;
+        handleInput();
+        return;
+    }
+    const start = el.selectionStart ?? text.value.length;
+    const end = el.selectionEnd ?? text.value.length;
+    const val = text.value;
+    text.value = val.substring(0, start) + emoji.i + val.substring(end);
+    nextTick(() => {
+        el.selectionStart = el.selectionEnd = start + emoji.i.length;
+        el.focus();
+    });
+    handleInput();
+};
+
+/**
+ * Đóng Emoji Picker khi bấm ra ngoài
+ */
+const handleClickOutside = (e) => {
+    if (showEmojiPicker.value) {
+        const picker = document.querySelector('.emoji-picker-container');
+        const triggerBtn = document.getElementById('faceLaugh');
+        if (picker && !picker.contains(e.target) && triggerBtn && !triggerBtn.contains(e.target)) {
+            showEmojiPicker.value = false;
+        }
+    }
+};
+
+/**
+ * Lắng nghe phím Escape toàn cục để đóng Emoji Picker hoặc hủy Reply
+ */
+const handleGlobalKeydown = (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+        if (showEmojiPicker.value) {
+            showEmojiPicker.value = false;
+            e.preventDefault();
+            e.stopPropagation();
+            textareaRef.value?.focus();
+            return;
+        }
+        if (chatStore.replyingMessage) {
+            chatStore.clearReplyingMessage();
+            e.preventDefault();
+        }
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+    window.removeEventListener('keydown', handleGlobalKeydown);
+});
 
 // █████████████████████████████████████████████████████████████████████████████
 // PHẦN 2: TRẢ LỜI TIN NHẮN (REPLY) & CHUYỂN ĐỔI PHÒNG CHAT (DRAFTS)
@@ -74,8 +148,9 @@ watch(
 watch(
     () => chatStore.activeRoomId,
     (newRoomId, oldRoomId) => {
-        // Hủy trạng thái reply khi chuyển phòng
+        // Hủy trạng thái reply và đóng emoji picker khi chuyển phòng
         chatStore.clearReplyingMessage();
+        showEmojiPicker.value = false;
 
         // 1. Tắt trạng thái typing của phòng cũ nếu đang gõ dở
         if (isCurrentlyTyping) {
@@ -234,6 +309,7 @@ const handleSend = async () => {
     }
 
     emit('messageSent');
+    showEmojiPicker.value = false;
 
     // Gửi text trước nếu có (truyền rõ ràng repliedMessageId)
     if (content) {
@@ -257,9 +333,30 @@ const handleSend = async () => {
     chatStore.clearReplyingMessage();
 };
 
+
+const handleEsc = () => {
+    if (showEmojiPicker.value) {
+        showEmojiPicker.value = false;
+        return;
+    }
+    chatStore.clearReplyingMessage();
+};
+
 </script>
 <template>
   <div class="chatInput-wrapper">
+    <!-- Popup Bảng chọn Emoji nổi phía trên ô nhập liệu -->
+    <transition name="popover-fade">
+      <div v-if="showEmojiPicker" class="emoji-picker-container" @click.stop>
+        <EmojiPicker 
+          :native="true" 
+          :hide-group-names="false"
+          :display-recent="true"
+          @select="onSelectEmoji" 
+        />
+      </div>
+    </transition>
+
     <div class="chatInput">
       <!-- Thanh xem trước phản hồi tin nhắn (Reply Banner) -->
       <div v-if="chatStore.replyingMessage" class="reply-banner">
@@ -340,7 +437,14 @@ const handleSend = async () => {
           @click="emit('openCreatePoll')" 
       />
       
-      <font-awesome-icon class="icon_input" id="faceLaugh" icon="face-laugh-squint" title="Chọn biểu cảm" />
+      <font-awesome-icon 
+          class="icon_input" 
+          :class="{ active: showEmojiPicker }"
+          id="faceLaugh" 
+          icon="face-laugh-squint" 
+          title="Chọn biểu cảm"
+          @click.stop="toggleEmojiPicker" 
+      />
       
       <textarea 
           ref="textareaRef"
@@ -350,7 +454,7 @@ const handleSend = async () => {
           rows="1"
           @input="handleInput"
           @keydown.enter.exact.prevent="handleSend"
-          @keydown.esc="chatStore.clearReplyingMessage"
+          @keydown.esc="handleEsc"
       ></textarea>
       <font-awesome-icon 
           id="paperPlane" 
@@ -383,6 +487,83 @@ const handleSend = async () => {
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Quicksand:wght@300..700&display=swap');
+.chatInput-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.emoji-picker-container {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 20px;
+  z-index: 1000;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 16px 40px -8px rgba(15, 37, 71, 0.22);
+  overflow: hidden;
+}
+
+/* Đẩy cụm Skin tone cách mép phải thoáng hơn */
+:deep(.v3-emoji-picker .v3-footer .v3-tone) {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  margin-right: 0px !important;
+  white-space: nowrap;
+}
+
+/* Giữ chữ "Skin tone" không bị rớt dòng */
+:deep(.v3-emoji-picker .v3-footer .v3-tone .v3-text) {
+  white-space: nowrap;
+}
+
+/* Làm tròn nút / icon tone ở footer */
+:deep(.v3-emoji-picker .v3-footer .v3-tone .v3-icon),
+:deep(.v3-emoji-picker .v3-footer .v3-tone .v3-icon span) {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px;
+  padding: 0;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Danh sách các ô skin tone tròn khi xổ ra */
+:deep(.v3-skin-tones) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px;
+  margin-right: 12px;
+}
+
+:deep(.v3-skin-tones .v3-skin-tone),
+:deep(.v3-skin-tones .v3-skin-tone span) {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  margin: 0 !important;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+:deep(.v3-skin-tones .v3-skin-tone:hover) {
+  transform: scale(1.2);
+}
+.popover-fade-enter-active,
+.popover-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.popover-fade-enter-from,
+.popover-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
 
 .chatInput {
   font-family: 'Quicksand', sans-serif;
@@ -528,7 +709,8 @@ const handleSend = async () => {
   flex-shrink: 0;
 }
 
-.icon_input:hover {
+.icon_input:hover,
+.icon_input.active {
   color: #4b7bec;
   background-color: #e6edfd;
 }
