@@ -6,6 +6,7 @@ import com.nhom8.nien_luan_nganh.dto.request.UpdateRoomNameRequest;
 import com.nhom8.nien_luan_nganh.dto.response.ApiResponse;
 import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomInviteInfoResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.service.RoomService;
@@ -109,5 +110,48 @@ public class RoomController {
         UUID currentUserId = UUID.fromString(authentication.getName());
         RoomDetailResponse response = roomService.updateRoomName(roomId, currentUserId, request.getRoomName());
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật tên nhóm thành công"));
+    }
+
+    /**
+     * API 1: Lấy link mời của nhóm (chỉ dành cho Admin / Trưởng nhóm)
+     * GET /api/v1/rooms/{roomId}/invite-link
+     */
+    @GetMapping("/{roomId}/invite-link")
+    public ResponseEntity<ApiResponse<String>> getRoomInviteLink(
+            Authentication authentication,
+            @PathVariable UUID roomId) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+        String inviteCode = roomService.getRoomInviteLink(roomId, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(inviteCode, "Lấy liên kết mời thành công"));
+    }
+
+    /**
+     * API 2: Lấy thông tin tóm tắt của nhóm theo inviteCode (hiển thị trang
+     * /join/:inviteCode)
+     * GET /api/v1/rooms/invite/{inviteCode}
+     */
+    @GetMapping("/invite/{inviteCode}")
+    public ResponseEntity<ApiResponse<RoomInviteInfoResponse>> getRoomInviteInfo(
+            Authentication authentication,
+            @PathVariable String inviteCode) {
+        UUID currentUserId = (authentication != null && authentication.isAuthenticated()
+                && !authentication.getName().equals("anonymousUser"))
+                        ? UUID.fromString(authentication.getName())
+                        : null;
+        RoomInviteInfoResponse response = roomService.getRoomInviteInfo(inviteCode, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy thông tin nhóm thành công"));
+    }
+
+    /**
+     * API 3: Tham gia nhóm qua inviteCode
+     * POST /api/v1/rooms/invite/{inviteCode}/join
+     */
+    @PostMapping("/invite/{inviteCode}/join")
+    public ResponseEntity<ApiResponse<RoomDetailResponse>> joinRoomByInviteCode(
+            Authentication authentication,
+            @PathVariable String inviteCode) {
+        UUID currentUserId = UUID.fromString(authentication.getName());
+        RoomDetailResponse response = roomService.joinRoomByInviteCode(inviteCode, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Tham gia nhóm thành công"));
     }
 }

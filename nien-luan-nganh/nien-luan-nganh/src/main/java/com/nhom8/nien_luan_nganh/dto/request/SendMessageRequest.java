@@ -21,8 +21,23 @@ public class SendMessageRequest {
     private String content;
     private MessageType messageType;
     /**
-     * Khóa chính UUID của tin nhắn cha (nếu đây là hành động Reply/Trả lời tin nhắn).
+     * Khóa chính UUID của tin nhắn cha (nếu đây là hành động Reply/Trả lời tin
+     * nhắn).
      * Để trống (null) nếu là tin nhắn thông thường.
      */
     private UUID repliedMessageId;
+
+    /**
+     * Danh sách UUID người dùng được nhắc tên (@mention) trong tin nhắn.
+     */
+    private java.util.List<UUID> mentionedUserIds;
+
+    /**
+     * Cờ đánh dấu nhắc đến tất cả thành viên trong nhóm (@all).
+     */
+    private Boolean mentionAll;
+
+    public boolean isMentionAll() {
+        return Boolean.TRUE.equals(this.mentionAll);
+    }
 }

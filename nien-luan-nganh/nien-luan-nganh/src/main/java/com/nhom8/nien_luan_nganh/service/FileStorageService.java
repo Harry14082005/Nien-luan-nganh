@@ -41,13 +41,24 @@ public class FileStorageService {
         return save(file, dir, fileName, "messages/" + roomId + "/" + messageId + "/" + fileName);
     }
 
-    //lưu ảnh tin nhắn
+    //lưu file tin nhắn (giữ lại tên tệp gốc để hiển thị chính xác)
     public String saveMessageFile(MultipartFile file, UUID roomId, UUID messageId){
-        String fileName = UUID.randomUUID() + getExtension(file);
+        String originalName = file.getOriginalFilename();
+        if (originalName == null || originalName.isBlank()) {
+            originalName = UUID.randomUUID() + getExtension(file);
+        } else {
+            originalName = org.springframework.util.StringUtils.cleanPath(originalName);
+            if (originalName.contains("/")) {
+                originalName = originalName.substring(originalName.lastIndexOf("/") + 1);
+            }
+            if (originalName.contains("\\")) {
+                originalName = originalName.substring(originalName.lastIndexOf("\\") + 1);
+            }
+        }
         Path dir = getBaseDir().resolve("messages")
                 .resolve(roomId.toString())
                 .resolve(messageId.toString());
-        return save(file, dir, fileName, "messages/" + roomId + "/" + messageId + "/" + fileName);
+        return save(file, dir, originalName, "messages/" + roomId + "/" + messageId + "/" + originalName);
     }
 
     //đọc file trả về user

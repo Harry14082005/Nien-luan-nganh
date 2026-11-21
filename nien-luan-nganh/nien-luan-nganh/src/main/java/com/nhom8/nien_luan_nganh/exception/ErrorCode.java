@@ -43,6 +43,7 @@ public enum ErrorCode {
     ROOM_MEMBER_PENDING(1033, "Yêu cầu tham gia nhóm của bạn đang chờ phê duyệt", HttpStatus.BAD_REQUEST),
     ROOM_MEMBER_NOT_FOUND(1034, "Không tìm thấy thông tin thành viên trong nhóm", HttpStatus.NOT_FOUND),
     NOT_ROOM_ADMIN(1035, "Hành động chỉ dành cho Trưởng nhóm hoặc Phó nhóm", HttpStatus.FORBIDDEN),
+    INVALID_INVITE_LINK(1036, "Link tham gia nhóm không hợp lệ hoặc không tồn tại", HttpStatus.NOT_FOUND),
 
     // --- Phân hệ Tin nhắn & Dịch thuật (1050 - 1069) ---
     MESSAGE_NOT_FOUND(1050, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),

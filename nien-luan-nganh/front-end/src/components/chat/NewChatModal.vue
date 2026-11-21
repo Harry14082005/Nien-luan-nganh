@@ -3,11 +3,14 @@
 // PHẦN 1: IMPORT, EMITS & KHỞI TẠO STATE
 // █████████████████████████████████████████████████████████████████████████████
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getFriends } from '@/api/contacts.api'
+import { getRoomInviteInfo } from '@/api/room.api'
 import { useChatStore } from '@/stores/chat'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const emit = defineEmits(['close'])
+const router = useRouter()
 const chatStore = useChatStore()
 
 const activeTab = ref('direct') // 'direct' | 'group'
@@ -17,6 +20,40 @@ const users = ref([])
 const loadingUsers = ref(false)
 const submitting = ref(false)
 const errorMsg = ref('')
+
+// Dành cho Tham gia nhóm qua liên kết mời
+const inviteLinkInput = ref('')
+const joiningByLink = ref(false)
+
+const handleJoinByLink = async () => {
+  const raw = inviteLinkInput.value.trim()
+  if (!raw || joiningByLink.value) return
+  errorMsg.value = ''
+
+  // Hỗ trợ cả dán nguyên link (vd: http://.../join/xyz123) hoặc chỉ dán mã code (xyz123)
+  let code = raw
+  if (raw.includes('/join/')) {
+    const parts = raw.split('/join/')
+    code = parts[parts.length - 1].split('?')[0].split('/')[0].trim()
+  }
+
+  if (!code) {
+    errorMsg.value = 'Mã hoặc liên kết mời không hợp lệ'
+    return
+  }
+
+  // Kiểm tra tính hợp lệ của mã mời với backend trước khi điều hướng
+  joiningByLink.value = true
+  try {
+    await getRoomInviteInfo(code)
+    emit('close')
+    router.push(`/join/${code}`)
+  } catch (err) {
+    errorMsg.value = err?.response?.data?.message || 'Liên kết hoặc mã mời không hợp lệ hoặc nhóm không tồn tại.'
+  } finally {
+    joiningByLink.value = false
+  }
+}
 
 // Dành cho Tạo nhóm
 const groupName = ref('')
@@ -199,6 +236,28 @@ const handleCreateGroup = async () => {
         </div>
       </div>
 
+      <!-- Ô dán link mời tham gia nhóm (ở trên tìm kiếm) -->
+      <div class="join-link-section">
+        <div class="join-link-box">
+          <font-awesome-icon icon="link" class="join-link-icon" />
+          <input
+            v-model="inviteLinkInput"
+            type="text"
+            class="join-link-input"
+            placeholder="Dán link hoặc mã mời tham gia nhóm..."
+            @keydown.enter.prevent="handleJoinByLink"
+          />
+          <button
+            type="button"
+            class="join-link-btn"
+            :disabled="!inviteLinkInput.trim() || joiningByLink"
+            @click="handleJoinByLink"
+          >
+            {{ joiningByLink ? 'Đang kiểm tra...' : 'Tham gia' }}
+          </button>
+        </div>
+      </div>
+
       <!-- Ô tìm kiếm người dùng -->
       <div class="search-section">
         <input
@@ -363,6 +422,72 @@ const handleCreateGroup = async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ==========================================
+   Ô DÁN LINK MỜI THAM GIA NHÓM
+   ========================================== */
+.join-link-section {
+  padding: 12px 20px 0;
+}
+
+.join-link-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 6px 10px;
+  transition: all 0.15s ease;
+}
+
+.join-link-box:focus-within {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.join-link-icon {
+  color: #64748b;
+  font-size: 13px;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.join-link-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.join-link-btn {
+  padding: 6px 12px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.join-link-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.join-link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .search-section {

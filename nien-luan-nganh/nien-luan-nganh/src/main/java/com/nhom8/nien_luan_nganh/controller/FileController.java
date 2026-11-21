@@ -40,11 +40,13 @@ public class FileController {
 
         }
 
+        org.springframework.http.ContentDisposition contentDisposition = org.springframework.http.ContentDisposition.inline()
+                .filename(resource.getFilename() != null ? resource.getFilename() : "file", java.nio.charset.StandardCharsets.UTF_8)
+                .build();
+
         return ResponseEntity.ok()
                 .contentType(contentType) // cho trình duyệt biết dữ liệu trả về là gì
-                .header(
-                        HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + resource.getFilename() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
                 .body(resource);
     }
 

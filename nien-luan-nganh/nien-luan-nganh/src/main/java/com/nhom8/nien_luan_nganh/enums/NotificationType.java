@@ -22,5 +22,8 @@ public enum NotificationType {
 
     // 4. Bình chọn (Polls)
     POLL_CREATED,
-    POLL_CLOSED
+    POLL_CLOSED,
+
+    // 5. Tin nhắn & Nhắc tên (@mention, @all)
+    MESSAGE_MENTION
 }

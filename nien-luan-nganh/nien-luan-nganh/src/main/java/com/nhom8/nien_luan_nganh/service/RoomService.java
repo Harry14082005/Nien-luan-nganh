@@ -1,10 +1,13 @@
 package com.nhom8.nien_luan_nganh.service;
 
+import com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent;
 import com.nhom8.nien_luan_nganh.dto.request.CreateDirectRoomRequest;
 import com.nhom8.nien_luan_nganh.dto.request.CreateGroupRequest;
 import com.nhom8.nien_luan_nganh.dto.response.PageResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomDetailResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomInviteInfoResponse;
 import com.nhom8.nien_luan_nganh.dto.response.RoomListResponse;
+import com.nhom8.nien_luan_nganh.dto.response.RoomMemberResponse;
 import com.nhom8.nien_luan_nganh.entity.Room;
 import com.nhom8.nien_luan_nganh.entity.RoomMember;
 import com.nhom8.nien_luan_nganh.entity.User;
@@ -15,8 +18,10 @@ import com.nhom8.nien_luan_nganh.exception.AppException;
 import com.nhom8.nien_luan_nganh.exception.ErrorCode;
 import com.nhom8.nien_luan_nganh.entity.Message;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
+import com.nhom8.nien_luan_nganh.enums.NotificationType;
 import com.nhom8.nien_luan_nganh.mapper.MessageMapper;
 import com.nhom8.nien_luan_nganh.mapper.RoomMapper;
+import com.nhom8.nien_luan_nganh.repository.FriendshipRepository;
 import com.nhom8.nien_luan_nganh.repository.MessageRepository;
 import com.nhom8.nien_luan_nganh.repository.PollRepository;
 import com.nhom8.nien_luan_nganh.repository.ReminderRepository;
@@ -24,6 +29,7 @@ import com.nhom8.nien_luan_nganh.repository.RoomMemberRepository;
 import com.nhom8.nien_luan_nganh.repository.RoomRepository;
 import com.nhom8.nien_luan_nganh.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,8 +54,10 @@ public class RoomService {
     private final PollRepository pollRepository;
     private final ReminderRepository reminderRepository;
     private final UserPresenceService userPresenceService;
+    private final FriendshipRepository friendshipRepository;
     private final FileStorageService fileStorageService;
-    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
 
     // tạo group
     @Transactional
@@ -60,6 +68,7 @@ public class RoomService {
         Room room = roomMapper.toRoom(request);
         room.setRoomType(RoomType.GROUP);
         room.setCreatedBy(creator);
+        room.setInviteCode(generateInviteCode());
 
         roomRepository.save(room);
         updateLastActivity(room, room.getRoomId(), "Đã tạo nhóm", creator, room.getCreatedAt());
@@ -85,6 +94,13 @@ public class RoomService {
         // kiểm tra người được thêm tồn tại
         userRepository.findById(request.getUserId()).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // Kiểm tra quan hệ bị chặn (nếu đã bị chặn thì không cho tạo/mở phòng direct)
+        friendshipRepository.findBetweenUsers(currentUserId, request.getUserId()).ifPresent(f -> {
+            if (f.getFriendshipStatus() == com.nhom8.nien_luan_nganh.enums.FriendshipStatus.BLOCKED) {
+                throw new AppException(ErrorCode.USER_BLOCKED);
+            }
+        });
 
         // Đã có phòng direct giữa 2 người thì trả về phòng cũ
         return roomRepository.findDirectRoom(currentUserId, request.getUserId(), RoomType.DIRECT)
@@ -114,13 +130,26 @@ public class RoomService {
         // động mới nổi lên đầu)
         Pageable pageable = PageRequest.of(pageNo, pageSize, Sort.Direction.DESC, "updatedAt");
 
-        // 3. Lấy danh sách phòng
-        Page<Room> rooms;
+        // 3. Lấy danh sách ID người bị chặn 2 chiều (nếu có) để lọc ngay từ database
+        List<UUID> blockedUserIds = friendshipRepository.findBlockedUserIdsBothWays(currentUserId);
 
-        if (type == null) {
-            rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndStatus(currentUserId, RoomMemberStatus.ACTIVE, pageable);
+        Page<Room> rooms;
+        if (blockedUserIds != null && !blockedUserIds.isEmpty()) {
+            if (type == null) {
+                rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndStatusExcludingBlocked(
+                        currentUserId, RoomMemberStatus.ACTIVE, blockedUserIds, pageable);
+            } else {
+                rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndRoomTypeAndStatusExcludingBlocked(
+                        currentUserId, type, RoomMemberStatus.ACTIVE, blockedUserIds, pageable);
+            }
         } else {
-            rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndRoomTypeAndStatus(currentUserId, type, RoomMemberStatus.ACTIVE, pageable);
+            if (type == null) {
+                rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndStatus(
+                        currentUserId, RoomMemberStatus.ACTIVE, pageable);
+            } else {
+                rooms = roomRepository.findDistinctByRoomMembers_User_UserIdAndRoomTypeAndStatus(
+                        currentUserId, type, RoomMemberStatus.ACTIVE, pageable);
+            }
         }
 
         if (rooms.isEmpty()) {
@@ -441,7 +470,7 @@ public class RoomService {
 
         // 3. Phát sóng realtime tin nhắn hệ thống tới topic phòng
         eventPublisher.publishEvent(
-                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId,
+                new BroadcastEvent("/topic/room." + roomId,
                         messageMapper.toMessageResponse(savedSystemMessage)));
 
         // 4. Phát sóng realtime cập nhật tên phòng tới toàn bộ thành viên
@@ -450,8 +479,173 @@ public class RoomService {
         wsPayload.put("roomId", roomId.toString());
         wsPayload.put("roomName", trimmedName);
         eventPublisher.publishEvent(
-                new com.nhom8.nien_luan_nganh.dto.event.BroadcastEvent("/topic/room." + roomId, wsPayload));
+                new BroadcastEvent("/topic/room." + roomId, wsPayload));
 
         return response;
+    }
+
+    /**
+     * Sinh mã mời ngắn gọn duy nhất 10 ký tự cho phòng nhóm
+     */
+    private String generateInviteCode() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    }
+
+    /**
+     * Lấy link mời của phòng nhóm (chỉ dành cho Quản trị viên nhóm)
+     */
+    @Transactional
+    public String getRoomInviteLink(UUID roomId, UUID currentUserId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        if (room.getRoomType() != RoomType.GROUP) {
+            throw new AppException(ErrorCode.INVALID_INPUT);
+        }
+
+        // Kiểm tra quyền Admin của người gọi
+        RoomMember myMember = roomMemberRepository
+                .findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
+
+        if (myMember.getRoomMemberRole() != RoomRole.ADMIN
+                && !currentUserId.equals(room.getCreatedBy() != null ? room.getCreatedBy().getUserId() : null)) {
+            throw new AppException(ErrorCode.NOT_ROOM_ADMIN);
+        }
+
+        // Nếu nhóm chưa có inviteCode (nhóm cũ tạo trước đó) -> tự động tạo và lưu
+        if (room.getInviteCode() == null || room.getInviteCode().isBlank()) {
+            room.setInviteCode(generateInviteCode());
+            roomRepository.save(room);
+        }
+
+        return room.getInviteCode();
+    }
+
+    /**
+     * Lấy thông tin tóm tắt của nhóm qua inviteCode (để hiển thị màn hình
+     * /join/:inviteCode)
+     */
+    @Transactional(readOnly = true)
+    public RoomInviteInfoResponse getRoomInviteInfo(String inviteCode, UUID currentUserId) {
+        Room room = roomRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_INVITE_LINK));
+
+        // Đếm số lượng thành viên đang ACTIVE
+        List<RoomMember> activeMembers = roomMemberRepository.findByRoomMemberId_RoomIdAndStatus(room.getRoomId(),
+                RoomMemberStatus.ACTIVE);
+        int memberCount = activeMembers != null ? activeMembers.size() : 0;
+
+        // Kiểm tra người đang xem đã là thành viên trong nhóm chưa
+        boolean isAlreadyMember = false;
+        if (currentUserId != null) {
+            isAlreadyMember = roomMemberRepository
+                    .findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, room.getRoomId())
+                    .map(m -> m.getStatus() == RoomMemberStatus.ACTIVE)
+                    .orElse(false);
+        }
+
+        return RoomInviteInfoResponse.builder()
+                .roomId(room.getRoomId())
+                .roomName(room.getRoomName())
+                .roomAvatarURL(room.getRoomAvatarURL())
+                .memberCount(memberCount)
+                .requireApproval(room.isRequireApproval())
+                .isAlreadyMember(isAlreadyMember)
+                .build();
+    }
+
+    /**
+     * Tham gia nhóm qua link mời
+     */
+    @Transactional
+    public RoomDetailResponse joinRoomByInviteCode(String inviteCode, UUID currentUserId) {
+        Room room = roomRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_INVITE_LINK));
+
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        UUID roomId = room.getRoomId();
+
+        // Kiểm tra xem đã là thành viên trong nhóm chưa
+        Optional<RoomMember> existingMemberOpt = roomMemberRepository
+                .findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId);
+        if (existingMemberOpt.isPresent()) {
+            RoomMember existing = existingMemberOpt.get();
+            if (existing.getStatus() == RoomMemberStatus.ACTIVE) {
+                // Đã là thành viên rồi -> trả về thông tin phòng để mở chat ngay
+                return roomMapper.toRoomDetailResponse(room);
+            } else if (existing.getStatus() == RoomMemberStatus.PENDING) {
+                // Đã gửi yêu cầu và đang chờ phê duyệt -> trả về response pending
+                RoomDetailResponse response = roomMapper.toRoomDetailResponse(room);
+                response.setPendingApproval(true);
+                return response;
+            }
+        }
+
+        // Kiểm tra nếu nhóm yêu cầu phê duyệt thành viên mới (requireApproval = true)
+        if (room.isRequireApproval()) {
+            RoomMemberResponse pendingMember = roomMemberService.addMember(room, currentUserId, RoomRole.MEMBER,
+                    RoomMemberStatus.PENDING);
+
+            // Gửi thông báo Notification (chuông thông báo) cho tất cả Admin của nhóm
+            List<RoomMember> admins = roomMemberRepository
+                    .findByRoomMemberId_RoomIdAndStatus(roomId, RoomMemberStatus.ACTIVE)
+                    .stream()
+                    .filter(m -> m.getRoomMemberRole() == RoomRole.ADMIN)
+                    .toList();
+            for (RoomMember admin : admins) {
+                notificationService.createAndSendNotification(
+                        admin.getUser(),
+                        currentUser,
+                        NotificationType.ROOM_JOIN_REQUEST,
+                        "Yêu cầu tham gia nhóm",
+                        currentUser.getUsername() + " đã gửi yêu cầu tham gia nhóm "
+                                + (room.getRoomName() != null ? room.getRoomName() : "Chat") + ".",
+                        roomId,
+                        roomId);
+            }
+
+            // Phát sóng realtime sự kiện yêu cầu phê duyệt thành viên mới tới topic phòng
+            // để Admin cập nhật ngay lập tức
+            Map<String, Object> pendingEvent = new HashMap<>();
+            pendingEvent.put("type", "ROOM_MEMBER_PENDING_ADDED");
+            pendingEvent.put("roomId", roomId.toString());
+            pendingEvent.put("pendingMembers", List.of(pendingMember));
+            pendingEvent.put("invitedBy", currentUser.getUsername());
+            eventPublisher.publishEvent(new BroadcastEvent("/topic/room." + roomId, pendingEvent));
+
+            RoomDetailResponse response = roomMapper.toRoomDetailResponse(room);
+            response.setPendingApproval(true);
+            return response;
+        }
+
+        // Nhóm không cần phê duyệt -> thêm vào làm thành viên chính thức (ACTIVE)
+        roomMemberService.addMember(room, currentUserId, RoomRole.MEMBER, RoomMemberStatus.ACTIVE);
+
+        // Tạo tin nhắn hệ thống thông báo người mới vào nhóm
+        String systemContent = currentUser.getUsername() + " đã tham gia nhóm qua liên kết mời";
+        Message systemMessage = Message.builder()
+                .room(room)
+                .sender(currentUser)
+                .messageType(MessageType.SYSTEM)
+                .content(systemContent)
+                .isEdited(false)
+                .isRevoked(false)
+                .isPinned(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Message savedSystemMessage = messageRepository.save(systemMessage);
+
+        updateLastActivity(room, savedSystemMessage.getMessageId(), systemContent, currentUser,
+                savedSystemMessage.getCreatedAt());
+
+        // Phát sóng tin nhắn hệ thống realtime tới phòng chat
+        eventPublisher.publishEvent(
+                new BroadcastEvent("/topic/room." + roomId,
+                        messageMapper.toMessageResponse(savedSystemMessage)));
+
+        return roomMapper.toRoomDetailResponse(room);
     }
 }

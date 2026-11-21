@@ -92,6 +92,17 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
       unreadCountVal = existing.unreadCount || 0
     }
 
+    let hasMentionVal = false
+    if (!isActive && hasUnreadVal) {
+      if (ov && ov.hasMention !== undefined) {
+        hasMentionVal = Boolean(ov.hasMention)
+      } else if (existing && existing.hasMention !== undefined) {
+        hasMentionVal = Boolean(existing.hasMention)
+      } else if (r.hasMention !== undefined) {
+        hasMentionVal = Boolean(r.hasMention)
+      }
+    }
+
     const ov = overrides?.[rId]
     const effectiveRequireApproval =
       ov && ov.requireApproval !== undefined
@@ -108,6 +119,7 @@ function applyRoomOverridesAndSort(backendRooms, overrides, activeRoomId, existi
       lastSeenAt,
       hasUnread: hasUnreadVal,
       unreadCount: unreadCountVal,
+      hasMention: hasMentionVal,
     }
 
     if (ov && ov.lastMessageAt) {
@@ -244,8 +256,9 @@ export const formatSystemMessageText = (
     actorUsername === 'Bạn' ||
     (myUsername && (senderName === myUsername || text.startsWith(myUsername)))
 
-  if (text.includes('ghim') || text.includes('gỡ')) {
-    const isUnpin = text.includes('bỏ') || text.includes('gỡ')
+  // 1. Tin nhắn sự kiện ghim / bỏ ghim tin nhắn
+  if (text.includes('ghim')) {
+    const isUnpin = text.includes('bỏ ghim') || text.includes('gỡ ghim') || text.includes('bỏ')
     if (isMe) {
       return isPreview
         ? `Bạn ${isUnpin ? 'đã bỏ ghim 1 tin nhắn' : 'đã ghim 1 tin nhắn'}`
@@ -265,6 +278,7 @@ export const formatSystemMessageText = (
     return text
   }
 
+  // 2. Khi chính mình là người thực hiện hành động
   if (isMe) {
     if (
       text.includes('đã tạo một cuộc bình chọn') ||
@@ -276,10 +290,13 @@ export const formatSystemMessageText = (
       text.includes('đã khoá bình chọn') ||
       text.includes('đã thêm') ||
       text.includes('đã phê duyệt') ||
+      text.includes('đã tham gia') ||
       text.includes('đã xóa') ||
       text.includes('đã rời') ||
       text.includes('đã bật') ||
       text.includes('đã tắt') ||
+      text.includes('đã chỉ định') ||
+      text.includes('đã gỡ quyền') ||
       text.includes('đã đổi tên nhóm') ||
       text.includes('đã thay đổi ảnh đại diện')
     ) {
@@ -289,6 +306,10 @@ export const formatSystemMessageText = (
       return text.replace(/^.*?\s+(đã\s+)/, 'Bạn $1')
     }
   } else if (myUsername && text.includes(myUsername)) {
+  }
+
+  // 3. Khi chính mình là đối tượng được tác động (ví dụ: "Admin đã phê duyệt bạn vào nhóm")
+  if (myUsername && text.includes(myUsername)) {
     text = text.replace(new RegExp(`\\b${myUsername}\\b`, 'g'), 'bạn')
   }
 
@@ -726,7 +747,7 @@ export const useChatStore = defineStore('chat', {
       this.isViewingOlderSegment = false
       this.isDetachedFromBottom = false
 
-      // Xóa cờ chưa đọc cho phòng vừa chọn
+      // Xóa cờ chưa đọc và ký hiệu @ nhắc tên cho phòng vừa chọn
       const rId = String(roomId)
       const index = this.rooms.findIndex((r) => String(r.roomId) === rId)
       if (index !== -1) {
@@ -734,6 +755,7 @@ export const useChatStore = defineStore('chat', {
           ...this.rooms[index],
           hasUnread: false,
           unreadCount: 0,
+          hasMention: false,
         }
         if (['1', '2', '3'].includes(rId)) {
           saveDemoRooms(this.rooms)
@@ -745,6 +767,7 @@ export const useChatStore = defineStore('chat', {
           ...this.roomActivityOverrides[rId],
           hasUnread: false,
           unreadCount: 0,
+          hasMention: false,
         }
         saveRoomOverrides(this.roomActivityOverrides)
       }
@@ -801,12 +824,12 @@ export const useChatStore = defineStore('chat', {
       })
     },
 
-    // 1.9. Cập nhật Avatar người dùng thời gian thực khi có sự kiện USER_AVATAR_UPDATED
+    // 1.9. Cập nhật Avatar người dùng thời gian thực khi có sự kiện USER_AVATAR_UPDATED hoặc upload mới
     updateUserAvatar(userId, newAvatarUrl) {
       if (!userId || !newAvatarUrl) return
       const targetId = String(userId).toLowerCase()
 
-      // Cập nhật avatar cho các phòng trực tiếp (DIRECT) của người này trong danh sách phòng
+      // 1. Cập nhật avatar cho các phòng trực tiếp (DIRECT) của người này trong danh sách phòng
       this.rooms = this.rooms.map((room) => {
         if (room.roomType === 'DIRECT' && room.peerId && String(room.peerId).toLowerCase() === targetId) {
           return {
@@ -819,7 +842,20 @@ export const useChatStore = defineStore('chat', {
         return room
       })
 
-      // Cập nhật avatar của sender trong danh sách tin nhắn hiện tại
+      // 2. Cập nhật activeRoom nếu đang mở phòng DIRECT với người này
+      if (this.activeRoom && this.activeRoom.roomType === 'DIRECT') {
+        const peer = this.activeRoom.peerId || this.activeRoom.partnerId || this.activeRoom.otherUserId
+        if (peer && String(peer).toLowerCase() === targetId) {
+          this.activeRoom = {
+            ...this.activeRoom,
+            roomAvatarURL: newAvatarUrl,
+            avatarUrl: newAvatarUrl,
+            avatar: newAvatarUrl,
+          }
+        }
+      }
+
+      // 3. Cập nhật avatar của sender trong danh sách tin nhắn hiện tại
       this.messages = this.messages.map((msg) => {
         if (msg.sender && String(msg.sender.userId).toLowerCase() === targetId) {
           return {
@@ -833,6 +869,53 @@ export const useChatStore = defineStore('chat', {
         }
         return msg
       })
+
+      // 4. Cập nhật danh sách thành viên trong roomMembersByRoom cho TẤT CẢ các phòng (để Seen và InfoSidebar cập nhật realtime)
+      const updatedMembersMap = {}
+      let membersChanged = false
+      Object.keys(this.roomMembersByRoom).forEach((rKey) => {
+        const list = this.roomMembersByRoom[rKey]
+        if (Array.isArray(list)) {
+          let hasChange = false
+          const newList = list.map((m) => {
+            if (m && String(m.userId).toLowerCase() === targetId) {
+              hasChange = true
+              return {
+                ...m,
+                avatarUrl: newAvatarUrl,
+                avatar: newAvatarUrl,
+              }
+            }
+            return m
+          })
+          if (hasChange) {
+            membersChanged = true
+            updatedMembersMap[rKey] = newList
+          } else {
+            updatedMembersMap[rKey] = list
+          }
+        } else {
+          updatedMembersMap[rKey] = list
+        }
+      })
+      if (membersChanged) {
+        this.roomMembersByRoom = updatedMembersMap
+      }
+
+      // 5. Nếu targetId là chính mình, đồng bộ vào authStore.user
+      const authStore = useAuthStore()
+      if (authStore.user && String(authStore.user.userId || authStore.user.id).toLowerCase() === targetId) {
+        authStore.user = {
+          ...authStore.user,
+          avatarUrl: newAvatarUrl,
+          avatar: newAvatarUrl,
+        }
+        try {
+          localStorage.setItem('currentUser', JSON.stringify(authStore.user))
+        } catch (e) {
+          console.warn('Lỗi lưu currentUser:', e)
+        }
+      }
     },
 
     // 1.10. Cập nhật Avatar phòng thời gian thực khi có sự kiện ROOM_AVATAR_UPDATED
@@ -1124,8 +1207,8 @@ export const useChatStore = defineStore('chat', {
       this.replyingMessage = null
     },
 
-    // 2.7. Gửi tin nhắn văn bản mới
-    async sendChatMessage(content, explicitRepliedMessageId = null) {
+    // 2.7. Gửi tin nhắn văn bản mới (hỗ trợ nhắc tên @mention và @all)
+    async sendChatMessage(content, explicitRepliedMessageId = null, { mentionedUserIds = [], mentionAll = false } = {}) {
       if (!this.activeRoomId || !content || !content.trim()) return
       const text = content.trim()
       const authStore = useAuthStore()
@@ -1180,6 +1263,11 @@ export const useChatStore = defineStore('chat', {
         }
         if (repliedMessageId) {
           payload.repliedMessageId = repliedMessageId
+        }
+        if (mentionAll) {
+          payload.mentionAll = true
+        } else if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+          payload.mentionedUserIds = mentionedUserIds
         }
         const sentMsg = await messageApi.sendMessage(this.activeRoomId, payload)
         if (sentMsg) {
@@ -1326,6 +1414,19 @@ export const useChatStore = defineStore('chat', {
       const msgRoomId = String(message.roomId)
       const msgId = String(message.messageId)
       const isCurrentRoom = String(this.activeRoomId) === msgRoomId
+
+      // Đồng bộ avatar của sender vào hệ thống nếu có thay đổi mới
+      if (message.sender?.userId && (message.sender.avatarUrl || message.sender.avatar)) {
+        const senderAvatar = message.sender.avatarUrl || message.sender.avatar
+        const senderId = String(message.sender.userId).toLowerCase()
+        const currentList = this.roomMembersByRoom[msgRoomId]
+        if (Array.isArray(currentList)) {
+          const found = currentList.find((m) => String(m.userId).toLowerCase() === senderId)
+          if (found && (found.avatarUrl !== senderAvatar || found.avatar !== senderAvatar)) {
+            this.updateUserAvatar(message.sender.userId, senderAvatar)
+          }
+        }
+      }
 
       const targetRoom = this.rooms.find((r) => String(r.roomId) === msgRoomId)
       const existingMsg = isCurrentRoom
@@ -1557,6 +1658,22 @@ export const useChatStore = defineStore('chat', {
 
         const senderUserId = message.sender?.userId || (isMyMsg ? myUserId : roomToUpdate.lastMessageSenderId)
 
+        // Kiểm tra xem tin nhắn mới đến có nhắc tên chính mình hay không
+        const myUname = authStore.user?.username?.toLowerCase()
+        const myUid = authStore.user?.userId
+        const lowerContent = String(message.content || '').toLowerCase()
+        const isMentionForMe = Boolean(
+          !isMyMsg &&
+          message.content &&
+          (
+            lowerContent.includes('@all') ||
+            (myUname && lowerContent.includes(`@${myUname}`)) ||
+            (Array.isArray(message.mentionedUserIds) && myUid && message.mentionedUserIds.includes(myUid))
+          )
+        )
+
+        const nextHasMention = isCurrentRoom ? false : (isMentionForMe || Boolean(roomToUpdate.hasMention))
+
         const updatedRoom = {
           ...roomToUpdate,
           lastMessageId: message.messageId,
@@ -1566,6 +1683,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageAt: activityTime,
           hasUnread: isUnreadForMe,
           unreadCount: nextUnreadCount,
+          hasMention: nextHasMention,
         }
 
         // Đồng bộ trạng thái bật/tắt phê duyệt thành viên nếu có thông báo hệ thống
@@ -1591,6 +1709,7 @@ export const useChatStore = defineStore('chat', {
           lastMessageAt: updatedRoom.lastMessageAt,
           hasUnread: updatedRoom.hasUnread,
           unreadCount: updatedRoom.unreadCount,
+          hasMention: updatedRoom.hasMention,
           requireApproval: updatedRoom.requireApproval,
         }
         saveRoomOverrides(this.roomActivityOverrides)
@@ -3129,6 +3248,7 @@ export const useChatStore = defineStore('chat', {
           ...this.rooms[index],
           hasUnread: false,
           unreadCount: 0,
+          hasMention: false,
         }
         if (['1', '2', '3'].includes(rId)) {
           saveDemoRooms(this.rooms)
@@ -3140,6 +3260,7 @@ export const useChatStore = defineStore('chat', {
           ...this.roomActivityOverrides[rId],
           hasUnread: false,
           unreadCount: 0,
+          hasMention: false,
         }
         saveRoomOverrides(this.roomActivityOverrides)
       }

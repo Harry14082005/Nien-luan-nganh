@@ -22,7 +22,7 @@ import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { faComment } from '@fortawesome/free-solid-svg-icons'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
-import { faPlus } from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
 import { faFaceSmile } from '@fortawesome/free-solid-svg-icons'
 import { faUserPlus } from '@fortawesome/free-solid-svg-icons'
 import { faUserXmark } from '@fortawesome/free-solid-svg-icons'
@@ -70,8 +70,22 @@ import {
   faXmark,
   faTrashCan,
   faSpinner,
+  faCopy,
+  faEye,
+  faFileCode,
+  faTable,
+  faArrowsRotate,
+  faExpand,
+  faCompress,
 } from '@fortawesome/free-solid-svg-icons'
 library.add(
+  faCopy,
+  faEye,
+  faFileCode,
+  faTable,
+  faArrowsRotate,
+  faExpand,
+  faCompress,
   faHouse,
   faMessage,
   faFaceSmileRegular,
@@ -90,6 +104,7 @@ library.add(
   faComment,
   faBars,
   faPlus,
+  faMinus,
   faUserPlus,
   faUserXmark,
   faChevronDown,

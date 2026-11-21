@@ -19,6 +19,7 @@ import PinnedMessage from '@/components/chat/PinnedMessage.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageSearchSidebar from '@/components/chat/MessageSearchSidebar.vue'
 import ChatInfoSidebar from '@/components/chat/ChatInfoSidebar.vue'
+import FilePreviewSidebar from '@/components/chat/FilePreviewSidebar.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import ChatListSidebar from '@/components/chat/ChatListSidebar.vue'
@@ -29,6 +30,7 @@ import CreatePollModal from '@/components/chat/CreatePollModal.vue'
 import PollMessageCard from '@/components/chat/PollMessageCard.vue'
 import PollDetailModal from '@/components/chat/PollDetailModal.vue'
 import MediaLightboxModal from '@/components/chat/MediaLightboxModal.vue'
+import ContactProfileCard from '@/components/contacts/ContactProfileCard.vue'
 import { initGlobalWebSocket } from '@/services/websocket'
 import { getRoomMembers } from '@/api/room.api'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -68,6 +70,116 @@ const aiSuggestionCache = new Map() // Cache gợi ý AI theo "POLL:msgId" hoặ
 const activeDetailPollId = ref(null)
 const showPollDetailModal = ref(false)
 const detailClosingPoll = ref(false)
+
+// Quản lý Modal Xem hồ sơ thành viên khi click vào thẻ tag mention trong tin nhắn
+const selectedUserProfile = ref(null)
+
+// Quản lý Sidebar Xem trước & Chỉnh sửa nhanh Tệp tin bên phải (File Preview Drawer)
+const activePreviewFile = ref(null)
+
+const wasInfoSidebarOpenBeforePreview = ref(false)
+
+const handleOpenFilePreview = (fileData) => {
+  activePreviewFile.value = fileData
+  // Ghi nhớ xem sidebar thông tin phòng chat có đang mở không để khôi phục khi đóng preview
+  wasInfoSidebarOpenBeforePreview.value = isInfoSidebarOpen.value
+  // Đóng các drawer khác để không đụng layout
+  showSearchBar.value = false
+  isInfoSidebarOpen.value = false
+}
+
+const handleCloseFilePreview = () => {
+  activePreviewFile.value = null
+  // Khôi phục lại trạng thái thanh info sidebar nếu trước đó người dùng đã mở
+  if (wasInfoSidebarOpenBeforePreview.value) {
+    isInfoSidebarOpen.value = true
+    wasInfoSidebarOpenBeforePreview.value = false
+  }
+}
+
+const handleFileResent = () => {
+  nextTick(() => {
+    scrollToBottom()
+  })
+}
+
+const handleOpenUserProfile = ({ userId, username }) => {
+  const roomId = chatStore.activeRoomId
+  const members = (roomId && chatStore.roomMembersByRoom[String(roomId)]) || []
+  const targetMember = members.find(
+    (m) =>
+      (userId && String(m.userId) === String(userId)) ||
+      (username && (m.username === username || m.fullName === username))
+  )
+
+  const targetId = targetMember?.userId || userId
+  const isMe = !!(authStore.user?.userId && targetId === authStore.user.userId)
+  const isCreator = targetMember?.roomMemberRole === 'CREATOR'
+  const isAdmin = targetMember?.roomMemberRole === 'ADMIN'
+
+  selectedUserProfile.value = {
+    id: targetId,
+    name: targetMember?.username || targetMember?.fullName || username || 'Thành viên',
+    role: isCreator
+      ? 'Người tạo nhóm'
+      : isAdmin
+        ? 'Quản trị viên'
+        : isMe
+          ? 'Bạn (Thành viên)'
+          : 'Thành viên',
+    avatar: resolveFileUrl(targetMember?.avatarUrl || targetMember?.avatar || ''),
+    online: targetMember?.status === 'ACTIVE' || targetMember?.isOnline || false,
+    statusText: targetMember?.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
+    bio: targetMember?.bio || targetMember?.description || 'Thành viên trong phòng trò chuyện.',
+    isMe,
+    isCreator,
+    isAdmin,
+    email: targetMember?.email || '',
+    phone: targetMember?.phone || '',
+    gender: targetMember?.gender || ''
+  }
+}
+
+const closeUserProfile = () => {
+  selectedUserProfile.value = null
+}
+
+const handleDirectMessageWithUser = async (contact) => {
+  selectedUserProfile.value = null
+  if (!contact?.id || contact.id === authStore.user?.userId) return
+  await chatStore.startDirectChat(contact.id)
+}
+
+// =============================================================================
+// THÔNG BÁO TIN NHẮN ĐƯỢC NHẮC TỚI CHƯA ĐỌC ("ĐÃ NHẮC TỚI BẠN")
+// =============================================================================
+const unreadMentionMessage = ref(null)
+
+// Kiểm tra xem tin nhắn có nhắc tên chính mình (@all, @username hoặc mentionedUserIds)
+const isMessageMentioningMe = (msg) => {
+  if (!msg || isMyMessage(msg) || !msg.content) return false
+  const lower = String(msg.content).toLowerCase()
+  const myUname = authStore.user?.username?.toLowerCase()
+  if (lower.includes('@all')) return true
+  if (myUname && lower.includes(`@${myUname}`)) return true
+  if (Array.isArray(msg.mentionedUserIds) && authStore.user?.userId && msg.mentionedUserIds.includes(authStore.user.userId)) {
+    return true
+  }
+  return false
+}
+
+// Nhảy tới tin nhắn được tag gần nhất khi click vào popup
+const handleJumpToMention = async () => {
+  if (!unreadMentionMessage.value) return
+  const targetId = unreadMentionMessage.value.messageId
+  unreadMentionMessage.value = null
+  await handleScrollToMessage(targetId)
+}
+
+// Đóng popup nhắc tên thủ công
+const dismissMentionAlert = () => {
+  unreadMentionMessage.value = null
+}
 
 const activeDetailPoll = computed(() => {
   if (!activeDetailPollId.value) return null
@@ -132,8 +244,8 @@ const handleDetailClosePoll = async () => {
   }
 }
 
-// Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm hoặc Thông tin)
-const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value))
+// Cờ xác định có sidebar bên phải nào đang mở hay không (Tìm kiếm, Thông tin phòng hoặc Xem trước tệp)
+const isRightDrawerOpen = computed(() => Boolean(showSearchBar.value || isInfoSidebarOpen.value || activePreviewFile.value))
 
 const handleOpenCreateReminder = async () => {
   if (!chatStore.activeRoomId) return
@@ -348,6 +460,7 @@ const handleToggleSearch = () => {
   showSearchBar.value = !showSearchBar.value
   if (showSearchBar.value) {
     isInfoSidebarOpen.value = false
+    activePreviewFile.value = null
   } else {
     currentSearchKeyword.value = ''
   }
@@ -367,6 +480,7 @@ const handleToggleInfo = () => {
   localStorage.setItem('isChatInfoSidebarOpen', String(isInfoSidebarOpen.value))
   if (isInfoSidebarOpen.value) {
     showSearchBar.value = false
+    activePreviewFile.value = null
     currentSearchKeyword.value = ''
     if (chatStore.activeRoomId) {
       chatStore.fetchRoomMembers(chatStore.activeRoomId)
@@ -388,9 +502,12 @@ const handleGlobalKeyDown = (e) => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
     e.preventDefault()
     isInfoSidebarOpen.value = false
+    activePreviewFile.value = null
     showSearchBar.value = true
   } else if (e.key === 'Escape') {
-    if (showSearchBar.value) {
+    if (activePreviewFile.value) {
+      handleCloseFilePreview()
+    } else if (showSearchBar.value) {
       handleCloseSearch()
     } else if (isInfoSidebarOpen.value) {
       handleCloseInfo()
@@ -757,13 +874,13 @@ const historySenderName = ref('')
  */
 const getSystemMessageIcon = (msg) => {
   const content = msg?.content || ''
-  if (content.includes('rời khỏi nhóm')) {
+  if (content.includes('rời khỏi nhóm') || content.includes('rời nhóm')) {
     return 'right-from-bracket'
   }
-  if (content.includes('đã xóa')) {
+  if (content.includes('đã xóa') || content.includes('xóa khỏi nhóm')) {
     return 'user-minus'
   }
-  if (content.includes('phê duyệt thành viên mới')) {
+  if (content.includes('phê duyệt thành viên mới') || content.includes('chế độ phê duyệt') || content.includes('chỉ định') || content.includes('gỡ quyền')) {
     return 'user-shield'
   }
   if (content.includes('thêm phương án') || content.includes('cuộc bình chọn') || content.includes('bình chọn')) {
@@ -772,10 +889,16 @@ const getSystemMessageIcon = (msg) => {
     }
     return 'chart-simple'
   }
-  if (content.includes('thêm') || content.includes('vào nhóm') || content.includes('phê duyệt')) {
+  if (content.includes('phê duyệt') || content.includes('duyệt vào nhóm')) {
+    return 'user-check'
+  }
+  if (content.includes('thêm') || content.includes('vào nhóm') || content.includes('tham gia nhóm') || content.includes('gia nhập')) {
     return 'user-plus'
   }
-  return 'thumbtack'
+  if (content.includes('ghim') || content.includes('bỏ ghim')) {
+    return 'thumbtack'
+  }
+  return 'circle-info'
 }
 
 // Kiểm tra tin nhắn POLL có phải là tin nhắn POLL mới nhất của cuộc bình chọn này hay không
@@ -1281,6 +1404,22 @@ const handleChatBodyScroll = async () => {
   ) {
     await loadMoreNewer()
   }
+
+  // 4. Nếu đang hiển thị popup nhắc tên ("Đã nhắc tới bạn"): khi người dùng cuộn tới tin nhắn đó hoặc chạm sát đáy -> Ẩn popup
+  if (unreadMentionMessage.value) {
+    if (distanceFromBottom <= 60) {
+      unreadMentionMessage.value = null
+    } else {
+      const targetEl = document.getElementById(`msg-${unreadMentionMessage.value.messageId}`)
+      if (targetEl) {
+        const containerRect = el.getBoundingClientRect()
+        const elRect = targetEl.getBoundingClientRect()
+        if (elRect.bottom >= containerRect.top && elRect.top <= containerRect.bottom) {
+          unreadMentionMessage.value = null
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -1517,6 +1656,14 @@ watch(
     // 1. Lần đầu nạp danh sách tin nhắn phòng (từ 0 -> 20 tin dau tien) -> cuon xuong đáy (nếu không phải đang jump tới tin nhắn)
     if (!previousLastMessageId) {
       previousLastMessageId = currentLastMsgId
+      // Nếu phòng có tin nhắn chưa đọc mà có tin nhắn nhắc tới mình -> bật popup để tiện nhảy tới xem
+      const activeRoom = chatStore.activeRoom
+      if (activeRoom && (activeRoom.hasUnread || (activeRoom.unreadCount && activeRoom.unreadCount > 0))) {
+        const latestMention = [...newMessages].reverse().find((m) => isMessageMentioningMe(m))
+        if (latestMention) {
+          unreadMentionMessage.value = latestMention
+        }
+      }
       if (!isJumpingToMessage.value && !route.query?.messageId && !route.query?.pollId && !route.query?.reminderId) {
         await scrollOrJumpToLatestActivity()
       }
@@ -1566,6 +1713,10 @@ watch(
       scrollToBottom()
     } else {
       showScrollBottomBtn.value = true
+      // Nếu có tin nhắn mới nhắc tới mình mà người dùng chưa cuộn xuống đọc -> Hiện popup "Đã nhắc tới bạn"
+      if (currentLastMsg && isMessageMentioningMe(currentLastMsg)) {
+        unreadMentionMessage.value = currentLastMsg
+      }
     }
   },
   { deep: false },
@@ -1579,6 +1730,7 @@ watch(
     handleCloseSearch()
     previousLastMessageId = null
     showScrollBottomBtn.value = false
+    unreadMentionMessage.value = null
     if (!isJumpingToMessage.value && !route.query?.messageId && !route.query?.pollId && !route.query?.reminderId) {
       await scrollOrJumpToLatestActivity()
     }
@@ -1731,7 +1883,9 @@ watch(
               @replyMessage="handleReplyMessage"
               @scrollToMessage="handleScrollToMessage"
               @preview-media="handleOpenMediaPreview"
+              @preview-file="handleOpenFilePreview"
               @suggestPoll="handleSuggestPollFromMessage"
+              @view-user-profile="handleOpenUserProfile"
             />
 
             <!-- 2.5. Thanh trạng thái Đã gửi / Đã nhận / Đã xem dưới tin nhắn của mình -->
@@ -1830,6 +1984,33 @@ watch(
           </button>
         </transition>
 
+        <!-- Popup Thông báo "Đã nhắc tới bạn" khi có tin nhắn chưa đọc nhắc tới mình -->
+        <transition name="mention-popup-slide">
+          <div
+            v-if="unreadMentionMessage"
+            class="mention-jump-pill"
+            @click="handleJumpToMention"
+            title="Nhảy tới tin nhắn được nhắc tới gần nhất"
+          >
+            <span class="mention-pill-icon">@</span>
+            <div class="mention-pill-text-wrap">
+              <span class="mention-pill-title">Đã nhắc tới bạn</span>
+              <span v-if="unreadMentionMessage.sender?.username" class="mention-pill-sender">
+                {{ unreadMentionMessage.sender?.username }}
+              </span>
+            </div>
+            <font-awesome-icon icon="arrow-down" class="mention-pill-arrow" />
+            <button
+              type="button"
+              class="mention-pill-close"
+              title="Đóng thông báo"
+              @click.stop="dismissMentionAlert"
+            >
+              <font-awesome-icon icon="x" />
+            </button>
+          </div>
+        </transition>
+
         <ChatInput
           @messageSent="handleMessageSent"
           @openCreateReminder="handleOpenCreateReminder"
@@ -1876,6 +2057,18 @@ watch(
           @jump-to-message="handleScrollToMessage"
           @members-updated="refreshRoomMembers"
           @preview-media="handleOpenMediaPreview"
+          @preview-file="handleOpenFilePreview"
+        />
+      </Transition>
+
+      <!-- Sidebar Xem trước và Chỉnh sửa File bên phải (File Preview & Quick Edit Drawer) -->
+      <Transition name="search-drawer">
+        <FilePreviewSidebar
+          v-if="activePreviewFile"
+          :file="activePreviewFile"
+          :room-id="chatStore.activeRoomId"
+          @close="handleCloseFilePreview"
+          @file-resent="handleFileResent"
         />
       </Transition>
     </div>
@@ -1920,6 +2113,7 @@ watch(
     :show="showAddMemberModal"
     :roomId="chatStore.activeRoomId || ''"
     :existingMembers="chatStore.activeRoomMembers"
+    :canManage="chatStore.canManageActiveRoom"
     @close="showAddMemberModal = false"
     @member-added="refreshRoomMembers"
   />
@@ -1940,6 +2134,33 @@ watch(
     :initialIndex="lightboxInitialIndex"
     @close="showMediaLightbox = false"
   />
+
+  <!-- Popup xem hồ sơ thành viên khi click vào thẻ tag mention trong tin nhắn -->
+  <Teleport to="body">
+    <div
+      v-if="selectedUserProfile"
+      class="profile-modal-backdrop"
+      @click.self="closeUserProfile"
+    >
+      <div class="profile-modal-card-wrap">
+        <div class="profile-modal-top-actions">
+          <button
+            type="button"
+            class="profile-action-btn profile-close-btn"
+            title="Đóng (Esc)"
+            @click="closeUserProfile"
+          >
+            <font-awesome-icon icon="x" />
+          </button>
+        </div>
+
+        <ContactProfileCard
+          :contact="selectedUserProfile"
+          @message="handleDirectMessageWithUser"
+        />
+      </div>
+    </div>
+  </Teleport>
 </template>
 <style scoped>
 .ChatListSidebar {
@@ -2583,5 +2804,202 @@ watch(
     background-color: rgba(37, 99, 235, 0);
     box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
   }
+}
+
+/* =========================================================================
+   POPUP XEM HỒ SƠ THÀNH VIÊN TỪ THẺ TAG MENTION
+   ========================================================================= */
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.profile-modal-card-wrap {
+  position: relative;
+  max-width: 500px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-modal-card-wrap :deep(.profile-card) {
+  width: 100% !important;
+  max-width: 500px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.profile-modal-top-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 50;
+}
+
+.profile-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 14px;
+}
+
+.profile-action-btn:hover {
+  background: #ffffff;
+  color: #0f172a;
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* =========================================================================
+   POPUP THÔNG BÁO "ĐÃ NHẮC TỚI BẠN" (MENTION JUMP PILL)
+   ========================================================================= */
+.mention-jump-pill {
+  position: absolute;
+  bottom: 92px;
+  right: 24px;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 9999px;
+  padding: 6px 12px 6px 8px;
+  box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.mention-jump-pill:hover {
+  transform: translateY(-2px);
+  background: #f0f7ff;
+  border-color: #2563eb;
+  box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.38), 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.mention-pill-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mention-pill-text-wrap {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  line-height: 1.2;
+}
+
+.mention-pill-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.mention-pill-sender {
+  font-size: 11px;
+  color: #64748b;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-pill-arrow {
+  color: #3b82f6;
+  font-size: 11px;
+  margin-left: 2px;
+  animation: bounceDown 1.2s infinite;
+}
+
+.mention-pill-close {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 9px;
+  margin-left: 2px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.mention-pill-close:hover {
+  background: #e2e8f0;
+  color: #ef4444;
+}
+
+@keyframes bounceDown {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.mention-popup-slide-enter-active,
+.mention-popup-slide-leave-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mention-popup-slide-enter-from,
+.mention-popup-slide-leave-to {
+  opacity: 0;
+  transform: translateY(14px) scale(0.92);
 }
 </style>

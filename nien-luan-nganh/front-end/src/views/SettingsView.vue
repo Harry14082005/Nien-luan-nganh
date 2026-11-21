@@ -5,6 +5,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
 import NavigationSidebar from '@/components/common/NavigationSidebar.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import UserProfileEdit from '@/components/settings/UserProfileEdit.vue'
@@ -117,6 +118,15 @@ async function handleProfileSave(updatedUser) {
       avatarUrl: updatedUser.avatar || authStore.user.avatarUrl,
     }
     localStorage.setItem('currentUser', JSON.stringify(authStore.user))
+  }
+  // Đồng bộ avatar vào chat store để realtime cập nhật avatar ở mọi nơi (tin nhắn, seen, sidebar)
+  const newAv = updatedUser.avatar || updatedUser.avatarUrl
+  if (newAv) {
+    const chatStore = useChatStore()
+    const myId = authStore.user?.userId || authStore.user?.id
+    if (myId) {
+      chatStore.updateUserAvatar(myId, newAv)
+    }
   }
 }
 

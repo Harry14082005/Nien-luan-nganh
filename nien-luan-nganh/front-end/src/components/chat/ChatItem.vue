@@ -11,6 +11,7 @@ const props = defineProps({
   time: { type: String, default: '' },
   unread: { type: Number, default: 0 },
   hasUnread: { type: Boolean, default: false },
+  hasMention: { type: Boolean, default: false },
   online: { type: Boolean, default: false },
   active: { type: Boolean, default: false },
   avatarSize: { type: Number, default: 48 },
@@ -70,17 +71,27 @@ const displayText = computed(() => props.subtitle || props.lastMessage || '')
       </div>
       <div class="bottom-row">
         <slot name="subtitle" :is-bold="isBold">
-          <span 
+          <span
             v-if="displayText"
-            class="last-message" 
+            class="last-message"
             :class="{ 'last-message--bold': isBold }"
           >
             {{ displayText }}
           </span>
         </slot>
-        <slot name="badge">
-          <span v-if="unread > 0" class="badge">{{ unread > 99 ? '99+' : unread }}</span>
-        </slot>
+        <div class="meta-badges">
+          <!-- Ký hiệu @ màu xanh khi có tin nhắn nhắc tới bạn mà chưa mở đọc -->
+          <span
+            v-if="hasMention && !active"
+            class="mention-badge"
+            title="Có tin nhắn nhắc tới bạn"
+          >
+            @
+          </span>
+          <slot name="badge">
+            <span v-if="unread > 0" class="badge">{{ unread > 99 ? '99+' : unread }}</span>
+          </slot>
+        </div>
       </div>
     </div>
 
@@ -181,6 +192,40 @@ const displayText = computed(() => props.subtitle || props.lastMessage || '')
 .has-unread .last-message {
   color: #4a5470;
   font-weight: 500;
+}
+
+.meta-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Ký hiệu @ màu xanh góc dưới bên phải dưới thời gian khi có tin nhắn tag mình chưa đọc */
+.mention-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  border: 1.5px solid #3b82f6;
+  color: #2563eb;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.25);
+  flex-shrink: 0;
+}
+
+@keyframes pulseMentionBadge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 /* Badge số tin chưa đọc */

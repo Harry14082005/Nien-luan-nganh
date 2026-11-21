@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-///trả về khi được mở một phòng
+/// trả về khi được mở một phòng
 public class RoomDetailResponse {
     private UUID roomId;
     private RoomType roomType;
@@ -20,5 +20,7 @@ public class RoomDetailResponse {
     private String roomAvatarURL;
     private UUID createdBy;
     private boolean requireApproval;
+    private String inviteCode;
+    private boolean pendingApproval;
     private LocalDateTime createdAt;
 }

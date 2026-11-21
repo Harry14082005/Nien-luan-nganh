@@ -42,6 +42,9 @@ public class Room {
     @Column(name = "require_approval")
     private boolean requireApproval; // true = cần duyệt, false = không cần duyêt
 
+    @Column(name = "invite_code", unique = true, length = 32)
+    private String inviteCode;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

@@ -123,16 +123,20 @@ function getLastMessageText(room) {
 
   const isSystemOrEvent =
     content.includes('ghim') ||
-    content.includes('gỡ') ||
     content.includes('bình chọn') ||
     content.includes('Bình chọn') ||
     content.includes('đã thêm') ||
     content.includes('đã phê duyệt') ||
+    content.includes('đã tham gia') ||
+    content.includes('tham gia nhóm') ||
     content.includes('đã xóa') ||
     content.includes('đã rời khỏi nhóm') ||
+    content.includes('rời nhóm') ||
     content.includes('phê duyệt thành viên mới') ||
     content.includes('đã bật') ||
     content.includes('đã tắt') ||
+    content.includes('đã chỉ định') ||
+    content.includes('gỡ quyền') ||
     content.includes('đã đổi tên nhóm') ||
     content.includes('đã thay đổi ảnh đại diện')
 
@@ -208,6 +212,7 @@ function getLastMessageText(room) {
         :time="formatTime(c.lastMessageAt)"
         :unread="c.unreadCount || 0"
         :has-unread="Boolean(c.hasUnread || (c.unreadCount && c.unreadCount > 0))"
+        :has-mention="Boolean(c.hasMention && (c.hasUnread || (c.unreadCount && c.unreadCount > 0)))"
         :online="c.roomType === 'DIRECT' ? !!c.isOnline : false"
         :active="c.roomId === chatStore.activeRoomId"
         @select="chatStore.selectRoom(c.roomId)"

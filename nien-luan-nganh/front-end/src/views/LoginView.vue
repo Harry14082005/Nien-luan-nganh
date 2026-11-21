@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 import AuthSidebar from '@/components/common/AuthSidebar.vue'
@@ -11,6 +11,7 @@ import IconEyeOff from '@/components/icons/IconEyeOff.vue'
 import IconArrowRight from '@/components/icons/IconArrowRight.vue'
 
 const router = useRouter()
+const route = useRoute()
 const emailOrPhone = ref('')
 const password = ref('')
 const rememberMe = ref(false)
@@ -30,7 +31,8 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login(emailOrPhone.value.trim(), password.value)
-    router.push('/chat')
+    const redirectUrl = route.query.redirect || '/chat'
+    router.push(redirectUrl)
   } catch (err) {
     console.error('Lỗi đăng nhập:', err)
     errorMessage.value =

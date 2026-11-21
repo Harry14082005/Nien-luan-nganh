@@ -99,6 +99,9 @@ public class SecurityConfig {
                 // Áp dụng cấu hình CORS đã định nghĩa ở trên
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
+                // Cho phép nhúng tệp (PDF, iframe xem trước) từ cùng nguồn/frontend
+                .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
+
                 // Cấu hình Session Stateless: Không tạo HTTP Session trên server, mỗi request
                 // đều độc lập qua JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -117,6 +120,7 @@ public class SecurityConfig {
                         // file đính kèm)
                         // .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rooms/invite/**").permitAll()
                         // Tất cả các API còn lại đều bắt buộc phải đăng nhập (gửi kèm Bearer JWT hợp
                         // lệ)
                         .anyRequest().authenticated())

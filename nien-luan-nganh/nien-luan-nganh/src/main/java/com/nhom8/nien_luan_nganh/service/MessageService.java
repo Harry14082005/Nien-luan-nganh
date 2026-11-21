@@ -13,6 +13,7 @@ import com.nhom8.nien_luan_nganh.dto.response.TypingEventResponse;
 import com.nhom8.nien_luan_nganh.entity.*;
 import com.nhom8.nien_luan_nganh.enums.FriendshipStatus;
 import com.nhom8.nien_luan_nganh.enums.MessageType;
+import com.nhom8.nien_luan_nganh.enums.NotificationType;
 import com.nhom8.nien_luan_nganh.enums.RoomMemberStatus;
 import com.nhom8.nien_luan_nganh.enums.RoomType;
 import com.nhom8.nien_luan_nganh.exception.AppException;
@@ -38,9 +39,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Collections;
+import java.util.HashSet;
 
 /**
  * Service xử lý các nghiệp vụ liên quan đến Tin nhắn trong phòng chat.
@@ -66,6 +69,7 @@ public class MessageService {
     private final PollResourceRepository pollResourceRepository;
     private final ReminderResourceRepository reminderResourceRepository;
     private final PollRepository pollRepository;
+    private final NotificationService notificationService;
 
     // Cache tạm quyền thành viên phòng chat trên RAM (TTL 5 phút) để tránh query
     // MySQL liên tục khi gõ phím
@@ -147,6 +151,9 @@ public class MessageService {
                 ? content
                 : (messageType == MessageType.IMAGE ? "[Hình ảnh]" : "[Tệp đính kèm]");
         roomService.updateLastActivity(room, savedMessage.getMessageId(), preview, sender, savedMessage.getCreatedAt());
+
+        // 8.5. Xử lý gửi thông báo khi có người được nhắc tên (@mention hoặc @all)
+        handleMessageMentions(room, sender, savedMessage, request);
 
         // 9. Chuyển đổi sang MessageResponse, broadcast WebSocket sau khi commit và trả
         // về cho Controller
@@ -1217,5 +1224,63 @@ public class MessageService {
         }
 
         return new MessageContext(sender, room);
+    }
+
+    /**
+     * Xử lý gửi thông báo khi có người dùng được nhắc tên (@mention hoặc @all)
+     * trong tin nhắn nhóm.
+     */
+    private void handleMessageMentions(Room room, User sender, Message message, SendMessageRequest request) {
+        if (request == null || room == null || room.getRoomType() == RoomType.DIRECT) {
+            return;
+        }
+
+        String roomName = (room.getRoomName() != null && !room.getRoomName().isBlank())
+                ? room.getRoomName()
+                : "nhóm";
+        String contentSnippet = (message.getContent() != null && message.getContent().length() > 60)
+                ? message.getContent().substring(0, 60) + "..."
+                : (message.getContent() != null ? message.getContent() : "");
+
+        Set<UUID> targetUserIds = new HashSet<>();
+
+        // 1. Nhắc đến tất cả thành viên trong nhóm (@all)
+        if (request.isMentionAll()) {
+            List<RoomMember> activeMembers = roomMemberRepository
+                    .findByRoomMemberId_RoomIdAndStatus(room.getRoomId(), RoomMemberStatus.ACTIVE);
+            for (RoomMember member : activeMembers) {
+                UUID uid = member.getRoomMemberId().getUserId();
+                if (!uid.equals(sender.getUserId())) {
+                    targetUserIds.add(uid);
+                }
+            }
+            // 2. Nhắc đích danh các thành viên cụ thể
+        } else if (request.getMentionedUserIds() != null && !request.getMentionedUserIds().isEmpty()) {
+            for (UUID uid : request.getMentionedUserIds()) {
+                if (uid != null && !uid.equals(sender.getUserId())) {
+                    targetUserIds.add(uid);
+                }
+            }
+        }
+
+        if (targetUserIds.isEmpty()) {
+            return;
+        }
+
+        List<User> targetUsers = userRepository.findAllById(targetUserIds);
+        for (User targetUser : targetUsers) {
+            try {
+                notificationService.createAndSendNotification(
+                        targetUser,
+                        sender,
+                        NotificationType.MESSAGE_MENTION,
+                        "Nhắc đến bạn trong " + roomName,
+                        sender.getUsername() + " đã nhắc đến bạn: \"" + contentSnippet + "\"",
+                        room.getRoomId(),
+                        message.getMessageId());
+            } catch (Exception e) {
+                log.warn("Lỗi gửi thông báo mention cho user {}: {}", targetUser.getUserId(), e.getMessage());
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import * as notificationApi from '@/api/notification.api'
 import { playNotificationSound } from '@/utils/sound'
+import { useChatStore } from '@/stores/chat'
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -121,6 +122,19 @@ export const useNotificationStore = defineStore('notification', {
       setTimeout(() => {
         this.removeToast(toastId)
       }, 3500)
+
+      // 5. Nếu thông báo liên quan đến yêu cầu tham gia phòng (ROOM_JOIN_REQUEST), đồng bộ ngay cho chatStore
+      if (notif.type === 'ROOM_JOIN_REQUEST' || notif.referenceId) {
+        try {
+          const chatStore = useChatStore()
+          chatStore.incrementPendingVersion()
+          if (notif.referenceId && String(chatStore.activeRoomId) === String(notif.referenceId)) {
+            chatStore.fetchRoomMembers(notif.referenceId)
+          }
+        } catch {
+          // Bỏ qua lỗi nếu store chưa sẵn sàng
+        }
+      }
     },
 
     // Đánh dấu 1 thông báo là đã đọc

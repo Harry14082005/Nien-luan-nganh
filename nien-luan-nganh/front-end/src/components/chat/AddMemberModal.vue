@@ -3,8 +3,11 @@
 // PHẦN 1: IMPORT, PROPS/EMITS & KHỞI TẠO STATE
 // █████████████████████████████████████████████████████████████████████████████
 import { ref, watch, computed, onMounted } from 'vue'
-import { addRoomMembers, getInvitableMembers } from '@/api/room.api'
+import { addRoomMembers, getInvitableMembers, getRoomInviteLink } from '@/api/room.api'
+import { useAuthStore } from '@/stores/auth'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+
+const authStore = useAuthStore()
 
 const props = defineProps({
   show: {
@@ -18,6 +21,10 @@ const props = defineProps({
   existingMembers: {
     type: Array,
     default: () => []
+  },
+  canManage: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -29,6 +36,43 @@ const loadingUsers = ref(false)
 const submitting = ref(false)
 const errorMsg = ref('')
 const selectedUsers = ref([])
+
+// State quản lý link mời nhóm
+const inviteCode = ref('')
+const loadingInviteLink = ref(false)
+const copySuccess = ref(false)
+
+const fullInviteUrl = computed(() => {
+  if (!inviteCode.value) return ''
+  const origin = window.location.origin
+  return `${origin}/join/${inviteCode.value}`
+})
+
+const loadInviteLink = async () => {
+  if (!props.roomId || !props.canManage) return
+  loadingInviteLink.value = true
+  try {
+    const code = await getRoomInviteLink(props.roomId)
+    inviteCode.value = code || ''
+  } catch (err) {
+    console.error('Lỗi lấy link mời nhóm:', err)
+  } finally {
+    loadingInviteLink.value = false
+  }
+}
+
+const handleCopyInviteLink = async () => {
+  if (!fullInviteUrl.value) return
+  try {
+    await navigator.clipboard.writeText(fullInviteUrl.value)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Không thể copy link:', err)
+  }
+}
 
 // █████████████████████████████████████████████████████████████████████████████
 // PHẦN 2: TẢI & LỌC DANH SÁCH BẠN BÈ HỢP LỆ CÓ THỂ MỜI VÀO NHÓM
@@ -74,6 +118,9 @@ watch(
       selectedUsers.value = []
       errorMsg.value = ''
       loadInitialUsers()
+      if (props.canManage) {
+        loadInviteLink()
+      }
     }
   }
 )
@@ -81,6 +128,9 @@ watch(
 onMounted(() => {
   if (props.show) {
     loadInitialUsers()
+    if (props.canManage) {
+      loadInviteLink()
+    }
   }
 })
 
@@ -151,6 +201,34 @@ const handleAddMembers = async () => {
         <button class="close-btn" title="Đóng" @click="emit('close')">
           <font-awesome-icon icon="x" />
         </button>
+      </div>
+
+      <!-- Mục link mời nhóm (Hiển thị ở trên thanh tìm kiếm, chỉ dành cho Admin) -->
+      <div v-if="canManage" class="invite-link-wrapper">
+        <div class="invite-link-label">
+          <font-awesome-icon icon="link" class="link-label-icon" />
+          <span>Mời tham gia qua liên kết:</span>
+        </div>
+        <div class="invite-link-row">
+          <input
+            type="text"
+            class="invite-link-input"
+            readonly
+            :value="loadingInviteLink ? 'Đang tạo liên kết...' : fullInviteUrl"
+            placeholder="Đang tải liên kết..."
+          />
+          <button
+            type="button"
+            class="btn-copy-link"
+            :class="{ copied: copySuccess }"
+            :disabled="loadingInviteLink || !fullInviteUrl"
+            :title="copySuccess ? 'Đã sao chép!' : 'Sao chép liên kết'"
+            @click="handleCopyInviteLink"
+          >
+            <font-awesome-icon :icon="copySuccess ? 'check' : 'copy'" />
+            <span>{{ copySuccess ? 'Đã chép' : 'Sao chép' }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Ô tìm kiếm -->
@@ -369,6 +447,92 @@ const handleAddMembers = async () => {
 .close-btn:hover {
   background: #f1f5f9;
   color: #334155;
+}
+
+/* ==========================================
+   LINK MỜI THAM GIA NHÓM
+   ========================================== */
+.invite-link-wrapper {
+  margin: 14px 20px 4px 20px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.invite-link-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.link-label-icon {
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.invite-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invite-link-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.invite-link-input:focus {
+  border-color: #3b82f6;
+}
+
+.btn-copy-link {
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #2563eb;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-copy-link:hover:not(:disabled) {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.btn-copy-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-copy-link.copied {
+  background-color: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #059669;
 }
 
 .search-box {

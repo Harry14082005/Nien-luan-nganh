@@ -41,5 +41,23 @@ export async function handleNotificationClick(notif) {
     }
 
     await chatStore.selectRoom(notif.roomId)
+
+    // Nếu là thông báo xin gia nhập phòng -> Tự động mở Info Sidebar và tăng pendingVersion
+    if (type === 'ROOM_JOIN_REQUEST') {
+      localStorage.setItem('isChatInfoSidebarOpen', 'true')
+      chatStore.incrementPendingVersion()
+    }
+
+    // Nếu là thông báo được nhắc tên (@mention) -> Cuộn tới đúng tin nhắn
+    if (type === 'MESSAGE_MENTION' && notif.referenceId) {
+      setTimeout(() => {
+        const el = document.getElementById('msg-' + notif.referenceId)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('highlight-msg')
+          setTimeout(() => el.classList.remove('highlight-msg'), 2000)
+        }
+      }, 400)
+    }
   }
 }

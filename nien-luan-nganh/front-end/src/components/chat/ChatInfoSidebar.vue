@@ -145,7 +145,7 @@
               class="room-title"
               :class="{ 'room-title-interactive': isGroupRoom }"
               :title="isGroupRoom ? 'Nhấp đúp hoặc nhấp icon để đổi tên nhóm' : ''"
-              @dblclick="startEditRoomName"
+              @dblclick.stop="startEditRoomName"
             >
               {{ displayRoomName }}
             </h4>
@@ -154,7 +154,7 @@
               type="button"
               class="btn-edit-room-name"
               title="Chỉnh sửa tên nhóm"
-              @click="startEditRoomName"
+              @click.stop="startEditRoomName"
             >
               <font-awesome-icon icon="pen" />
             </button>
@@ -660,23 +660,45 @@
                     v-else
                     class="files-list"
                   >
-                    <a
+                    <div
                       v-for="file in currentTabMediaList.slice(0, 3)"
                       :key="file.id || file.url"
-                      :href="resolveFileUrl(file.url)"
-                      target="_blank"
-                      rel="noopener noreferrer"
                       class="file-item-card"
+                      :class="{ 'file-item-card--clickable': isFilePreviewable(file) }"
+                      @click="isFilePreviewable(file) ? handlePreviewFile(file, $event) : null"
                     >
                       <div class="file-icon-box">
                         <font-awesome-icon icon="file-lines" />
                       </div>
                       <div class="file-meta">
                         <span class="file-name" :title="file.name">{{ file.name }}</span>
-                        <span class="file-size">{{ file.size || 'Đính kèm' }}</span>
+                        <span v-if="file.size && !file.size.toLowerCase().includes('đính kèm')" class="file-size">{{ file.size }}</span>
                       </div>
-                      <font-awesome-icon icon="arrow-down" class="file-download-icon" />
-                    </a>
+                      <div class="file-actions" @click.stop>
+                        <!-- Nút xem trước (chỉ hiện khi xem được) -->
+                        <button
+                          v-if="isFilePreviewable(file)"
+                          type="button"
+                          class="file-action-btn file-action-btn--preview"
+                          :title="['pdf', 'doc', 'docx'].includes(getFileExtension(file)) ? 'Mở trong tab mới' : 'Xem trước tài liệu'"
+                          @click.stop="handlePreviewFile(file, $event)"
+                        >
+                          <font-awesome-icon icon="eye" />
+                        </button>
+                        <!-- Nút tải xuống -->
+                        <a
+                          :href="resolveFileUrl(file.url)"
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="file-action-btn file-action-btn--download"
+                          title="Tải xuống tệp"
+                          @click.stop
+                        >
+                          <font-awesome-icon icon="arrow-down" />
+                        </a>
+                      </div>
+                    </div>
 
                     <div v-if="currentTabMediaList.length === 0" class="empty-media-hint">
                       Chưa có tài liệu nào
@@ -1012,23 +1034,45 @@
             v-else
             class="subview-files-list"
           >
-            <a
+            <div
               v-for="file in currentTabMediaList"
               :key="file.id || file.url"
-              :href="resolveFileUrl(file.url)"
-              target="_blank"
-              rel="noopener noreferrer"
               class="file-item-card"
+              :class="{ 'file-item-card--clickable': isFilePreviewable(file) }"
+              @click="isFilePreviewable(file) ? handlePreviewFile(file, $event) : null"
             >
               <div class="file-icon-box">
                 <font-awesome-icon icon="file-lines" />
               </div>
               <div class="file-meta">
                 <span class="file-name" :title="file.name">{{ file.name }}</span>
-                <span class="file-size">{{ file.size || 'Đính kèm' }}</span>
+                <span v-if="file.size && !file.size.toLowerCase().includes('đính kèm')" class="file-size">{{ file.size }}</span>
               </div>
-              <font-awesome-icon icon="arrow-down" class="file-download-icon" />
-            </a>
+              <div class="file-actions" @click.stop>
+                <!-- Nút xem trước (chỉ hiện khi xem được) -->
+                <button
+                  v-if="isFilePreviewable(file)"
+                  type="button"
+                  class="file-action-btn file-action-btn--preview"
+                  :title="['pdf', 'doc', 'docx'].includes(getFileExtension(file)) ? 'Mở trong tab mới' : 'Xem trước tài liệu'"
+                  @click.stop="handlePreviewFile(file, $event)"
+                >
+                  <font-awesome-icon icon="eye" />
+                </button>
+                <!-- Nút tải xuống -->
+                <a
+                  :href="resolveFileUrl(file.url)"
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="file-action-btn file-action-btn--download"
+                  title="Tải xuống tệp"
+                  @click.stop
+                >
+                  <font-awesome-icon icon="arrow-down" />
+                </a>
+              </div>
+            </div>
 
             <div v-if="currentTabMediaList.length === 0" class="empty-media-hint">
               Chưa có tài liệu nào
@@ -1243,6 +1287,7 @@ import {
   removeRoomMember,
   changeRoomMemberRole,
   toggleRoomApproval,
+  getRoomInviteLink,
 } from '@/api/room.api';
 import {
   getFriends,
@@ -1281,12 +1326,48 @@ const emit = defineEmits([
   'close',
   'toggle-notification',
   'preview-media',
+  'preview-file',
   'add-member',
   'create-reminder',
   'create-poll',
   'jump-to-message',
   'members-updated',
 ]);
+
+// Danh sách định dạng tệp tin hỗ trợ xem trước
+const PREVIEWABLE_EXTS = [
+  'txt', 'log', 'env', 'md', 'markdown',
+  'json', 'csv', 'yaml', 'yml', 'xml',
+  'js', 'ts', 'jsx', 'tsx', 'html', 'css', 'scss', 'vue',
+  'java', 'py', 'c', 'cpp', 'cs', 'php', 'sql', 'sh', 'bat'
+];
+
+const getFileExtension = (file) => {
+  const raw = file?.name || file?.url?.split('/').pop() || '';
+  const parts = String(raw).toLowerCase().split('.');
+  return parts.length > 1 ? parts.pop() : '';
+};
+
+const isFilePreviewable = (file) => {
+  const ext = getFileExtension(file);
+  return PREVIEWABLE_EXTS.includes(ext);
+};
+
+const handlePreviewFile = (file, e) => {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const ext = getFileExtension(file);
+  emit('preview-file', {
+    messageId: file.id,
+    fileName: file.name,
+    storageKey: file.url,
+    fileUrl: resolveFileUrl(file.url),
+    fileSize: file.size,
+    fileExtension: ext,
+  });
+};
 
 // Chế độ xem: 'INFO' (thông tin phòng) | 'MEDIA' (toàn bộ phương tiện) | 'REMINDERS' (quản lý lịch hẹn) | 'POLLS' (quản lý bình chọn) | 'MEMBERS' (quản lý thành viên)
 const currentView = ref('INFO');
@@ -1363,7 +1444,7 @@ watch(
 
 // Phân biệt nhóm hay phòng trực tiếp 1-1
 const isGroupRoom = computed(() => {
-  return props.room?.roomType === 'GROUP';
+  return (props.room?.roomType || chatStore.activeRoom?.roomType) === 'GROUP';
 });
 
 const displayRoomName = computed(() => {
@@ -1639,7 +1720,10 @@ const handleJumpToPoll = (poll) => {
 // =============================================================================
 
 const displayMembers = computed(() => {
-  return Array.isArray(props.members) ? props.members : [];
+  if (Array.isArray(props.members) && props.members.length > 0) {
+    return props.members;
+  }
+  return chatStore.activeRoomMembers || [];
 });
 
 // ID của người tạo nhóm (truy vấn từ room.createdBy)
@@ -1663,6 +1747,7 @@ const isMyRoleAdmin = computed(() => {
   const myId = authStore.user?.userId;
   if (!myId) return false;
   if (roomCreatorId.value && String(roomCreatorId.value) === String(myId)) return true;
+  if (chatStore.canManageActiveRoom) return true;
   const me = displayMembers.value.find((m) => String(m.userId) === String(myId));
   return isMemberAdmin(me);
 });
@@ -1692,20 +1777,31 @@ watch(
 
 const fetchPendingRoomMembers = async () => {
   const rId = props.room?.roomId || chatStore.activeRoomId;
-  if (!rId || !isGroupRoom.value || !isMyRoleAdmin.value || ['1', '2', '3'].includes(String(rId))) {
+  if (!rId || !isGroupRoom.value || ['1', '2', '3'].includes(String(rId))) {
     pendingMembers.value = [];
     return;
   }
   try {
     const list = await getRoomMembers(rId, 'PENDING');
     pendingMembers.value = Array.isArray(list) ? list : [];
+    // Tự động mở rộng mục Thành viên khi có người chờ duyệt để Admin thấy ngay
+    if (pendingMembers.value.length > 0) {
+      isMembersExpanded.value = true;
+    }
   } catch {
     pendingMembers.value = [];
   }
 };
 
 watch(
-  [() => props.room?.roomId, () => chatStore.activeRoomId, () => isMyRoleAdmin.value, () => chatStore.messages.length, () => chatStore.pendingApprovalVersion],
+  [
+    () => props.room?.roomId,
+    () => chatStore.activeRoomId,
+    () => isMyRoleAdmin.value,
+    () => chatStore.messages.length,
+    () => chatStore.pendingApprovalVersion,
+    () => displayMembers.value.length
+  ],
   () => {
     fetchPendingRoomMembers();
   },
@@ -2096,6 +2192,7 @@ const handleToggleBlockFromProfile = async (contact) => {
         selectedMemberProfile.value.isPending = false;
       }
     }
+    await chatStore.fetchRooms();
   } catch (err) {
     console.error('Lỗi thao tác chặn / bỏ chặn:', err);
   }
@@ -2973,9 +3070,41 @@ input:checked + .slider:before {
   transition: all 0.15s ease;
 }
 
+.file-item-card--clickable {
+  cursor: pointer;
+}
+
 .file-item-card:hover {
   background: #eff6ff;
   border-color: #bfdbfe;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.file-action-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.file-action-btn:hover {
+  background: #dbeafe;
+  color: #2563eb;
 }
 
 .file-icon-box {

@@ -11,7 +11,7 @@
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { useChatStore, getReplySnippet, highlightKeyword } from '@/stores/chat';
+import { useChatStore, getReplySnippet, highlightKeyword, escapeHtml } from '@/stores/chat';
 import { resolveFileUrl } from '@/api/storage.api';
 import { translateMessage } from '@/api/message.api';
 import ReminderMessageCard from './ReminderMessageCard.vue';
@@ -142,13 +142,62 @@ const emit = defineEmits([
     'replyMessage',
     'scrollToMessage',
     'preview-media',
-    'suggestPoll'
+    'preview-file',
+    'suggestPoll',
+    'view-user-profile'
 ])
 
 const authStore = useAuthStore();
 const chatStore = useChatStore();
 
 const showMenu = ref(false); // Trạng thái mở menu 3 chấm
+const menuPlacement = ref('bottom'); // Hướng mở menu: 'bottom' (dưới) hoặc 'top' (trên nếu sát mép đáy)
+const isCopied = ref(false); // Trạng thái đã sao chép tin nhắn
+let copyTimer = null;
+
+// Bật/tắt menu tùy chọn 3 chấm và tự động lật ngược lên trên nếu gần mép đáy màn hình
+const toggleMenu = (event) => {
+    if (!showMenu.value) {
+        const btn = event?.currentTarget;
+        if (btn) {
+            const rect = btn.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            // Nếu khoảng trống bên dưới < 230px (bị che bởi thanh chatinput) thì mở ngược lên trên
+            menuPlacement.value = spaceBelow < 230 ? 'top' : 'bottom';
+        }
+        showMenu.value = true;
+    } else {
+        showMenu.value = false;
+    }
+};
+
+// Sao chép nội dung tin nhắn văn bản vào Clipboard
+const handleCopyMessage = async () => {
+    try {
+        const textToCopy = props.Content_Message || '';
+        if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(textToCopy);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = textToCopy;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        isCopied.value = true;
+        if (copyTimer) clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => {
+            isCopied.value = false;
+            showMenu.value = false;
+        }, 800);
+    } catch (err) {
+        console.error('Không thể sao chép tin nhắn:', err);
+        showMenu.value = false;
+    }
+};
 
 const handleSuggestPollClick = () => {
     showMenu.value = false;
@@ -411,9 +460,59 @@ const isVideoContent = computed(() => {
     return props.messageType === 'VIDEO' || /\.(mp4|mov|webm|avi|mkv)$/i.test(key);
 });
 
-const displayFileName = computed(() => {
-    return props.fileName || fileStorageKey.value.split('/').pop() || 'Tài liệu đính kèm';
+const fileExtension = computed(() => {
+    const raw = props.fileName || fileStorageKey.value.split('/').pop() || '';
+    const parts = String(raw).toLowerCase().split('.');
+    return parts.length > 1 ? parts.pop() : '';
 });
+
+const displayFileName = computed(() => {
+    if (props.fileName) return props.fileName;
+    const raw = fileStorageKey.value.split('/').pop() || 'Tài liệu đính kèm';
+    // Nếu tệp cũ có tên là UUID lưu trên hệ thống (ví dụ: 8dc4a681-f37c-4561-8b14-c532cce6c09c.pdf)
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(\.[a-zA-Z0-9]+)?$/i;
+    if (uuidRegex.test(raw)) {
+        const ext = fileExtension.value ? fileExtension.value.toUpperCase() : 'FILE';
+        return `Tài liệu ${ext} (${raw.substring(0, 8)}...)`;
+    }
+    return raw;
+});
+
+// Danh sách định dạng tệp tin hỗ trợ xem trước (loại trừ pdf, docx, doc)
+const PREVIEWABLE_EXTS = [
+    'txt', 'log', 'env', 'md', 'markdown',
+    'json', 'csv', 'yaml', 'yml', 'xml',
+    'js', 'ts', 'jsx', 'tsx', 'html', 'css', 'scss', 'vue',
+    'java', 'py', 'c', 'cpp', 'cs', 'php', 'sql', 'sh', 'bat'
+];
+
+const isFilePreviewable = computed(() => {
+    if (props.messageType !== 'FILE' || isVideoContent.value) return false;
+    return PREVIEWABLE_EXTS.includes(fileExtension.value);
+});
+
+const handlePreviewFile = (e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    emit('preview-file', {
+        messageId: props.messageId,
+        fileName: displayFileName.value,
+        storageKey: fileStorageKey.value,
+        fileUrl: resolveFileUrl(fileStorageKey.value),
+        fileSize: props.fileSize,
+        fileExtension: fileExtension.value,
+        sender: props.User_Send,
+        senderName: props.username,
+        createdAt: props.created_at,
+        rawMessage: props.rawMessage || {
+            messageId: props.messageId,
+            content: props.Content_Message,
+            roomId: chatStore.activeRoomId,
+        }
+    });
+};
 
 // Dữ liệu chi tiết Lịch hẹn tương ứng với tin nhắn REMINDER
 const reminderData = computed(() => {
@@ -431,6 +530,85 @@ const hasKeywordMatch = computed(() => {
     if (!props.searchKeyword || !props.Content_Message) return false;
     return props.Content_Message.toLowerCase().includes(props.searchKeyword.toLowerCase());
 });
+
+// Kiểm tra xem tin nhắn có nhắc tên chính mình (@all hoặc @tên_mình) hay không
+const isMentionedForMe = computed(() => {
+    if (props.variant === 'SendTo' || !props.Content_Message) return false;
+    const lower = props.Content_Message.toLowerCase();
+    if (lower.includes('@all')) return true;
+    const myUname = authStore.user?.username?.toLowerCase();
+    if (myUname && lower.includes(`@${myUname}`)) return true;
+    return false;
+});
+
+// Escape regex đặc biệt
+const escapeRegex = (string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+// Bắt sự kiện khi click vào thẻ nhắc tên (@username) để mở popup xem thông tin thành viên
+const handleOriginalTextClick = (event) => {
+    const tag = event.target?.closest('.mention-tag');
+    if (!tag) return;
+    if (tag.classList.contains('mention-tag--all')) return; // @all không mở hồ sơ cá nhân
+    const userId = tag.dataset.userId;
+    const username = tag.dataset.username;
+    if (userId || username) {
+        emit('view-user-profile', { userId, username });
+    }
+};
+
+// Định dạng tô màu thẻ nhắc tên (@mention và @all) - Không bọc nền, in đậm và bắt trọn vẹn cả họ tên có khoảng trắng
+const renderFormattedContent = (rawText) => {
+    if (!rawText) return '';
+    const escaped = escapeHtml(rawText);
+    const myUname = authStore.user?.username?.toLowerCase();
+    
+    // Lấy danh sách thành viên hiện tại của phòng chat
+    const roomId = chatStore.activeRoomId;
+    const members = (roomId && chatStore.roomMembersByRoom[String(roomId)]) || [];
+    
+    // Thu thập danh sách tên cần match (username và fullName), sắp xếp tên dài trước để không bị ngắt cụm từ
+    const memberNameMap = new Map();
+    const sortedNames = [];
+    
+    members.forEach(m => {
+        if (m.username) {
+            const uName = String(m.username).trim();
+            if (uName && !memberNameMap.has(uName.toLowerCase())) {
+                memberNameMap.set(uName.toLowerCase(), m);
+                sortedNames.push(uName);
+            }
+        }
+        if (m.fullName) {
+            const fName = String(m.fullName).trim();
+            if (fName && !memberNameMap.has(fName.toLowerCase())) {
+                memberNameMap.set(fName.toLowerCase(), m);
+                sortedNames.push(fName);
+            }
+        }
+    });
+    
+    // Sắp xếp tên dài trước tên ngắn (ví dụ "Watanabe Toru" trước "Watanabe")
+    sortedNames.sort((a, b) => b.length - a.length);
+    
+    // Tạo danh sách regex: @all, các tên thành viên trong phòng, và fallback từ đơn
+    const namePatterns = sortedNames.map(n => `@${escapeRegex(escapeHtml(n))}`);
+    const regexPattern = ['@all\\b', ...namePatterns, '@[\\p{L}\\w_-]+'].join('|');
+    const mentionRegex = new RegExp(`(${regexPattern})`, 'gui');
+    
+    return escaped.replace(mentionRegex, (match) => {
+        const isAll = match.toLowerCase() === '@all';
+        const rawMentionName = match.slice(1).trim().toLowerCase();
+        const matchedMember = memberNameMap.get(rawMentionName);
+        const isMe = (myUname && rawMentionName === myUname) || (matchedMember && matchedMember.userId === authStore.user?.userId);
+        
+        const memberUserId = matchedMember ? matchedMember.userId : '';
+        const memberUsername = matchedMember ? (matchedMember.username || matchedMember.fullName || match.slice(1)) : match.slice(1);
+        
+        return `<span class="mention-tag${isAll ? ' mention-tag--all' : ''}${isMe ? ' mention-tag--me' : ''}" data-user-id="${memberUserId}" data-username="${memberUsername}" role="button" title="${isAll ? 'Nhắc cả nhóm' : 'Xem thông tin thành viên'}">${match}</span>`;
+    });
+};
 
 // =============================================================================
 // ████  PHẦN 5: CHỈNH SỬA INLINE, THU HỒI, LỊCH SỬ SỬA & TRẢ LỜI (REPLY)  █████
@@ -696,16 +874,54 @@ onUnmounted(() => {
                     v-else-if="messageType === 'FILE' && !isVideoContent"
                     class="message-file-standalone"
                 >
-                    <a :href="resolveFileUrl(fileStorageKey)" target="_blank" rel="noopener noreferrer" class="message-file-card" @click.stop>
+                    <div
+                        class="message-file-card"
+                        :class="{ 'message-file-card--clickable': isFilePreviewable }"
+                        @click="isFilePreviewable ? handlePreviewFile($event) : null"
+                    >
                         <div class="msg-file-icon-box">
-                            <font-awesome-icon icon="file-lines" />
+                            <font-awesome-icon
+                                v-if="isFilePreviewable && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'sql', 'html', 'css'].includes(fileExtension)"
+                                icon="file-code"
+                            />
+                            <font-awesome-icon
+                                v-else-if="fileExtension === 'csv'"
+                                icon="table"
+                            />
+                            <font-awesome-icon
+                                v-else
+                                icon="file-lines"
+                            />
                         </div>
                         <div class="msg-file-meta">
                             <span class="msg-file-name" :title="displayFileName">{{ displayFileName }}</span>
-                            <span class="msg-file-size">Tệp tải xuống</span>
+                            <span v-if="fileSize && !fileSize.toLowerCase().includes('đính kèm')" class="msg-file-size">{{ fileSize }}</span>
                         </div>
-                        <font-awesome-icon icon="arrow-down" class="msg-file-download-icon" />
-                    </a>
+                        <div class="msg-file-actions" @click.stop>
+                            <!-- Nút Xem trước (nằm kế bên trái nút Tải xuống) -->
+                            <button
+                                v-if="isFilePreviewable"
+                                type="button"
+                                class="msg-file-btn msg-file-btn--preview"
+                                :title="['pdf', 'doc', 'docx'].includes((fileExtension || '').toLowerCase()) ? 'Mở tài liệu trong tab mới' : 'Xem trước tài liệu'"
+                                @click.stop="handlePreviewFile"
+                            >
+                                <font-awesome-icon icon="eye" />
+                            </button>
+                            <!-- Nút Tải xuống -->
+                            <a
+                                :href="resolveFileUrl(fileStorageKey)"
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="msg-file-btn msg-file-btn--download"
+                                title="Tải xuống tệp"
+                                @click.stop
+                            >
+                                <font-awesome-icon icon="arrow-down" />
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 5.5. Tin nhắn dạng Thẻ Lịch hẹn / Nhắc nhở (REMINDER) -->
@@ -730,9 +946,9 @@ onUnmounted(() => {
                     :title="variant === 'SendTo' ? 'Bấm 2 lần để sửa nhanh' : ''"
                 >
                     <!-- [1] Nội dung tin nhắn gốc -->
-                    <div class="message-original-text">
+                    <div class="message-original-text" @click="handleOriginalTextClick">
                         <span v-if="searchKeyword && hasKeywordMatch" v-html="highlightKeyword(Content_Message, searchKeyword)"></span>
-                        <template v-else>{{ Content_Message }}</template>
+                        <span v-else v-html="renderFormattedContent(Content_Message)"></span>
                     </div>
 
                     <!-- [2] Dòng hiệu ứng khi đang chờ AI dịch (không bị khựng) -->
@@ -945,13 +1161,17 @@ onUnmounted(() => {
                     <span
                         class="action-btn more-btn"
                         title="Tùy chọn tin nhắn"
-                        @click.stop="showMenu = !showMenu"
+                        @click.stop="toggleMenu"
                     >
                         <font-awesome-icon icon="ellipsis-vertical"/>
                     </span>
 
                     <!-- Menu xổ xuống -->
-                    <div v-if="showMenu" class="action-dropdown" :class="`action-dropdown--${variant}`" @click.stop>
+                    <div v-if="showMenu" class="action-dropdown" :class="[`action-dropdown--${variant}`, `action-dropdown--${menuPlacement}`]" @click.stop>
+                        <div v-if="messageType === 'TEXT' && !isRevoked" class="dropdown-opt" @click="handleCopyMessage">
+                            <font-awesome-icon icon="copy" class="opt-icon"/>
+                            <span>{{ isCopied ? 'Đã sao chép' : 'Sao chép' }}</span>
+                        </div>
                         <div class="dropdown-opt" @click="handleReplyClick">
                             <font-awesome-icon icon="reply" class="opt-icon"/>
                             <span>Trả lời</span>
@@ -1561,18 +1781,30 @@ onUnmounted(() => {
 
 .action-dropdown {
   position: absolute;
-  top: 100%;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   min-width: 140px;
-  z-index: 50;
+  z-index: 60;
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.action-dropdown--bottom {
+  top: 100%;
+  bottom: auto;
   margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.action-dropdown--top {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 4px;
 }
 
 .action-dropdown--SendTo {
@@ -2009,9 +2241,16 @@ onUnmounted(() => {
     padding: 10px 14px;
     text-decoration: none;
     color: #1e293b;
+    width: 280px;
+    min-width: 280px;
     max-width: 280px;
+    box-sizing: border-box;
     transition: all 0.2s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.message-file-card--clickable {
+    cursor: pointer;
 }
 
 .message-file-card:hover {
@@ -2025,6 +2264,12 @@ onUnmounted(() => {
 .message--SendTo .message-file-card {
     background: rgba(255, 255, 255, 0.15);
     color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.message--SendTo .message-file-card:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.35);
 }
 
 .message:not(.message--SendTo) .message-file-card {
@@ -2073,9 +2318,55 @@ onUnmounted(() => {
     text-overflow: ellipsis;
 }
 
+.message--SendTo .msg-file-name {
+    color: #ffffff;
+}
+
 .msg-file-size {
     font-size: 11px;
     color: #64748b;
+}
+
+.message--SendTo .msg-file-size {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* Nhóm nút Xem trước và Tải xuống */
+.msg-file-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.msg-file-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+}
+
+.message:not(.message--SendTo) .msg-file-btn:hover {
+    background-color: #e2e8f0;
+    color: #2563eb;
+}
+
+.message--SendTo .msg-file-btn {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.message--SendTo .msg-file-btn:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
 }
 
 .msg-file-download-icon {
@@ -2086,7 +2377,6 @@ onUnmounted(() => {
 }
 
 .message-file-card:hover .msg-file-download-icon {
-    /* transform: translateY(2px); */
     color: #2563eb;
 }
 
@@ -2282,4 +2572,36 @@ onUnmounted(() => {
     padding: 8px 0;
 }
 
+/* =========================================================================
+   THẺ NHẮC TÊN (@MENTION & @ALL) VÀ HIGHLIGHT TIN NHẮN ĐƯỢC TAG
+   ========================================================================= */
+:deep(.mention-tag) {
+  display: inline;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: text;
+  transition: all 0.15s ease;
+}
+
+:deep(.mention-tag:hover) {
+  text-decoration: underline;
+}
+
+/* Tin nhắn nhận về (message--default: nền trắng xám) */
+.message--default :deep(.mention-tag) {
+  color: #2563eb;
+}
+
+.message--default :deep(.mention-tag--all) {
+  color: #d97706;
+}
+
+/* Tin nhắn gửi đi của chính mình (message--SendTo: nền xanh dương) */
+.message--SendTo :deep(.mention-tag) {
+  color: #ffffff;
+}
+
+.message--SendTo :deep(.mention-tag--all) {
+  color: #fef08a; /* Vàng tươi nổi bật trên nền xanh */
+}
 </style>

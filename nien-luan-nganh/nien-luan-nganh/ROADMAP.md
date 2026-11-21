@@ -152,14 +152,18 @@
 
 ---
 
-### 🟡 Chặng 12: Tích hợp Trợ lý Trí tuệ Nhân tạo AI (AI Assistant - Groq LLaMA) - *[ĐANG THỰC HIỆN]*
+### 🟡 Chặng 12: Tích hợp Trợ lý Trí tuệ Nhân tạo AI (AI Assistant - Groq LLaMA) - *[ĐẠT 80%]*
 - [x] **Dịch tin nhắn tự động (AI Translation):** 
   - Tích hợp `AiConfig`, `AiService`, `GroqAiServiceImpl` (kết nối LLaMA 3.3 qua Groq API tốc độ cao).
   - Tự động nhận diện ngôn ngữ gốc (`AiPromptBuilder.detectLanguagePrompt`).
   - Dịch sang ngôn ngữ ưa thích (`preferredLanguage`) của người nhận qua `POST /api/v1/messages/{messageId}/translate`.
   - Tự động cache bản dịch vào database `translations` để tiết kiệm chi phí và tối ưu tốc độ.
-- [ ] **Tự động nhận diện Lịch hẹn:** AI đọc nội dung chat (ví dụ: *"Tối mai 7h nhóm mình họp ở quán Highlands nhé"*), tự động bóc tách ngày/giờ/địa điểm và gợi ý nút "Tạo lịch hẹn" liên kết vào `reminder_resource`.
-- [ ] **Tự động nhận diện Biểu quyết:** AI phát hiện thảo luận cần lấy ý kiến (ví dụ: *"Trưa nay ăn cơm hay ăn bún đậu mọi người?"*), tự gợi ý nút "Tạo bình chọn" liên kết vào `poll_resource`.
+- [x] **Tự động nhận diện Biểu quyết (AI Poll Suggestion):**
+  - Tích hợp bộ phát hiện ý định hỏi ý kiến/lựa chọn tiếng Việt trên Frontend (`intent-detection`).
+  - Endpoint `POST /api/v1/rooms/{roomId}/ai/suggestions` (Rate limit 5 lần/phút, eager fetch chống LazyInitializationException).
+  - Prompt thông minh bóc tách câu hỏi và các phương án biểu quyết (`AiPromptBuilder.extractPollPrompt`).
+  - Giao diện chia ngăn trực tiếp trong bong bóng tin nhắn và tùy chọn trong menu `...`, tự động điền dữ liệu vào `CreatePollModal.vue`.
+- [ ] **Tự động nhận diện Lịch hẹn (AI Reminder Suggestion):** AI đọc nội dung chat (ví dụ: *"Tối mai 7h nhóm mình họp ở quán Highlands nhé"*), tự động bóc tách ngày/giờ/địa điểm và gợi ý nút "Tạo lịch hẹn" liên kết vào `reminder_resource`.
 
 ---
 
@@ -170,7 +174,7 @@
 
 ---
 
-### 🟡 Chặng 14: Kết nối Giao diện Frontend (Vue.js 3 + Pinia) & Kiểm thử Hệ thống - *[ĐẠT 85%]*
+### 🟡 Chặng 14: Kết nối Giao diện Frontend (Vue.js 3 + Pinia) & Kiểm thử Hệ thống - *[ĐẠT 95%]*
 - [x] Xây dựng màn hình Đăng ký / Đăng nhập bên Vue.js kết nối vào API Backend (JWT Access & Refresh Token tự động xoay vòng).
 - [x] Xây dựng giao diện Chat cá nhân, Chat nhóm, danh bạ bạn bè.
 - [x] Modal Cuộc trò chuyện mới (`NewChatModal.vue`): Chuẩn hóa chỉ cho phép tìm kiếm và tạo chat trong phạm vi bạn bè (`ACCEPTED`), bảo mật quyền riêng tư chống spam.
@@ -180,7 +184,7 @@
 - [x] Trạng thái Online / Offline / LastSeenAt thời gian thực của bạn bè.
 - [x] Xem và quản lý đa phương tiện (Ảnh / Video / Tệp tin đính kèm) trong Sidebar thông tin phòng chat, tự động sắp xếp theo thứ tự mới nhất (DESC).
 - [x] Đầy đủ các tương tác tin nhắn: Trả lời (Reply), Chỉnh sửa, Thu hồi, Ghim / Bỏ ghim, Thả / Gỡ cảm xúc (Reactions).
-- [x] Widget Bình chọn (Polls) trực tiếp trong khung chat.
-- [ ] Widget Lịch hẹn & Nhắc nhở (Reminders) trên giao diện.
+- [x] Widget Bình chọn (Polls) trực tiếp trong khung chat và quản lý trên Sidebar.
+- [x] Widget Lịch hẹn & Nhắc nhở (Reminders) trực tiếp trong khung chat (`ReminderMessageCard.vue`), RSVP và quản lý trên Sidebar.
 - [ ] Hệ thống Thông báo thời gian thực (Notifications) trên giao diện.
 - [ ] Kiểm thử toàn diện End-to-End (E2E) và hoàn tất báo cáo Niên luận.

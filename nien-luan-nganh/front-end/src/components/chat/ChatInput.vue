@@ -18,6 +18,8 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useChatStore, getReplySnippet } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
+import UserAvatar from '@/components/common/UserAvatar.vue';
+import { resolveFileUrl } from '@/api/storage.api';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -168,6 +170,135 @@ const removeSelectedFile = (index) => {
     selectedFiles.value.splice(index, 1);
 };
 
+// =========================================================================
+// PHẦN 3.5: TÍNH NĂNG NHẮC TÊN THÀNH VIÊN (@MENTION & @ALL)
+// =========================================================================
+const showMentionDropdown = ref(false);
+const mentionQuery = ref('');
+const mentionStartIndex = ref(-1);
+const selectedMentionIndex = ref(0);
+const mentionedUserIds = ref([]);
+const isMentionAll = ref(false);
+
+const isGroupRoom = computed(() => {
+    return chatStore.activeRoom?.roomType === 'GROUP';
+});
+
+const activeMembers = computed(() => {
+    const rId = chatStore.activeRoomId;
+    if (!rId || !isGroupRoom.value) return [];
+    const members = chatStore.roomMembersByRoom[String(rId)] || [];
+    const myId = authStore.user?.userId;
+    return members.filter((m) => {
+        const st = m.status || m.roomMemberStatus || 'ACTIVE';
+        return st === 'ACTIVE' && (!myId || String(m.userId) !== String(myId));
+    });
+});
+
+const mentionCandidates = computed(() => {
+    if (!isGroupRoom.value) return [];
+    const q = mentionQuery.value.trim().toLowerCase();
+    const list = [];
+
+    // Tùy chọn @all (nhắc cả nhóm)
+    if (!q || 'all'.includes(q) || 'tat ca'.includes(q) || 'tất cả'.includes(q)) {
+        list.push({ isAll: true, username: 'all' });
+    }
+
+    for (const m of activeMembers.value) {
+        const u = (m.username || '').toLowerCase();
+        const f = (m.fullName || '').toLowerCase();
+        if (!q || u.includes(q) || f.includes(q)) {
+            list.push(m);
+        }
+    }
+    return list;
+});
+
+const checkMentionTrigger = () => {
+    if (!isGroupRoom.value || !textareaRef.value) {
+        showMentionDropdown.value = false;
+        return;
+    }
+    const cursorPos = textareaRef.value.selectionStart || 0;
+    const textBefore = text.value.slice(0, cursorPos);
+    const atIdx = textBefore.lastIndexOf('@');
+
+    if (atIdx !== -1) {
+        const isStartOrSpace = atIdx === 0 || /\s/.test(textBefore[atIdx - 1]);
+        const query = textBefore.slice(atIdx + 1);
+        if (isStartOrSpace && !/\s/.test(query)) {
+            mentionQuery.value = query;
+            mentionStartIndex.value = atIdx;
+            showMentionDropdown.value = true;
+            selectedMentionIndex.value = 0;
+            return;
+        }
+    }
+    showMentionDropdown.value = false;
+};
+
+const applyMention = (item) => {
+    if (!item) return;
+    const cursorPos = textareaRef.value?.selectionStart || (mentionStartIndex.value + 1 + mentionQuery.value.length);
+    const before = text.value.slice(0, mentionStartIndex.value);
+    const after = text.value.slice(cursorPos);
+    const insertText = item.isAll ? '@all ' : `@${item.username} `;
+    text.value = before + insertText + after;
+
+    if (item.isAll) {
+        isMentionAll.value = true;
+    } else if (item.userId) {
+        if (!mentionedUserIds.value.includes(item.userId)) {
+            mentionedUserIds.value.push(item.userId);
+        }
+    }
+
+    showMentionDropdown.value = false;
+    nextTick(() => {
+        if (textareaRef.value) {
+            textareaRef.value.focus();
+            const newCursor = before.length + insertText.length;
+            textareaRef.value.setSelectionRange(newCursor, newCursor);
+        }
+    });
+};
+
+const handleKeydown = (e) => {
+    if (showMentionDropdown.value && mentionCandidates.value.length > 0) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedMentionIndex.value = (selectedMentionIndex.value + 1) % mentionCandidates.value.length;
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedMentionIndex.value = (selectedMentionIndex.value - 1 + mentionCandidates.value.length) % mentionCandidates.value.length;
+            return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            applyMention(mentionCandidates.value[selectedMentionIndex.value]);
+            return;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            showMentionDropdown.value = false;
+            return;
+        }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+        return;
+    }
+
+    if (e.key === 'Escape') {
+        chatStore.clearReplyingMessage();
+    }
+};
+
 // █████████████████████████████████████████████████████████████████████████████
 // PHẦN 4: SOẠN THẢO (TYPING INDICATOR) & GỬI TIN NHẮN
 // █████████████████████████████████████████████████████████████████████████████
@@ -176,6 +307,8 @@ const removeSelectedFile = (index) => {
  * Xử lý sự kiện khi người dùng gõ phím trong ô nhập tin nhắn
  */
 const handleInput = () => {
+    checkMentionTrigger();
+
     // Lưu lại nháp ngay lập tức cho phòng hiện tại
     if (chatStore.activeRoomId) {
         drafts.value[String(chatStore.activeRoomId)] = text.value;
@@ -235,10 +368,25 @@ const handleSend = async () => {
 
     emit('messageSent');
 
-    // Gửi text trước nếu có (truyền rõ ràng repliedMessageId)
+    // Lọc lại các user được tag còn nằm trong nội dung thực tế
+    const finalMentionAll = content.includes('@all');
+    const finalMentionedUserIds = mentionedUserIds.value.filter((id) => {
+        const u = activeMembers.value.find((m) => String(m.userId) === String(id));
+        return u && content.includes(`@${u.username}`);
+    });
+
+    // Gửi text trước nếu có (truyền rõ ràng repliedMessageId, danh sách mention)
     if (content) {
-        await chatStore.sendChatMessage(content, repliedMessageId);
+        await chatStore.sendChatMessage(content, repliedMessageId, {
+            mentionedUserIds: finalMentionedUserIds,
+            mentionAll: finalMentionAll,
+        });
     }
+
+    // Reset state mention
+    mentionedUserIds.value = [];
+    isMentionAll.value = false;
+    showMentionDropdown.value = false;
 
     // Gửi lần lượt các file/ảnh/video trong hàng đợi
     for (const item of filesToSend) {
@@ -260,6 +408,54 @@ const handleSend = async () => {
 </script>
 <template>
   <div class="chatInput-wrapper">
+    <!-- Popup gợi ý nhắc tên (@mention / @all) nổi lên phía trên, không làm dãn nền thanh input -->
+    <div v-if="showMentionDropdown && mentionCandidates.length > 0" class="mention-dropdown">
+      <div class="mention-dropdown-header">
+        <span class="mention-dropdown-title">Gợi ý thành viên</span>
+        <span class="mention-hint">Nhấn ↑↓ để chọn, Enter để chèn</span>
+      </div>
+      <div class="mention-list">
+        <div
+          v-for="(item, idx) in mentionCandidates"
+          :key="item.isAll ? 'all' : item.userId"
+          class="mention-item"
+          :class="{ 'is-selected': selectedMentionIndex === idx }"
+          @mouseenter="selectedMentionIndex = idx"
+          @mousedown.prevent="applyMention(item)"
+        >
+          <!-- Nếu là @all -->
+          <template v-if="item.isAll">
+            <div class="mention-avatar-all">
+              <font-awesome-icon icon="users" />
+            </div>
+            <div class="mention-info">
+              <div class="mention-name">
+                <strong>@all</strong>
+                <span class="mention-subname">Tất cả mọi người</span>
+              </div>
+              <div class="mention-role-pill">Nhắc cả nhóm</div>
+            </div>
+          </template>
+
+          <!-- Nếu là thành viên cụ thể -->
+          <template v-else>
+            <UserAvatar
+              :name="item.username || 'Thành viên'"
+              :src="resolveFileUrl(item.avatarUrl)"
+              :size="28"
+            />
+            <div class="mention-info">
+              <div class="mention-name">
+                <strong>@{{ item.username }}</strong>
+                <span v-if="item.fullName" class="mention-subname">{{ item.fullName }}</span>
+              </div>
+              <div v-if="item.roomMemberRole === 'ADMIN'" class="mention-admin-pill">Admin</div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <div class="chatInput">
       <!-- Thanh xem trước phản hồi tin nhắn (Reply Banner) -->
       <div v-if="chatStore.replyingMessage" class="reply-banner">
@@ -349,8 +545,7 @@ const handleSend = async () => {
           spellcheck="false" 
           rows="1"
           @input="handleInput"
-          @keydown.enter.exact.prevent="handleSend"
-          @keydown.esc="chatStore.clearReplyingMessage"
+          @keydown="handleKeydown"
       ></textarea>
       <font-awesome-icon 
           id="paperPlane" 
@@ -647,5 +842,141 @@ const handleSend = async () => {
 .pending-tag-remove:hover {
   background: #ef4444;
   color: white;
+}
+
+/* =========================================================================
+   POPUP GỢI Ý NHẮC TÊN (@MENTION / @ALL)
+   ========================================================================= */
+.chatInput-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 20px;
+  right: 20px;
+  z-index: 100;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  max-height: 230px;
+  display: flex;
+  flex-direction: column;
+  animation: slideUpFade 0.15s ease-out;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mention-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 11px;
+}
+
+.mention-dropdown-title {
+  font-weight: 700;
+  color: #475569;
+}
+
+.mention-hint {
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+.mention-list {
+  overflow-y: auto;
+  max-height: 190px;
+  padding: 4px;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.mention-item:hover,
+.mention-item.is-selected {
+  background: #eff6ff;
+}
+
+.mention-avatar-all {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.mention-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mention-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-subname {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.mention-role-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.mention-admin-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 </style>

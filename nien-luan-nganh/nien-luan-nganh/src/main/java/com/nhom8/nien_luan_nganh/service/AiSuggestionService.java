@@ -53,7 +53,8 @@ public class AiSuggestionService {
         roomMemberRepository.findByRoomMemberId_UserIdAndRoomMemberId_RoomId(currentUserId, roomId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_ROOM_MEMBER));
 
-        // 3. Kiểm tra anchor message kèm sender (Eager fetch sender để tránh LazyInitializationException)
+        // 3. Kiểm tra anchor message kèm sender (Eager fetch sender để tránh
+        // LazyInitializationException)
         Message anchor = messageRepository.findByIdWithSender(request.getAnchorMessageId())
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 

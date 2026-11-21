@@ -38,6 +38,33 @@ export const createGroup = (body) => {
   return http.post('/rooms/group', body).then((res) => res.data?.data ?? res.data)
 }
 
+/**
+ * Lấy link/mã mời tham gia nhóm (Dành cho Admin nhóm).
+ * GET /api/v1/rooms/{roomId}/invite-link
+ * @param {string} roomId
+ */
+export const getRoomInviteLink = (roomId) => {
+  return http.get(`/rooms/${roomId}/invite-link`).then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Lấy thông tin tóm tắt của nhóm theo inviteCode.
+ * GET /api/v1/rooms/invite/{inviteCode}
+ * @param {string} inviteCode
+ */
+export const getRoomInviteInfo = (inviteCode) => {
+  return http.get(`/rooms/invite/${inviteCode}`).then((res) => res.data?.data ?? res.data)
+}
+
+/**
+ * Tham gia nhóm qua mã mời.
+ * POST /api/v1/rooms/invite/{inviteCode}/join
+ * @param {string} inviteCode
+ */
+export const joinRoomByInviteCode = (inviteCode) => {
+  return http.post(`/rooms/invite/${inviteCode}/join`).then((res) => res.data?.data ?? res.data)
+}
+
 // =============================================================================
 // ████  PHẦN 2: QUẢN LÝ THÀNH VIÊN NHÓM, PHÊ DUYỆT & RỜI NHÓM (MEMBERS)  ██████
 // =============================================================================
