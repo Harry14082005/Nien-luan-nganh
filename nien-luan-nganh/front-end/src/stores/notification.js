@@ -88,6 +88,12 @@ export const useNotificationStore = defineStore('notification', {
     handleIncomingNotification(notif) {
       if (!notif) return
 
+      const notifId = String(notif.notificationId || '')
+      // Chống đếm trùng: nếu thông báo này đã có trong danh sách thì bỏ qua không đếm lặp
+      if (notifId && this.notifications.some((n) => String(n.notificationId) === notifId)) {
+        return
+      }
+
       // 1. Phát âm thanh chuông "ting" nhẹ nhàng
       playNotificationSound()
 
@@ -95,18 +101,13 @@ export const useNotificationStore = defineStore('notification', {
       this.unreadCount = (this.unreadCount || 0) + 1
 
       // 3. Đưa thông báo mới lên đầu danh sách
-      const notifId = String(notif.notificationId || `temp-${Date.now()}`)
-      const existsIndex = this.notifications.findIndex((n) => String(n.notificationId) === notifId)
-      if (existsIndex >= 0) {
-        this.notifications.splice(existsIndex, 1)
-      }
       this.notifications.unshift({
         ...notif,
         isRead: false,
       })
 
       // 4. Đẩy vào danh sách Toast popup hiển thị 3-4 giây
-      const toastId = notifId
+      const toastId = notifId || `temp-${Date.now()}`
       const toastItem = {
         ...notif,
         id: toastId,

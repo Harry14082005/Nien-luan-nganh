@@ -4,6 +4,10 @@ import { useNotificationStore } from '@/stores/notification'
 // Map lưu trữ các hàm hủy đăng ký (unsubscribe) theo từng phòng chat (key = roomId)
 const roomUnsubscribers = new Map()
 
+// Lưu trữ các hàm hủy đăng ký của kênh toàn cục (presence, notifications)
+let globalUnsubscribers = []
+let isGlobalSubscribed = false
+
 // =============================================================================
 // ██████████  PHẦN 1: NATIVE STOMP WEBSOCKET CLIENT (CORE ENGINE)  ████████████
 // =============================================================================
@@ -297,6 +301,13 @@ class NativeStompClient {
     this.subscriptions.clear()
     this.onConnectedCallbacks = []
     roomUnsubscribers.clear()
+    globalUnsubscribers.forEach((unsub) => {
+      try {
+        unsub()
+      } catch {}
+    })
+    globalUnsubscribers = []
+    isGlobalSubscribed = false
   }
 }
 
@@ -318,32 +329,39 @@ export function initGlobalWebSocket(token) {
   wsService.connect(token, () => {
     const chatStore = useChatStore()
 
-    // 1. Lắng nghe trạng thái Online / Offline & Cập nhật Avatar của bạn bè từ Broker: /topic/users.presence
-    wsService.subscribe('/topic/users.presence', (presenceEvent) => {
-      console.log('📡 [Event Presence/User]:', presenceEvent)
-      if (presenceEvent && presenceEvent.userId) {
-        if (presenceEvent.type === 'USER_AVATAR_UPDATED' && presenceEvent.avatarUrl) {
-          chatStore.updateUserAvatar(presenceEvent.userId, presenceEvent.avatarUrl)
-        } else {
-          const isOnline = presenceEvent.isOnline ?? presenceEvent.online ?? false
-          chatStore.updatePresence(presenceEvent.userId, isOnline, presenceEvent.lastSeenAt)
+    // Chỉ đăng ký các kênh toàn cục 1 lần duy nhất, tránh duplicate listener khi chuyển trang
+    if (!isGlobalSubscribed) {
+      isGlobalSubscribed = true
+
+      // 1. Lắng nghe trạng thái Online / Offline & Cập nhật Avatar của bạn bè từ Broker: /topic/users.presence
+      const unsubPresence = wsService.subscribe('/topic/users.presence', (presenceEvent) => {
+        console.log('📡 [Event Presence/User]:', presenceEvent)
+        if (presenceEvent && presenceEvent.userId) {
+          if (presenceEvent.type === 'USER_AVATAR_UPDATED' && presenceEvent.avatarUrl) {
+            chatStore.updateUserAvatar(presenceEvent.userId, presenceEvent.avatarUrl)
+          } else {
+            const isOnline = presenceEvent.isOnline ?? presenceEvent.online ?? false
+            chatStore.updatePresence(presenceEvent.userId, isOnline, presenceEvent.lastSeenAt)
+          }
         }
-      }
-    })
+      })
 
-    // 2. Lắng nghe thông báo thời gian thực cá nhân (/user/queue/notifications)
-    wsService.subscribe('/user/queue/notifications', (notification) => {
-      console.log('🔔 [WebSocket Notification]:', notification)
-      const notificationStore = useNotificationStore()
-      notificationStore.handleIncomingNotification(notification)
+      // 2. Lắng nghe thông báo thời gian thực cá nhân (/user/queue/notifications)
+      const unsubNotif = wsService.subscribe('/user/queue/notifications', (notification) => {
+        console.log('🔔 [WebSocket Notification]:', notification)
+        const notificationStore = useNotificationStore()
+        notificationStore.handleIncomingNotification(notification)
 
-      if (notification?.notificationType === 'ROOM_JOIN_APPROVED' || notification?.notificationType === 'ROOM_ADDED') {
-        chatStore.fetchRooms()
-      }
-      if (notification?.notificationType === 'ROOM_JOIN_REQUEST') {
-        chatStore.incrementPendingVersion()
-      }
-    })
+        if (notification?.notificationType === 'ROOM_JOIN_APPROVED' || notification?.notificationType === 'ROOM_ADDED') {
+          chatStore.fetchRooms()
+        }
+        if (notification?.notificationType === 'ROOM_JOIN_REQUEST') {
+          chatStore.incrementPendingVersion()
+        }
+      })
+
+      globalUnsubscribers.push(unsubPresence, unsubNotif)
+    }
 
     // 3. Lắng nghe các phòng chat hiện có trong store để cập nhật tin nhắn mới
     if (Array.isArray(chatStore.rooms)) {

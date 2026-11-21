@@ -4,9 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useAuthStore } from '@/stores/auth'
-import { useNotificationStore } from '@/stores/notification'
 import { getImageUrl } from '@/api/user.api'
-import NotificationPopover from '@/components/common/NotificationPopover.vue'
 
 const props = defineProps({
   currentPage: {
@@ -16,8 +14,6 @@ const props = defineProps({
 })
 const auth = useAuthStore()
 const { user: me } = storeToRefs(auth)
-const notificationStore = useNotificationStore()
-const unreadNotifCount = computed(() => notificationStore.unreadCount)
 
 const myInitials = computed(() => {
   const w = (me.value?.username || '').trim().split(/\s+/).filter(Boolean)
@@ -27,10 +23,7 @@ const myInitials = computed(() => {
 
 const myAvatarSrc = computed(() => getImageUrl(me.value?.avatarUrl || ''))
 
-onMounted(() => {
-  auth.initUser()
-  notificationStore.fetchUnreadCount()
-})
+onMounted(() => auth.initUser())
 
 const router = useRouter()
 const route = useRoute()
@@ -46,13 +39,8 @@ const activeTab = computed(() => {
 })
 
 function navigateTo(page, targetPath) {
-  notificationStore.closePanel()
   if (route && route.path === targetPath) return
   router.push(targetPath)
-}
-
-function toggleNotifications() {
-  notificationStore.togglePanel()
 }
 </script>
 
@@ -113,25 +101,6 @@ function toggleNotifications() {
         </div>
       </div>
 
-      <!-- Thông báo / Notifications -->
-      <div
-        class="nav-item"
-        :class="{ active: notificationStore.isPanelOpen }"
-        title="Thông báo"
-        role="button"
-        tabindex="0"
-        @click="toggleNotifications"
-        @keydown.enter="toggleNotifications"
-      >
-        <div class="icon-box">
-          <font-awesome-icon class="nav-icon" icon="bell" />
-          <span v-if="unreadNotifCount > 0" class="notif-badge">
-            {{ unreadNotifCount > 99 ? '99+' : unreadNotifCount }}
-          </span>
-          <span class="dot"></span>
-        </div>
-      </div>
-
       <!-- Cài đặt / Settings -->
       <div
         class="nav-item"
@@ -161,9 +130,6 @@ function toggleNotifications() {
       <img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="myInitials" class="account-avatar-img" />
       <span v-else class="account-avatar-initials">{{ myInitials }}</span>
     </div>
-
-    <!-- Bảng thông báo Drawer / Popover -->
-    <NotificationPopover />
   </div>
 </template>
 
@@ -180,20 +146,21 @@ function toggleNotifications() {
   height: 100%;
   background-color: #0f2547;
   color: #e6edfd;
-  align-self: center;
-  justify-content: space-between;
   align-items: center;
   box-sizing: border-box;
+  padding: 16px 0;
+  user-select: none;
+  flex-shrink: 0;
 }
 
 .logo {
   font-size: 20px;
-  margin-top: 15px;
   color: white;
   padding: 12px;
   background-color: #2f5fd0;
   border-radius: 1rem;
   cursor: pointer;
+  outline: none;
   transition:
     transform 0.15s ease,
     background-color 0.15s ease;
@@ -204,14 +171,20 @@ function toggleNotifications() {
   transform: scale(1.05);
 }
 
+.logo:focus,
+.logo:focus-visible {
+  outline: none;
+}
+
 .navigation {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 32px;
   font-size: 26px;
-  margin-top: 30px;
-  margin-bottom: auto;
+  margin-top: 36px;
   color: #6b81a2;
+  width: 100%;
+  align-items: center;
 }
 
 .nav-item {
@@ -220,6 +193,13 @@ function toggleNotifications() {
   display: flex;
   justify-content: center;
   cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-item:focus,
+.nav-item:focus-visible {
+  outline: none;
 }
 
 .icon-box {
@@ -231,7 +211,13 @@ function toggleNotifications() {
   height: 48px;
   border-radius: 0.7rem;
   color: #6b81a2;
+  outline: none;
   transition: all 0.2s ease-in;
+}
+
+.icon-box:focus,
+.icon-box:focus-visible {
+  outline: none;
 }
 
 .nav-icon {
@@ -250,10 +236,10 @@ function toggleNotifications() {
 }
 
 /* === DẤU GẠCH TRẠNG THÁI ACTIVE === */
-.nav-item.active .icon-box::before {
+.nav-item.active::before {
   content: '';
   position: absolute;
-  left: -13.5px; /* Đẩy vạch ra sát mép trái của thanh sidebar */
+  left: 0; /* Sát mép trái tuyệt đối của thanh sidebar */
   top: 50%;
   transform: translateY(-50%);
   width: 4px;
@@ -280,42 +266,11 @@ function toggleNotifications() {
   display: block;
 }
 
-/* === BADGE THÔNG BÁO CHƯA ĐỌC === */
-.notif-badge {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  background-color: #ef4444;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #0f2547;
-  line-height: 1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-  animation: pulse-badge 2s infinite ease-in-out;
-  z-index: 2;
-}
-
-@keyframes pulse-badge {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-}
-
 .account {
   width: 46px;
   height: 46px;
-  margin-bottom: 15px;
+  margin-top: auto;
+  margin-bottom: 8px;
   background-color: #294a86;
   border-radius: 0.9rem;
   cursor: pointer;
@@ -323,6 +278,7 @@ function toggleNotifications() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  outline: none;
   transition:
     transform 0.15s ease,
     background-color 0.15s ease;
@@ -332,6 +288,11 @@ function toggleNotifications() {
 .account:hover {
   background-color: #3b65b0;
   transform: scale(1.03);
+}
+
+.account:focus,
+.account:focus-visible {
+  outline: none;
 }
 
 .account-avatar-img {

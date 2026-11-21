@@ -1,4 +1,4 @@
-A<script setup>
+<script setup>
 import { computed } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useNotificationStore } from '@/stores/notification'
@@ -56,7 +56,7 @@ const getTypeColorClass = (type) => {
 }
 
 /**
- * Định dạng thời gian tương đối
+ * Định dạng thời gian tương đối theo style Bluespace
  */
 const formatTimeAgo = (dateStr) => {
   if (!dateStr) return ''
@@ -69,10 +69,10 @@ const formatTimeAgo = (dateStr) => {
   const diffDay = Math.floor(diffHour / 24)
 
   if (diffSec < 60) return 'Vừa xong'
-  if (diffMin < 60) return `${diffMin} phút trước`
-  if (diffHour < 24) return `${diffHour} giờ trước`
+  if (diffMin < 60) return `${diffMin} phút`
+  if (diffHour < 24) return `${diffHour} giờ`
   if (diffDay === 1) return 'Hôm qua'
-  if (diffDay < 7) return `${diffDay} ngày trước`
+  if (diffDay < 7) return `${diffDay} ngày`
 
   const d = String(date.getDate()).padStart(2, '0')
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -82,7 +82,6 @@ const formatTimeAgo = (dateStr) => {
 const handleScroll = (e) => {
   const target = e.target
   if (!target) return
-  // Cuộn gần đáy (còn 60px) thì tải thêm trang tiếp theo
   if (target.scrollTop + target.clientHeight >= target.scrollHeight - 60) {
     if (hasMore.value && !loadingMore.value) {
       notificationStore.fetchMore()
@@ -92,281 +91,306 @@ const handleScroll = (e) => {
 </script>
 
 <template>
-  <div>
-    <!-- Backdrop mờ khi click ra ngoài -->
-    <transition name="fade">
-      <div
-        v-if="isOpen"
-        class="notification-backdrop"
-        @click="onClose"
-      ></div>
-    </transition>
+  <Teleport to="body">
+    <div class="notification-popover-wrapper">
+      <!-- Backdrop làm mờ khi click ra ngoài -->
+      <transition name="fade">
+        <div
+          v-if="isOpen"
+          class="notification-backdrop"
+          @click="onClose"
+        ></div>
+      </transition>
 
-    <!-- Drawer Panel thông báo gắn cạnh Navigation Sidebar -->
-    <transition name="panel-slide">
-      <aside
-        v-if="isOpen"
-        class="notification-panel"
-        aria-label="Bảng thông báo"
-      >
-        <!-- Header -->
-        <div class="panel-header">
-          <div class="header-left">
-            <h2 class="header-title">Thông báo</h2>
-            <span v-if="unreadCount > 0" class="unread-pill">{{ unreadCount }} mới</span>
-          </div>
-
-          <div class="header-actions">
-            <button
-              v-if="unreadCount > 0"
-              class="action-btn"
-              title="Đánh dấu tất cả là đã đọc"
-              @click="onMarkAllAsRead"
-            >
-              <font-awesome-icon icon="check-double" />
-              <span>Đã đọc hết</span>
-            </button>
-            <button
-              class="close-btn"
-              title="Đóng bảng thông báo"
-              @click="onClose"
-            >
-              <font-awesome-icon icon="xmark" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Filter tabs -->
-        <div class="panel-tabs">
-          <button
-            class="tab-btn"
-            :class="{ active: currentFilter === 'ALL' }"
-            @click="onSetFilter('ALL')"
-          >
-            Tất cả
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ active: currentFilter === 'UNREAD' }"
-            @click="onSetFilter('UNREAD')"
-          >
-            Chưa đọc
-            <span v-if="unreadCount > 0" class="tab-badge">{{ unreadCount }}</span>
-          </button>
-        </div>
-
-        <!-- Body / List -->
-        <div class="panel-body" @scroll="handleScroll">
-          <!-- Loading state lần đầu -->
-          <div v-if="loading" class="empty-state">
-            <font-awesome-icon icon="spinner" spin class="spinner-icon" />
-            <span>Đang tải thông báo...</span>
-          </div>
-
-          <!-- Empty state -->
-          <div v-else-if="notifications.length === 0" class="empty-state">
-            <div class="empty-icon-box">
-              <font-awesome-icon icon="bell-slash" />
+      <!-- Dropdown Popover thông báo xổ xuống góc trên bên phải (Kiểu A - 360px) -->
+      <transition name="dropdown-slide">
+        <aside
+          v-if="isOpen"
+          class="notification-popover-dropdown"
+          aria-label="Bảng thông báo"
+        >
+          <!-- Header đồng bộ theo namePage của ChatListSidebar -->
+          <div class="namePage">
+            <div class="left-namePage">
+              <span>Thông báo</span>
+              <div v-if="unreadCount > 0" class="NumberOfMessages">
+                {{ unreadCount > 99 ? '99+' : unreadCount }}
+              </div>
             </div>
-            <p class="empty-text">
-              {{ currentFilter === 'UNREAD' ? 'Bạn không có thông báo chưa đọc nào' : 'Bạn chưa có thông báo nào' }}
-            </p>
+
+            <div class="right-action-group">
+              <button
+                v-if="unreadCount > 0"
+                class="btn-action-icon"
+                title="Đánh dấu tất cả là đã đọc"
+                @click="onMarkAllAsRead"
+              >
+                <font-awesome-icon icon="check-double" />
+                <span>Đã đọc hết</span>
+              </button>
+              <button
+                class="btn-close-icon"
+                title="Đóng bảng thông báo"
+                @click="onClose"
+              >
+                <font-awesome-icon icon="xmark" />
+              </button>
+            </div>
           </div>
 
-          <!-- Notification Items -->
-          <div v-else class="notif-list">
-            <div
-              v-for="item in notifications"
-              :key="item.notificationId"
-              class="notif-item"
-              :class="{ unread: !item.isRead }"
-              @click="onItemClick(item)"
+          <!-- Filter tabs đồng bộ theo .filter của ChatListSidebar -->
+          <div class="filter">
+            <button
+              class="SelectedFilter"
+              :class="{ active: currentFilter === 'ALL' }"
+              @click="onSetFilter('ALL')"
             >
-              <!-- Avatar & icon badge -->
-              <div class="item-avatar-box">
-                <img
-                  v-if="item.actorAvatarUrl"
-                  :src="getImageUrl(item.actorAvatarUrl)"
-                  :alt="item.actorUsername || 'User'"
-                  class="item-avatar"
-                />
-                <div v-else class="item-avatar-placeholder">
-                  {{ (item.actorUsername || 'U').charAt(0).toUpperCase() }}
+              Tất cả
+            </button>
+            <button
+              class="SelectedFilter"
+              :class="{ active: currentFilter === 'UNREAD' }"
+              @click="onSetFilter('UNREAD')"
+            >
+              Chưa đọc
+              <span v-if="unreadCount > 0" class="filter-badge">{{ unreadCount }}</span>
+            </button>
+          </div>
+
+          <!-- Danh sách thông báo -->
+          <div class="panel-body" @scroll="handleScroll">
+            <!-- Loading state -->
+            <div v-if="loading" class="empty-state">
+              <font-awesome-icon icon="spinner" spin class="spinner-icon" />
+              <span>Đang tải thông báo...</span>
+            </div>
+
+            <!-- Empty state -->
+            <div v-else-if="notifications.length === 0" class="empty-state">
+              <div class="empty-icon-box">
+                <font-awesome-icon icon="bell-slash" />
+              </div>
+              <p class="empty-text">
+                {{ currentFilter === 'UNREAD' ? 'Bạn không có thông báo chưa đọc nào' : 'Bạn chưa có thông báo nào' }}
+              </p>
+            </div>
+
+            <!-- Danh sách từng thông báo theo chuẩn ChatItem -->
+            <div v-else class="notif-list">
+              <div
+                v-for="item in notifications"
+                :key="item.notificationId"
+                class="notification-item"
+                :class="{ unread: !item.isRead }"
+                @click="onItemClick(item)"
+              >
+                <!-- Avatar & icon badge -->
+                <div class="avatar-wrap">
+                  <img
+                    v-if="item.actorAvatarUrl"
+                    :src="getImageUrl(item.actorAvatarUrl)"
+                    :alt="item.actorUsername || 'User'"
+                    class="item-avatar-img"
+                  />
+                  <div v-else class="item-avatar-initials">
+                    {{ (item.actorUsername || 'U').charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="type-icon-badge" :class="getTypeColorClass(item.notificationType)">
+                    <font-awesome-icon :icon="getTypeIcon(item.notificationType)" />
+                  </div>
                 </div>
-                <div class="item-type-badge" :class="getTypeColorClass(item.notificationType)">
-                  <font-awesome-icon :icon="getTypeIcon(item.notificationType)" />
+
+                <!-- Nội dung thông báo -->
+                <div class="item-content-wrap">
+                  <div class="top-row">
+                    <div class="item-name" :title="item.title || 'Thông báo'">
+                      {{ item.title || 'Thông báo' }}
+                    </div>
+                    <div class="item-time">
+                      {{ formatTimeAgo(item.createdAt) }}
+                    </div>
+                  </div>
+                  <div class="bottom-row">
+                    <p class="item-desc">
+                      {{ item.content }}
+                    </p>
+                    <!-- Chấm tròn xanh chưa đọc (kết hợp với vạch mép trái) -->
+                    <div v-if="!item.isRead" class="unread-dot" title="Chưa đọc"></div>
+                  </div>
                 </div>
               </div>
 
-              <!-- Nội dung -->
-              <div class="item-content">
-                <div class="item-header-row">
-                  <h4 class="item-title">{{ item.title || 'Thông báo' }}</h4>
-                  <span class="item-time">{{ formatTimeAgo(item.createdAt) }}</span>
-                </div>
-                <p class="item-desc">{{ item.content }}</p>
+              <!-- Loading more spinner -->
+              <div v-if="loadingMore" class="loading-more">
+                <font-awesome-icon icon="spinner" spin />
+                <span>Đang tải thêm...</span>
               </div>
-
-              <!-- Chấm xanh chưa đọc -->
-              <div v-if="!item.isRead" class="unread-dot" title="Chưa đọc"></div>
-            </div>
-
-            <!-- Loading more spinner -->
-            <div v-if="loadingMore" class="loading-more">
-              <font-awesome-icon icon="spinner" spin />
-              <span>Đang tải thêm...</span>
             </div>
           </div>
-        </div>
-      </aside>
-    </transition>
-  </div>
+        </aside>
+      </transition>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
-/* Backdrop */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+
+/* Backdrop mờ nhẹ */
 .notification-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.25);
-  z-index: 998;
-  backdrop-filter: blur(2px);
+  background: rgba(15, 37, 71, 0.2);
+  z-index: 999;
+  backdrop-filter: blur(1.5px);
 }
 
-/* Panel Drawer */
-.notification-panel {
+/* Dropdown Popover (Kiểu A: Xổ xuống góc trên bên phải - 360px) */
+.notification-popover-dropdown {
   position: fixed;
-  top: 0;
-  left: 80px; /* Bắt đầu ngay sau NavigationSidebar (80px) */
-  bottom: 0;
-  width: 380px;
-  max-width: calc(100vw - 80px);
-  background: #ffffff;
-  z-index: 999;
+  top: 72px;
+  right: 28px;
+  width: 360px;
+  max-width: calc(100vw - 36px);
+  max-height: min(620px, calc(100vh - 90px));
+  background-color: #ffffff;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
-  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.12);
-  border-right: 1px solid #e2e8f0;
-  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 16px 40px -6px rgba(15, 37, 71, 0.2), 0 0 0 1px rgba(15, 37, 71, 0.08);
+  border-radius: 1.1rem;
+  border: 1px solid #e6eaf2;
+  font-family: 'Quicksand', sans-serif;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* Header */
-.panel-header {
-  padding: 16px 18px 12px;
+/* Header chuẩn namePage từ ChatListSidebar */
+.namePage {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 18px 20px 10px 20px;
+  box-sizing: border-box;
 }
 
-.header-left {
+.left-namePage {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.header-title {
-  margin: 0;
-  font-size: 18px;
+  font-size: 24px;
+  color: #223451;
   font-weight: 700;
-  color: #0f172a;
+  letter-spacing: -0.3px;
 }
 
-.unread-pill {
-  font-size: 11px;
+.NumberOfMessages {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  color: #3b82f6;
+  background-color: #e6edfd;
+  border-radius: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  margin-left: 8px;
 }
 
-.header-actions {
+.right-action-group {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.action-btn {
+.btn-action-icon {
+  background-color: #e6edfd;
+  color: #2563eb;
+  padding: 6px 10px;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Quicksand', sans-serif;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: transparent;
-  border: none;
-  font-size: 12px;
-  font-weight: 600;
-  color: #2563eb;
-  cursor: pointer;
-  padding: 6px 9px;
-  border-radius: 8px;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
 }
 
-.action-btn:hover {
-  background: #eff6ff;
+.btn-action-icon:hover {
+  background-color: #d8e4fd;
+  transform: scale(1.02);
 }
 
-.close-btn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 14px;
+.btn-close-icon {
+  background-color: #f1f5f9;
+  color: #64748b;
+  width: 30px;
+  height: 30px;
+  border-radius: 0.7rem;
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 8px;
-  display: flex;
+  border: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  font-size: 13px;
+  transition: all 0.2s ease;
 }
 
-.close-btn:hover {
-  background: #f1f5f9;
-  color: #334155;
+.btn-close-icon:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
 }
 
-/* Tabs */
-.panel-tabs {
+/* Tabs chuẩn .filter & .SelectedFilter từ ChatListSidebar */
+.filter {
   display: flex;
-  padding: 8px 18px;
   gap: 8px;
-  background: #f8fafc;
-  border-bottom: 1px solid #f1f5f9;
+  font-size: 15px;
+  padding: 4px 20px 12px 20px;
+  border-bottom: 1px solid #e6edfd;
+  font-weight: 700;
+  box-sizing: border-box;
 }
 
-.tab-btn {
+.SelectedFilter {
+  padding: 6px 14px;
+  cursor: pointer;
+  color: #4a5a78;
+  border-radius: 0.8rem;
+  border: none;
+  background: transparent;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.15s;
 }
 
-.tab-btn:hover {
-  color: #1e293b;
-  background: #f1f5f9;
+.SelectedFilter:hover {
+  color: #2f5fd0;
+  background-color: #f3f6fd;
 }
 
-.tab-btn.active {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
+.SelectedFilter.active {
+  border-radius: 0.8rem;
+  background-color: #e6edfd;
+  color: #2f5fd0;
 }
 
-.tab-badge {
+.filter-badge {
   font-size: 10px;
-  background: #ef4444;
+  background-color: #ef4444;
   color: #ffffff;
-  padding: 1px 6px;
-  border-radius: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 /* Body / List */
@@ -374,7 +398,8 @@ const handleScroll = (e) => {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 0;
+  padding: 8px 6px;
+  box-sizing: border-box;
 }
 
 .empty-state {
@@ -383,26 +408,27 @@ const handleScroll = (e) => {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
-  color: #94a3b8;
+  color: #9aa3b5;
   gap: 12px;
   text-align: center;
 }
 
 .empty-icon-box {
-  width: 54px;
-  height: 54px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background-color: #f3f6fd;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: #cbd5e1;
+  font-size: 20px;
+  color: #9aa3b5;
 }
 
 .empty-text {
   margin: 0;
   font-size: 13.5px;
+  font-weight: 600;
   color: #64748b;
 }
 
@@ -411,54 +437,66 @@ const handleScroll = (e) => {
   color: #3b82f6;
 }
 
-/* Notif Item */
+/* Danh sách Item chuẩn ChatItem */
 .notif-list {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
-.notif-item {
+.notification-item {
   position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 12px 18px;
+  padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f8fafc;
   transition: background-color 0.15s ease;
+  border-radius: 0.8rem;
+  box-sizing: border-box;
 }
 
-.notif-item:hover {
-  background-color: #f8fafc;
+.notification-item:hover {
+  background-color: #f3f6fd;
 }
 
-.notif-item.unread {
-  background-color: #f0f7ff;
+.notification-item.unread {
+  background-color: #eaf0fd;
 }
 
-.notif-item.unread:hover {
-  background-color: #e0f0fe;
+/* 1. VẠCH XANH Ở MÉP TRÁI KHI CHƯA ĐỌC */
+.notification-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 4px;
+  background-color: #2563eb;
+  border-radius: 0 4px 4px 0;
 }
 
-.item-avatar-box {
+/* Avatar chuẩn Bluespace */
+.avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  display: inline-flex;
 }
 
-.item-avatar {
+.item-avatar-img {
   width: 42px;
   height: 42px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1.5px solid #e2e8f0;
+  border: 1px solid #e6eaf2;
 }
 
-.item-avatar-placeholder {
+.item-avatar-initials {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -466,18 +504,18 @@ const handleScroll = (e) => {
   font-size: 15px;
 }
 
-.item-type-badge {
+.type-icon-badge {
   position: absolute;
   bottom: -2px;
-  right: -3px;
-  width: 18px;
-  height: 18px;
+  right: -2px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  color: white;
+  font-size: 8.5px;
+  color: #ffffff;
   border: 2px solid #ffffff;
 }
 
@@ -503,57 +541,75 @@ const handleScroll = (e) => {
   background-color: #8b5cf6;
 }
 
-.item-content {
+/* Nội dung thông báo */
+.item-content-wrap {
   flex: 1;
   min-width: 0;
 }
 
-.item-header-row {
+.top-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 2px;
+  gap: 8px;
 }
 
-.item-title {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
+.item-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #1c2540;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-item.unread .item-name {
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .item-time {
-  font-size: 11px;
-  color: #94a3b8;
-  font-weight: 500;
-  white-space: nowrap;
   flex-shrink: 0;
+  font-size: 12px;
+  color: #9aa3b5;
+  font-weight: 500;
+}
+
+.bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 3px;
 }
 
 .item-desc {
   margin: 0;
   font-size: 12.5px;
-  color: #475569;
-  line-height: 1.4;
+  color: #8f98ab;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  flex: 1;
 }
 
+.notification-item.unread .item-desc {
+  color: #4a5470;
+  font-weight: 500;
+}
+
+/* 2. CHẤM TRÒN XANH Ở BÊN PHẢI KHI CHƯA ĐỌC */
 .unread-dot {
+  flex-shrink: 0;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: #2563eb;
-  flex-shrink: 0;
-  align-self: center;
-  margin-left: 4px;
+  margin-left: 6px;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 .loading-more {
@@ -576,13 +632,13 @@ const handleScroll = (e) => {
   opacity: 0;
 }
 
-.panel-slide-enter-active,
-.panel-slide-leave-active {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+.dropdown-slide-enter-active,
+.dropdown-slide-leave-active {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.panel-slide-enter-from,
-.panel-slide-leave-to {
-  transform: translateX(-20px);
+.dropdown-slide-enter-from,
+.dropdown-slide-leave-to {
   opacity: 0;
+  transform: translateY(-10px) scale(0.97);
 }
 </style>

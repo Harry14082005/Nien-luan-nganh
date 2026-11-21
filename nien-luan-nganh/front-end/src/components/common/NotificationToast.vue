@@ -87,6 +87,8 @@ const onCloseToast = (e, toastId) => {
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap');
+
 .toast-container {
   position: fixed;
   top: 20px;
@@ -98,6 +100,7 @@ const onCloseToast = (e, toastId) => {
   pointer-events: none;
   max-width: 360px;
   width: calc(100vw - 40px);
+  font-family: 'Quicksand', sans-serif;
 }
 
 .toast-card {
@@ -105,19 +108,19 @@ const onCloseToast = (e, toastId) => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 14px;
-  background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
-  border: 1px solid #e2e8f0;
+  padding: 12px 16px;
+  background-color: #ffffff;
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 25px -5px rgba(15, 37, 71, 0.15), 0 8px 10px -6px rgba(15, 37, 71, 0.08);
+  border: 1px solid #e6eaf2;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(8px);
+  box-sizing: border-box;
 }
 
 .toast-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px -5px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 14px 28px -5px rgba(15, 37, 71, 0.2);
   border-color: #cbd5e1;
 }
 
@@ -131,14 +134,14 @@ const onCloseToast = (e, toastId) => {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1.5px solid #e2e8f0;
+  border: 1px solid #e6eaf2;
 }
 
 .toast-avatar-placeholder {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -150,14 +153,14 @@ const onCloseToast = (e, toastId) => {
 .toast-icon-badge {
   position: absolute;
   bottom: -2px;
-  right: -3px;
-  width: 18px;
-  height: 18px;
+  right: -2px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 8.5px;
   color: white;
   border: 2px solid #ffffff;
 }
@@ -198,9 +201,9 @@ const onCloseToast = (e, toastId) => {
 }
 
 .toast-title {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1c2540;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -209,11 +212,11 @@ const onCloseToast = (e, toastId) => {
 .toast-close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #9aa3b5;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 3px 6px;
   font-size: 12px;
-  border-radius: 4px;
+  border-radius: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,15 +224,15 @@ const onCloseToast = (e, toastId) => {
 }
 
 .toast-close-btn:hover {
-  color: #475569;
-  background: #f1f5f9;
+  color: #2563eb;
+  background-color: #e6edfd;
 }
 
 .toast-body {
   margin: 0;
   font-size: 12.5px;
-  color: #475569;
-  line-height: 1.4;
+  color: #4a5470;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -240,8 +243,8 @@ const onCloseToast = (e, toastId) => {
 .toast-time {
   display: inline-block;
   margin-top: 4px;
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 11.5px;
+  color: #9aa3b5;
   font-weight: 500;
 }
 

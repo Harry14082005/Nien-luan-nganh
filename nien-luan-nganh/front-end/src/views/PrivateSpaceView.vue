@@ -11,9 +11,18 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { getAllMyReminders, isReminderEnded } from '@/api/reminder.api'
 import { getAllMyPolls } from '@/api/poll.api'
+import { useNotificationStore } from '@/stores/notification'
+import NotificationPopover from '@/components/common/NotificationPopover.vue'
 import { resolveFileUrl } from '@/api/storage.api'
 
 const chatStore = useChatStore()
+const notificationStore = useNotificationStore()
+const unreadNotifCount = computed(() => notificationStore.unreadCount)
+
+const toggleNotifications = () => {
+  notificationStore.togglePanel()
+}
+
 const formattedTotalUnreadCount = computed(() =>
   String(chatStore.totalUnreadCount).padStart(2, '0'),
 )
@@ -21,7 +30,14 @@ const formattedTotalUnreadCount = computed(() =>
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Tab khám phá: 'overview' | 'calendar' | 'polls'
+const myInitials = computed(() => {
+  const w = (authStore.user?.username || '').trim().split(/\s+/).filter(Boolean)
+  if (!w.length) return 'U'
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[w.length - 1][0]).toUpperCase()
+})
+
+// Tab khám phá: 'overview' | 'calendar'
+// 'polls' bị ẩn tạm thời (chức năng tích hợp sau)
 const activeSubTab = ref('overview')
 
 const userProfile = ref({ displayName: '' })
@@ -192,6 +208,7 @@ onMounted(async () => {
   await loadName()
   loadTodayReminders()
   loadOpenPolls()
+  notificationStore.fetchUnreadCount()
 })
 </script>
 
@@ -305,12 +322,29 @@ onMounted(async () => {
       <!-- Topbar -->
       <div class="topbar">
         <div class="topbar-actions">
-          <button class="icon-btn" title="Thông báo">
+          <button class="icon-btn" title="Tìm kiếm">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+
+          <button
+            class="icon-btn notif-icon-btn"
+            title="Thông báo"
+            :class="{ active: notificationStore.isPanelOpen }"
+            @click="toggleNotifications"
+          >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
+            <span v-if="unreadNotifCount > 0" class="topbar-notif-badge">
+              {{ unreadNotifCount > 99 ? '99+' : unreadNotifCount }}
+            </span>
           </button>
+
+          <div class="user-badge" title="Tài khoản">{{ myInitials }}</div>
         </div>
       </div>
 
@@ -475,6 +509,9 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <!-- Bảng thông báo xổ xuống góc trên bên phải (Kiểu A) -->
+  <NotificationPopover />
 </template>
 
 <style scoped>
@@ -669,6 +706,64 @@ onMounted(async () => {
 .icon-btn:hover {
   background-color: #f1f5f9;
   color: #1e293b;
+}
+
+.notif-icon-btn {
+  position: relative;
+}
+
+.notif-icon-btn.active {
+  background-color: #e6edfd;
+  color: #2563eb;
+}
+
+.topbar-notif-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  animation: pulse-badge 2s infinite ease-in-out;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background-color: #4b88f6;
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.user-badge:hover {
+  transform: scale(1.05);
 }
 
 /* Scroll Area */

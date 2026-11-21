@@ -375,14 +375,7 @@
                         >(Bạn)</span>
                       </span>
                       <span
-                        v-if="isRoomCreator(member)"
-                        class="role-badge role-badge--creator"
-                      >
-                        <font-awesome-icon icon="crown" class="badge-icon" />
-                        <span>Người tạo nhóm</span>
-                      </span>
-                      <span
-                        v-else-if="isMemberAdmin(member)"
+                        v-if="isMemberAdmin(member)"
                         class="role-badge role-badge--admin"
                       >
                         <font-awesome-icon icon="user-shield" class="badge-icon" />
@@ -960,7 +953,118 @@
         </div>
       </div>
 
-      <!-- VIEW 4: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
+      <!-- VIEW 4: SUB-VIEW QUẢN LÝ TẤT CẢ THÀNH VIÊN -->
+      <div v-else-if="currentView === 'MEMBERS'" class="subview-media-content">
+        <!-- Ô tìm kiếm thành viên -->
+        <div class="member-subview-search-wrap">
+          <div class="member-search-input-box">
+            <font-awesome-icon icon="magnifying-glass" class="search-box-icon" />
+            <input
+              v-model="memberSearchQuery"
+              type="text"
+              class="member-search-input"
+              placeholder="Tìm kiếm thành viên..."
+            />
+            <button
+              v-if="memberSearchQuery"
+              type="button"
+              class="btn-clear-search"
+              @click="memberSearchQuery = ''"
+            >
+              <font-awesome-icon icon="xmark" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Khối người chờ duyệt (nếu có và là admin) -->
+        <div v-if="isMyRoleAdmin && pendingMembers.length > 0" class="subview-pending-box">
+          <div class="pending-box-header">
+            <span class="pending-header-title">CHỜ PHÊ DUYỆT ({{ pendingMembers.length }})</span>
+          </div>
+          <div class="pending-list">
+            <div
+              v-for="p in pendingMembers"
+              :key="p.userId"
+              class="pending-user-card"
+            >
+              <UserAvatar
+                :name="p.username || 'U'"
+                :src="resolveFileUrl(p.avatarUrl)"
+                :size="34"
+              />
+              <div class="pending-info">
+                <span class="pending-name">{{ p.username }}</span>
+                <span class="pending-hint">Chờ phê duyệt</span>
+              </div>
+              <div class="pending-actions">
+                <button
+                  type="button"
+                  class="btn-approve-icon"
+                  title="Duyệt vào nhóm"
+                  @click="handleApproveMember(p.userId)"
+                >
+                  <font-awesome-icon icon="check" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-reject-icon"
+                  title="Từ chối"
+                  @click="handleRejectMember(p.userId)"
+                >
+                  <font-awesome-icon icon="xmark" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danh sách tất cả thành viên (sau khi lọc/tìm kiếm) -->
+        <div class="member-subview-scroll">
+          <div
+            v-for="member in filteredMembersList"
+            :key="member.userId"
+            class="member-item member-item--clickable"
+            title="Bấm để xem thông tin & tùy chọn"
+            @click="openMemberProfile(member)"
+          >
+            <UserAvatar
+              :name="member.username || 'Thành viên'"
+              :src="resolveFileUrl(member.avatarUrl)"
+              :size="36"
+            />
+            <div class="member-info">
+              <span class="member-name">
+                {{ member.username || 'Thành viên' }}
+                <span
+                  v-if="authStore.user?.userId && String(member.userId) === String(authStore.user.userId)"
+                  class="me-tag"
+                >(Bạn)</span>
+              </span>
+              <span
+                v-if="isMemberAdmin(member)"
+                class="role-badge role-badge--admin"
+              >
+                <font-awesome-icon icon="user-shield" class="badge-icon" />
+                <span>Quản trị viên</span>
+              </span>
+            </div>
+            <button
+              type="button"
+              class="btn-member-more"
+              title="Tùy chọn"
+              @click.stop="openMemberProfile(member)"
+            >
+              <font-awesome-icon icon="ellipsis-vertical" />
+            </button>
+          </div>
+
+          <div v-if="filteredMembersList.length === 0" class="empty-members-hint">
+            Không tìm thấy thành viên nào phù hợp
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 5: SUB-VIEW GALLERY TOÀN BỘ FILE PHƯƠNG TIỆN (CHUẨN TELEGRAM / ZALO PC) -->
       <div v-else class="subview-media-content">
         <!-- THANH TAB SEGMENTED CONTROL TO RÕ TRÊN ĐẦU SUBVIEW -->
         <div class="subview-tabs-bar">
@@ -1116,8 +1220,8 @@
                   <span>Xem trong danh bạ</span>
                 </button>
 
-                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy và không áp dụng lên Người tạo nhóm) -->
-                <template v-if="isGroupRoom && isMyRoleAdmin && !selectedMemberProfile.isCreator">
+                <!-- 1.5. Tùy chọn Quản trị viên nhóm (Chỉ Admin thấy và không áp dụng lên chính mình) -->
+                <template v-if="isGroupRoom && isMyRoleAdmin && !selectedMemberProfile.isMe">
                   <button
                     type="button"
                     class="menu-dropdown-item item-primary"
@@ -1752,10 +1856,10 @@ const isMyRoleAdmin = computed(() => {
   return isMemberAdmin(me);
 });
 
-// Sắp xếp danh sách thành viên: Người tạo nhóm -> Quản trị viên -> Thành viên thường
+// Sắp xếp danh sách thành viên: Quản trị viên -> Thành viên thường
 const sortedDisplayMembers = computed(() => {
   return [...displayMembers.value].sort((a, b) => {
-    const score = (m) => (isRoomCreator(m) ? 3 : isMemberAdmin(m) ? 2 : 1);
+    const score = (m) => (isMemberAdmin(m) ? 2 : 1);
     return score(b) - score(a);
   });
 });
@@ -2034,13 +2138,11 @@ const openMemberProfile = (member) => {
   selectedMemberProfile.value = {
     id: targetId,
     name: member.username || 'Thành viên',
-    role: isCreator
-      ? 'Người tạo nhóm'
-      : isAdmin
-        ? 'Quản trị viên'
-        : isMe
-          ? 'Bạn (Thành viên)'
-          : 'Thành viên',
+    role: isAdmin
+      ? 'Quản trị viên'
+      : isMe
+        ? 'Bạn (Thành viên)'
+        : 'Thành viên',
     avatar: resolveFileUrl(member.avatarUrl || member.avatar || ''),
     online: member.status === 'ACTIVE' || member.isOnline || false,
     statusText: member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Offline',
@@ -4323,5 +4425,176 @@ input:checked + .slider:before {
 
 .poll-subview-card:hover .poll-chevron-right {
   transform: translateX(3px);
+}
+
+/* SUB-VIEW QUẢN LÝ THÀNH VIÊN */
+.member-subview-search-wrap {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e6eaf2;
+  background-color: #ffffff;
+}
+
+.member-search-input-box {
+  display: flex;
+  align-items: center;
+  background-color: #f3f6fd;
+  border-radius: 0.7rem;
+  padding: 6px 12px;
+  gap: 8px;
+}
+
+.search-box-icon {
+  color: #9aa3b5;
+  font-size: 13px;
+}
+
+.member-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1e293b;
+  outline: none;
+}
+
+.btn-clear-search {
+  border: none;
+  background: transparent;
+  color: #9aa3b5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+.member-subview-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subview-pending-box {
+  margin: 12px 12px 4px 12px;
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+}
+
+.pending-box-header {
+  margin-bottom: 8px;
+}
+
+.pending-header-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pending-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.pending-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-approve-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-approve-icon:hover {
+  background-color: #1d4ed8;
+  transform: scale(1.05);
+}
+
+.btn-reject-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 0.5rem;
+  border: 1px solid #fecdd3;
+  background-color: #fff1f2;
+  color: #e11d48;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-reject-icon:hover {
+  background-color: #ffe4e6;
+  transform: scale(1.05);
+}
+
+.btn-member-more {
+  border: none;
+  background: transparent;
+  color: #9aa3b5;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.btn-member-more:hover {
+  background-color: #e6edfd;
+  color: #2563eb;
+}
+
+.empty-members-hint {
+  padding: 40px 16px;
+  text-align: center;
+  color: #9aa3b5;
+  font-size: 13px;
 }
 </style>
